@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img:"
+    />
+    <title>MeWe Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside id="accounts" class="accounts">
+      <ul id="account-list" class="account-list"></ul>
+      <button id="add-account" class="account-btn add" title="Agregar cuenta">+</button>
+    </aside>
+
+    <main class="main">
+      <header class="app-header">
+        <button id="nav-back" class="btn" title="Volver" aria-label="Volver" hidden>←</button>
+        <h1 id="app-title">Sin cuenta seleccionada</h1>
+        <div id="view-tabs" class="segmented" role="tablist" aria-label="Sección" hidden>
+          <button data-view="feed" role="tab">Feed</button>
+          <button data-view="chat" role="tab">Chats</button>
+        </div>
+        <!-- controles propios de la vista activa (ej. filtro del feed) -->
+        <div id="view-toolbar" class="view-toolbar"></div>
+        <div class="header-actions">
+          <button id="refresh-view" class="btn" hidden>Actualizar</button>
+          <button id="relogin-account" class="btn" hidden>Reconectar</button>
+          <button id="remove-account" class="btn danger" hidden>Quitar</button>
+        </div>
+      </header>
+      <div id="app-error"></div>
+
+      <!-- las vistas (feed, chats, …) crean su DOM acá: ver router.js -->
+      <div id="view-host" class="view-host"></div>
+    </main>
+
+    <dialog id="login-modal" class="modal">
+      <form id="login-form" method="dialog">
+        <h2>Agregar cuenta de MeWe</h2>
+        <label>
+          Email o teléfono
+          <input name="email" type="text" autocomplete="username" required />
+        </label>
+        <label>
+          Contraseña
+          <input name="password" type="password" autocomplete="current-password" />
+        </label>
+        <p id="login-status" class="status"></p>
+        <div id="login-error"></div>
+        <div class="modal-actions">
+          <button type="button" id="login-cancel" class="btn">Cancelar</button>
+          <button type="submit" id="login-submit" class="btn primary">Iniciar sesión</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

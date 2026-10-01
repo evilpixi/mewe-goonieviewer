@@ -1,0 +1,15 @@
+{
+  "name": "meweviewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cliente compacto multi-cuenta para MeWe",
+  "type": "module",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "node scripts/start.js",
+    "debug": "node scripts/start.js --mewe-debug"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1"
+  }
+}

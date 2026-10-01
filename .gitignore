@@ -1,0 +1,33 @@
+# Dependencias
+node_modules/
+
+# Builds y paquetes de Electron (electron-builder / electron-forge / electron-packager)
+dist/
+out/
+release/
+build/
+*.asar
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.snap
+*.blockmap
+latest*.yml
+
+# Respuestas crudas de la API (npm run debug): contienen chats y datos personales
+mewe-debug/
+
+# Logs y entorno
+*.log
+npm-debug.log*
+.env
+.env.*
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
