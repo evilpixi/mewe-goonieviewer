@@ -219,6 +219,196 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
   };
 }
 
+// --- Perfiles ---
+
+const PROFILE_FIELDS = [
+  ['Ciudad', 'currentCity'],
+  ['Trabajo', 'job'],
+  ['Empresa', 'company'],
+  ['Universidad', 'college'],
+  ['Secundaria', 'highSchool'],
+  ['Relación', 'relationshipStatus'],
+  ['Intereses', 'interests'],
+];
+
+// GET /following/{id}?details=true →
+//   { user, profile: { text, … }, counters, following, follower, followRequestSent?, followRequestReceived? }
+// El estado de seguimiento viene al lado de `user`, no adentro (se aceptan las dos formas).
+export function normalizeUserProfile(data, myUserId) {
+  const user = { ...(data?.user ?? data ?? {}) };
+  for (const key of ['following', 'follower', 'followRequestSent', 'followRequestReceived']) user[key] ??= data?.[key];
+  const profile = user.profile ?? data?.profile ?? {};
+  const id = user.id ?? user.userId ?? null;
+  const counters = user.counters ?? data?.counters ?? {};
+  const isMe = Boolean(id) && id === myUserId;
+  const following = Boolean(user.following ?? user.isFollowing);
+  const isPublic = (user.public ?? user.isPublic ?? profile.public) !== false;
+  return {
+    ...normalizeUser(user),
+    handle: user.publicLinkId ?? null,
+    cover: resolveImageUrl(user._links?.cover?.href ?? user._links?.coverPhoto?.href),
+    bio: profile.text ?? profile.description ?? user.description ?? '',
+    info: PROFILE_FIELDS.map(([label, key]) => [label, profile[key] ?? user[key]]).filter(([, value]) => value),
+    counters: {
+      followers: counters.followers ?? null,
+      following: counters.following ?? counters.followed ?? null,
+      posts: counters.posts ?? null,
+    },
+    isMe,
+    isPublic,
+    following,
+    follower: Boolean(user.follower ?? user.isFollower),
+    // ids de solicitud pendiente (o true si MeWe sólo manda un booleano)
+    requestSent: user.followRequestSent || null,
+    requestReceived: user.followRequestReceived || null,
+    canSeeContent: isMe || isPublic || following,
+  };
+}
+
+// Solicitudes de seguimiento recibidas: [{ requestId, user }]
+export function normalizeFollowRequests(data) {
+  const list = data?.requests ?? data?.feed ?? data?.users ?? data?.list ?? (Array.isArray(data) ? data : []);
+  return list.map((item) => {
+    const user = item.user ?? item.follower ?? item.requester ?? item;
+    return {
+      requestId: item.requestId ?? user.followRequestReceived ?? item.id ?? null,
+      user: { ...normalizeUser(user), handle: user.publicLinkId ?? null },
+    };
+  });
+}
+
+// Fotos de un perfil o grupo (…/mediastream): { images, nextPage }
+export function normalizeMediaStream(data) {
+  const list = data?.feed ?? data?.medias ?? data?.items ?? (Array.isArray(data) ? data : []);
+  const images = list.flatMap((item) => {
+    const found = extractImages(item);
+    if (found.length) return found;
+    const media = item.media ?? item;
+    return [image(media._links?.img?.href ?? media._links?.self?.href, media.size)];
+  });
+  return { images: uniqueImages(images), nextPage: data?._links?.nextPage?.href ?? null };
+}
+
+// --- Grupos ---
+
+// GET /groups: los confirmados y, aparte, las invitaciones sin aceptar
+export function normalizeGroups(data) {
+  const confirmed = data?.confirmedGroups ?? data?.groups ?? (Array.isArray(data) ? data : []);
+  const invited = data?.unconfirmedGroups ?? data?.invitedGroups ?? [];
+  return [
+    ...confirmed.map((g) => normalizeGroup({ isMember: g.isConfirmed ?? true, ...g })),
+    ...invited.map((g) => normalizeGroup({ isMember: false, isInvited: true, ...g })),
+  ];
+}
+
+export function normalizeGroup(data) {
+  const g = data?.group ?? data ?? {};
+  const isMember = Boolean(g.isMember ?? g.isConfirmed ?? g.role);
+  const isInvited = !isMember && Boolean(g.isInvited ?? g.invitedBy ?? g._links?.inviteConfirm);
+  return {
+    id: g.id ?? g._id ?? null,
+    name: g.name ?? 'Grupo',
+    avatar: groupAvatar(g),
+    cover: resolveImageUrl(g._links?.coverPhoto?.href ?? g._links?.cover?.href),
+    description: g.descriptionPlain || g.description || '',
+    membersCount: g.membersCount ?? null,
+    isPublic: Boolean(g.isPublic),
+    publicUrlId: g.publicUrlId ?? null,
+    role: roleName(g.role),
+    ownerId: g.ownerId ?? null,
+    adminIds: g.adminIds ?? [],
+    isMember,
+    isInvited,
+    alreadyApplied: Boolean(g.alreadyApplied),
+    newPosts: g.newPosts ?? 0,
+  };
+}
+
+// GET /group/{id}/members: { members: [{ user?, role, confirmed }] }
+export function normalizeMembers(data) {
+  const list = data?.members ?? data?.results ?? (Array.isArray(data) ? data : []);
+  return list.map((m) => {
+    const user = m.user ?? m;
+    const role = roleName(m.role ?? m.groupRole ?? user.groupRole ?? user.role);
+    return {
+      ...normalizeUser(user),
+      handle: user.publicLinkId ?? null,
+      role,
+      isAdmin: /owner|admin/i.test(role ?? ''),
+      pending: m.confirmed === false || Boolean(m.invitation),
+    };
+  });
+}
+
+// Contactos que se pueden invitar a un grupo: { members: [{ user, online }] }
+export function normalizeContacts(data) {
+  const list = data?.members ?? data?.contacts ?? data?.results ?? data?.users ?? (Array.isArray(data) ? data : []);
+  return list.map((item) => {
+    const user = item.user ?? item;
+    return { ...normalizeUser(user), handle: user.publicLinkId ?? null };
+  });
+}
+
+export function normalizeEvents(data) {
+  const list = data?.events ?? data?.feed ?? data?.items ?? (Array.isArray(data) ? data : []);
+  return list.map((item) => {
+    const e = item.event ?? item;
+    return {
+      id: e.id ?? e._id ?? null,
+      name: e.name ?? 'Evento',
+      description: e.description ?? '',
+      location: e.location ?? '',
+      startsAt: toMillis(e.nextOccurrenceDate ?? e.startDate),
+      endsAt: toMillis(e.endDate),
+      allDay: Boolean(e.allDay),
+      groupId: e.groupId ?? null,
+      participation: e.participationType ?? null,
+      hasChat: e.chatMode !== 'off' && e.chatMode !== 'disabled',
+    };
+  });
+}
+
+function roleName(role) {
+  if (!role) return null;
+  return typeof role === 'string' ? role : (role.name ?? null);
+}
+
+// --- Notificaciones ---
+
+// Feed de notificaciones. El texto se arma en la UI a partir de `type` (ver notificationsView.js).
+export function normalizeNotifications(data) {
+  return {
+    notifications: (data?.feed ?? []).map(normalizeNotification),
+    unseenCount: data?.unseenCount ?? 0,
+    nextPage: data?._links?.nextPage?.href ?? null,
+  };
+}
+
+function normalizeNotification(n) {
+  const subject = n.commentData ?? n.chatMessageData ?? n.postData ?? {};
+  const inGroup = Boolean(n.group) && (n.system === 'group' || n.system === 'pending');
+  return {
+    id: n.id,
+    type: n.notificationType ?? 'generic',
+    system: n.system ?? null,
+    unread: n.visited === false,
+    createdAt: toMillis(n.updatedAt ?? n.createdAt ?? n.occuredAt ?? n.date),
+    users: (n.actingUsers ?? []).map((u) => ({ ...normalizeUser(u), handle: u.publicLinkId ?? null })),
+    usersCount: n.actingUsersCount ?? n.actingUsers?.length ?? 0,
+    inGroup,
+    group: n.group ? { id: n.group.id, name: n.group.name ?? 'Grupo' } : null,
+    event: n.event ? { id: n.event.id, name: n.event.name ?? 'Evento', groupId: n.event.groupId ?? null } : null,
+    postId: n.postData?.postItemId ?? n.pollData?.sharedPostId ?? null,
+    commentId: n.commentData?.id ?? null,
+    threadId: n.threadId ?? null,
+    messageId: n.messageId ?? null,
+    title: n.title ?? '', // avisos de MeWe ('generic'): título + subtítulo
+    snippet: subject.snippet ?? n.pollData?.question ?? n.subtitle ?? '',
+    emojis: normalizeEmojis(subject).map((e) => e.emoji),
+    everyone: n.mentionType === 'everyone',
+  };
+}
+
 // --- Usuarios ---
 
 // Forma común de un usuario en toda la app: { id, name, avatar }

@@ -56,12 +56,50 @@ Tipos de evento:
   - reacciones: `chat-message-emoji-added`, `chat-message-emoji-removed`
   - borrado y edición: `chat-delMessage`, `chat-editMessage`, `DelGroupChatMessage`
 - **Posts:** `post-new-model`, `post-emojis-add`, `comment-new`, `comment-emojis-add`, …
-- **Notificaciones:** `new-notification`
+- **Notificaciones:** `new-notification` (la app reenvía cualquier `msgType` que contenga `notification` y vuelve a pedir el contador)
 
-## Perfiles (para el paso 9)
+## Perfiles y seguimiento
 
-- `GET /api/v2/following/profile/{userId}`
-- `GET /api/v2/following/{userId}?details=true`
-- `GET /api/v2/home/user/{userId}/postsfeed`
-- `GET /api/v2/home/user/{userId}/mediastream`
-- Solicitudes recibidas: `GET /api/v2/following/requests/received`
+| Qué | Request | Notas |
+|---|---|---|
+| Perfil | `GET /api/v2/following/{userId}?details=true` | `{ user, profile: { text }, counters: { followers, following, posts }, following, follower }`. `user.public === false` es cuenta privada. |
+| Publicaciones | `GET /api/v2/home/user/{userId}/postsfeed` | Misma forma que el feed. 403 si la cuenta es privada y no la seguimos. |
+| Imágenes | `GET /api/v2/home/user/{userId}/mediastream` | `{ feed: [{ mediaId, postItemId, photo }], _links.nextPage }` |
+| Seguir / dejar de seguir | `POST` / `DELETE /api/v2/following/{userId}/follow` | En una cuenta privada, el POST deja una solicitud pendiente. **Sin probar.** |
+| Solicitudes recibidas | `GET /api/v2/following/requests/received` | `{ list: [...] }`. Sólo se vio vacía: la forma de cada elemento falta confirmarla. |
+| Aceptar solicitud | `POST /api/v2/following/request/{requestId}/accept` | **Sin probar.** |
+| Rechazar o cancelar | `DELETE /api/v2/following/request/{requestId}/remove` | **Sin probar.** |
+
+## Grupos
+
+| Qué | Request | Notas |
+|---|---|---|
+| Mis grupos | `GET /api/v2/groups` | `{ confirmedGroups, unconfirmedGroups }` (las segundas son invitaciones). |
+| Detalle | `GET /api/v2/group/{groupId}` | Trae `role`, `ownerId`, `adminIds`, `membersCount`, `isPublic`, `publicUrlId`. |
+| Publicaciones | `GET /api/v3/group/{groupId}/postsfeed` | API v3, como los posts de grupo. |
+| Miembros | `GET /api/v2/group/{groupId}/members?offset=&maxResults=&onlyOwnerAdmins=true` | `{ members: [{ user, role }] }`. Roles vistos: `Owner`, `Admin`, `Contributor`, `Limited`, `Viewer`. |
+| Eventos | `GET /api/v2/events2/group/{groupId}/upcoming?v=2&maxResults=` (o `/past`) | Sólo se vio vacío: la forma de un evento sale del modelo del bundle. |
+| Chat de grupo / de evento | Los endpoints de **Chats** con `threadId` = id del grupo o del evento | El de evento está **sin probar**. |
+| Unirse (grupo público) | `POST /api/v2/group/public/{publicUrlId}/apply` `{}` | Puede quedar pendiente de aprobación. **Sin probar.** |
+| Aceptar invitación | `POST /api/v2/group/{groupId}/invite/confirm` `{}` | **Sin probar.** |
+| Salir | `DELETE /api/v2/group/{groupId}/member/{miUserId}/remove` | **Sin probar.** |
+| Buscar contactos para invitar | `GET /api/v2/group/{groupId}/contacts/search?searchStr=&maxResults=` | `{ members: [{ user, online }] }`. `searchStr` es obligatorio. |
+| Invitar | `POST /api/v2/group/{groupId}/members` `{ groupId, userInvitees: [{ userId }] }` | La forma de `userInvitees` está deducida del bundle. **Sin probar.** |
+
+## Notificaciones
+
+| Qué | Request | Notas |
+|---|---|---|
+| Lista | `GET /api/v2/notifications/feed?maxResults=30` | `{ unseenCount, feed, _links.nextPage }` |
+| Contador | `GET /api/v2/notifications/unseen` | `{ unseenCount }` |
+| Marcar vistas | `POST /api/v2/notifications/markSeen` | Sin cuerpo; pone el contador en 0 (responde 204). |
+| Marcar leída(s) | `POST /api/v2/notifications/markVisited` | form-urlencoded: `notificationId=…` o `all=true`. **Sin probar.** |
+
+Forma de una notificación:
+- `notificationType`: `emojis`, `comment`, `mention`, `new_follower`, `new_follow_request`, `follow_request_accepted`,
+  `poll_ended`, `group_invitation`, `event_invitation`, `generic`, … (la lista completa está en `notificationsView.js`).
+- `system`: `contacts`, `group`, `pending`… Con `group` presente y `system` `group` o `pending`, va a la pestaña **Grupos**.
+- `actingUsers` / `actingUsersCount`: quién la generó.
+- `postData.postItemId`, `commentData.id`, `threadId` + `messageId`, `group`, `event`, `pollData.sharedPostId`: a dónde lleva.
+- `visited: false`: sin leer. Fecha en `updatedAt` (segundos).
+- Las `generic` son avisos de MeWe: traen `title` y `subtitle` en lugar de usuarios.

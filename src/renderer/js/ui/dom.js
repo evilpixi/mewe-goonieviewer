@@ -34,5 +34,6 @@ function flatten(children) {
 
 // Mensaje gris centrado ("Cargando…", "No hay mensajes."…)
 export function emptyState(text, tag = 'p') {
-  return h(tag, { className: 'empty' }, text);
+  // dentro de una lista (li) no se cambia el rol: dejaría de ser un ítem
+  return h(tag, { className: 'empty', attrs: { role: tag === 'li' ? null : 'status' } }, text);
 }

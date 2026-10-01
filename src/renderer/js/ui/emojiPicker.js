@@ -9,6 +9,7 @@ const COMMON = [
 ];
 const RECENT_KEY = 'recentEmojis';
 const MAX_RECENT = 16;
+const COLUMNS = 8; // igual que .emoji-grid en styles.css
 
 function recent() {
   try {
@@ -41,7 +42,7 @@ export function openEmojiPicker(anchor, onSelect) {
     h(
       'div',
       { className: 'emoji-grid' },
-      list.map((emoji) => h('button', { className: 'emoji-option', title: emoji, onClick: () => choose(emoji) }, emoji)),
+      list.map((emoji) => h('button', { className: 'emoji-option', title: emoji, attrs: { 'aria-label': `Reaccionar con ${emoji}` }, onClick: () => choose(emoji) }, emoji)),
     );
 
   const input = h('input', {
@@ -67,6 +68,15 @@ export function openEmojiPicker(anchor, onSelect) {
     ],
     { className: 'emoji-picker', label: 'Elegir emoji' },
   );
+  // Flechas para moverse por los emojis (↑ ↓ saltan una fila de la grilla)
+  popover.el.addEventListener('keydown', (event) => {
+    const options = [...popover.el.querySelectorAll('.emoji-option')];
+    const index = options.indexOf(document.activeElement);
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: COLUMNS, ArrowUp: -COLUMNS }[event.key];
+    if (index < 0 || !step) return;
+    event.preventDefault();
+    options[Math.min(Math.max(index + step, 0), options.length - 1)].focus();
+  });
   popover.el.querySelector('.emoji-option')?.focus();
   return popover;
 }

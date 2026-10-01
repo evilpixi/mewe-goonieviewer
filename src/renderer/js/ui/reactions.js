@@ -126,7 +126,7 @@ export function createReactions({ accountId, emojis = [], canReact = true, onTog
         '¿Quién?',
       );
     el.replaceChildren(...chips, addBtn || '', whoBtn || '');
-    el.classList.toggle('empty', state.length === 0);
+    el.classList.toggle('no-reactions', state.length === 0); // no 'empty': esa clase es el mensaje gris centrado
   }
 
   function toggleOn(emoji) {

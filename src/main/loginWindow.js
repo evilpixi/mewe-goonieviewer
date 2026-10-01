@@ -37,14 +37,16 @@ export function openLoginWindow({ ses, parent, email, password, verify, onApiErr
       if (!win.isDestroyed()) win.close();
     };
 
-    const tryVerify = async () => {
+    // quiet: comprobación oportunista (al navegar); si falla no es un error, el login sigue en curso
+    const tryVerify = async ({ quiet = false } = {}) => {
       if (settled || verifying) return;
       verifying = true;
       try {
-        onStatus('Verificando sesión…');
+        if (!quiet) onStatus('Verificando sesión…');
         finish(resolve, await verify());
       } catch (err) {
         // Un 401 aquí sólo significa que el login aún no terminó
+        if (quiet) return;
         if (err.status === 401) onStatus('Esperando a que termines el login en la ventana de MeWe…');
         else onApiError(err);
         if (config.debug) console.log('[login] verify falló:', err);
@@ -63,6 +65,14 @@ export function openLoginWindow({ ses, parent, email, password, verify, onApiErr
     });
 
     watchLoginErrors(win, onApiError);
+
+    // Si la sesión ya era válida, MeWe redirige fuera de /login sin tocar la cookie de sesión:
+    // sin esto la ventana quedaba abierta y, al cerrarla a mano, el login se daba por fallido.
+    const onNavigated = (_event, url) => {
+      if (!new URL(url).pathname.startsWith('/login')) tryVerify({ quiet: true });
+    };
+    win.webContents.on('did-navigate', onNavigated);
+    win.webContents.on('did-navigate-in-page', onNavigated);
 
     if (config.debug) {
       win.webContents.openDevTools({ mode: 'detach' });

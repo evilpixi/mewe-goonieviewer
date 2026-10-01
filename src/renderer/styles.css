@@ -20,7 +20,7 @@
   --text: #1c1e24;
   --muted: #6b7080;
   --border: #e1e3e8;
-  --accent: #3b6cf6;
+  --accent: #2f5fe8; /* 5:1 con texto blanco y sobre el fondo claro */
   --on-accent: #ffffff;
   --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
   --danger: #d23c3c;
@@ -34,7 +34,7 @@
   --highlight: color-mix(in srgb, #f5c400 35%, transparent); /* mensaje/comentario resaltado */
   --overlay: rgb(0 0 0 / 92%); /* fondo del visor de imágenes */
   --on-overlay: #ffffff;
-  --live: #2fa84f;
+  --live: #1e7d38;
   --shadow: 0 4px 18px rgb(0 0 0 / 18%);
 
   /* Espaciado */
@@ -51,9 +51,10 @@
   /* Tipografía */
   --font-family: system-ui, 'Segoe UI', sans-serif;
   /* Nombres de usuario: suelen usar letras matemáticas (𝓐𝕭), símbolos y emojis.
-     El paso 12 agrega fuentes empaquetadas a esta pila. */
-  --font-names: var(--font-family), 'Segoe UI Symbol', 'Segoe UI Emoji', 'Cambria Math', 'Noto Sans Math',
-    'Noto Sans Symbols', 'Noto Sans Symbols 2', 'Noto Color Emoji', sans-serif;
+     Noto Sans Math / Symbols / Symbols 2 van empaquetadas (ver @font-face más abajo), así el nombre
+     se lee igual aunque el sistema no tenga esas fuentes; los emojis usan la fuente del sistema. */
+  --font-names: var(--font-family), 'Noto Sans Math', 'Noto Sans Symbols', 'Noto Sans Symbols 2', 'Segoe UI Symbol',
+    'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Cambria Math', sans-serif;
   --line-height: 1.45;
   --font-xs: calc(11px * var(--font-scale));
   --font-sm: calc(12px * var(--font-scale));
@@ -66,6 +67,7 @@
   --avatar-sm: calc(28px * var(--icon-scale));
   --avatar-md: calc(32px * var(--icon-scale));
   --avatar-lg: calc(44px * var(--icon-scale));
+  --avatar-xl: calc(72px * var(--icon-scale));
 
   /* Radios y bordes */
   --radius-sm: 6px;
@@ -73,25 +75,178 @@
   --radius-lg: 10px;
   --radius-round: 50%;
   --border-width: 1px;
+  --focus-width: 2px;
+
+  /* Efectos propios de cada tema */
+  --bg-image: none; /* fondo decorativo detrás de todo (Glass) */
+  --panel-filter: none; /* backdrop-filter de los paneles (Glass) */
+  --panel-shadow: none; /* sombra de tarjetas y posts */
 
   /* Layout */
   --sidebar-width: calc(var(--avatar-lg) + 2 * var(--space-5));
   --threads-width: 230px;
   --bubble-max-width: 75%;
+  --page-width: 760px;
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
+/* ==========================================================================
+   Temas (ajustes de UI → atributo data-theme en <html>)
+   Cada tema sólo redefine tokens. "auto" (o sin atributo) sigue al sistema.
+   ========================================================================== */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]),
+  :root[data-theme='auto'] {
     --bg: #15171c;
     --panel: #1e2128;
     --sidebar: #0e1014;
     --text: #e6e8ee;
-    --muted: #9096a6;
+    --muted: #9ba1b0;
     --border: #2c3039;
+    --danger: #f06a6a;
     --danger-bg: #3a1c1f;
+    --accent: #6f93ff;
+    --on-accent: #0b1020; /* el acento claro necesita texto oscuro para llegar a 4.5:1 */
+    --live: #4cd070;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #15171c;
+  --panel: #1e2128;
+  --sidebar: #0e1014;
+  --text: #e6e8ee;
+  --muted: #9ba1b0;
+  --border: #2c3039;
+  --danger: #f06a6a;
+  --danger-bg: #3a1c1f;
+  --accent: #6f93ff;
+  --on-accent: #0b1020;
+  --live: #4cd070;
+  color-scheme: dark;
+}
+
+/* Minimal: sin líneas ni sombras, gris neutro, mucho radio */
+:root[data-theme='minimal'] {
+  --bg: #ffffff;
+  --panel: #f6f6f4;
+  --sidebar: #f0f0ed;
+  --sidebar-item: #dcdcd6;
+  --sidebar-item-border: #b9b9b0;
+  --on-sidebar: #22221f;
+  --text: #22221f;
+  --muted: #6a6a63;
+  --border: transparent;
+  --accent: #33332e;
+  --bubble: #f0f0ed;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --font-family: 'Inter', 'Segoe UI Variable Text', system-ui, sans-serif;
+  --line-height: 1.55;
+}
+
+/* Glass: paneles translúcidos con desenfoque sobre un fondo de color */
+:root[data-theme='glass'] {
+  --bg: #1b1740;
+  --bg-image: radial-gradient(circle at 15% 10%, #5b3fd6 0, transparent 45%),
+    radial-gradient(circle at 85% 20%, #0f8f9c 0, transparent 40%), radial-gradient(circle at 60% 95%, #b03a7a 0, transparent 45%);
+  --panel: rgb(255 255 255 / 12%);
+  --panel-filter: blur(18px) saturate(140%);
+  --panel-shadow: 0 8px 30px rgb(0 0 0 / 25%);
+  --sidebar: rgb(0 0 0 / 30%);
+  --sidebar-item: rgb(255 255 255 / 18%);
+  --sidebar-item-border: rgb(255 255 255 / 45%);
+  --text: #f5f4ff;
+  --muted: #cfcbea;
+  --border: rgb(255 255 255 / 24%);
+  --accent: #8fd3ff;
+  --on-accent: #0b1030;
+  --danger: #ff9a9a;
+  --danger-bg: rgb(120 20 30 / 45%);
+  --placeholder: rgb(255 255 255 / 14%);
+  --bubble: rgb(255 255 255 / 14%);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  color-scheme: dark;
+}
+
+/* Los popovers y diálogos flotan sobre contenido: necesitan un fondo más opaco para leerse */
+:root[data-theme='glass'] :is(.popover, .modal) {
+  background: rgb(40 34 90 / 82%);
+}
+
+/* Stale / retro: papel, esquinas rectas, bordes gruesos y sombra dura */
+:root[data-theme='retro'] {
+  --bg: #d9d3c1;
+  --panel: #f2eedf;
+  --sidebar: #3b3a36;
+  --sidebar-item: #6b6960;
+  --sidebar-item-border: #a8a493;
+  --text: #24231f;
+  --muted: #5c594e;
+  --border: #24231f;
+  --accent: #a2401f;
+  --on-accent: #fff8e8;
+  --danger: #8a1c1c;
+  --danger-bg: #ecd2c4;
+  --bubble: #fffbea;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-round: 0;
+  --border-width: 2px;
+  --panel-shadow: 3px 3px 0 var(--border);
+  --shadow: 5px 5px 0 var(--border);
+  --font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+}
+
+/* Alto contraste: negro, blanco y amarillo; bordes y foco bien marcados */
+:root[data-theme='contrast'] {
+  --bg: #000000;
+  --panel: #000000;
+  --sidebar: #000000;
+  --sidebar-item: #000000;
+  --sidebar-item-border: #ffffff;
+  --text: #ffffff;
+  --muted: #e2e2e2;
+  --border: #ffffff;
+  --accent: #ffe600;
+  --on-accent: #000000;
+  --accent-soft: #3d3700;
+  --danger: #ff8a8a;
+  --danger-bg: #2b0000;
+  --placeholder: #333333;
+  --live: #6dff8f;
+  --border-width: 2px;
+  --focus-width: 4px;
+  --focus-ring: #00e5ff;
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   Fuentes empaquetadas (src/renderer/fonts): sólo se usan para los caracteres que
+   la fuente del sistema no tiene, vía --font-names.
+   ========================================================================== */
+@font-face {
+  font-family: 'Noto Sans Math';
+  src: url('fonts/NotoSansMath.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans Symbols';
+  src: url('fonts/NotoSansSymbols.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans Symbols 2';
+  src: url('fonts/NotoSansSymbols2.woff2') format('woff2');
+  font-display: swap;
 }
 
 /* ==========================================================================
@@ -108,13 +263,46 @@ body {
   font-family: var(--font-family);
   font-size: var(--font-md);
   line-height: var(--line-height);
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: var(--bg-image);
+  background-attachment: fixed;
   color: var(--text);
 }
 
+/* Paneles: en los temas con transparencias desenfocan lo que tienen detrás */
+.app-header,
+.post,
+.card,
+.chat-sidebar,
+.chat-composer,
+.popover,
+.modal {
+  backdrop-filter: var(--panel-filter);
+}
+
+.post,
+.card {
+  box-shadow: var(--panel-shadow);
+}
+
 :focus-visible {
-  outline: 2px solid var(--focus-ring);
+  outline: var(--focus-width) solid var(--focus-ring);
   outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+/* Sin animaciones si el sistema lo pide */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 [hidden] {
@@ -159,6 +347,12 @@ body {
   height: var(--avatar-lg);
 }
 
+.avatar-xl {
+  width: var(--avatar-xl);
+  height: var(--avatar-xl);
+  font-size: var(--font-icon);
+}
+
 .empty,
 .status {
   color: var(--muted);
@@ -166,7 +360,8 @@ body {
 
 .empty {
   text-align: center;
-  padding: var(--space-9);
+  margin: 0;
+  padding: var(--space-8);
 }
 
 .scroll {
@@ -253,6 +448,11 @@ body {
   min-height: 0;
 }
 
+/* El router enfoca la vista al navegar (para teclado y lectores de pantalla): no hace falta marcarla */
+.view:focus {
+  outline: none;
+}
+
 .app-header {
   display: flex;
   align-items: center;
@@ -266,6 +466,47 @@ body {
 .app-header h1 {
   font-size: var(--font-lg);
   margin: 0;
+  min-width: 0;
+}
+
+/* El nombre de la cuenta abre su perfil */
+.app-header h1 .link-btn {
+  display: block;
+  max-width: 100%;
+  color: inherit;
+  font-weight: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header .btn.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Botón con contador encima (campana de notificaciones) */
+.has-badge {
+  position: relative;
+}
+
+.count-badge {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: calc(-1 * var(--space-2));
+  min-width: 1.5em;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-accent);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.thread-title {
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -303,9 +544,23 @@ body {
   cursor: pointer;
 }
 
+.segmented button:hover:not(.active) {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 .segmented button.active {
   background: var(--accent);
   color: var(--on-accent);
+}
+
+/* El foco de un segmento se dibuja hacia adentro: el contenedor recorta lo que sobresale */
+.segmented button:focus-visible {
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.segmented button.active:focus-visible {
+  outline-color: var(--on-accent);
 }
 
 /* ==========================================================================
@@ -457,6 +712,14 @@ body {
 
 .gallery.count-3 .gallery-tile:first-child {
   aspect-ratio: auto;
+}
+
+/* Miniaturas: el foco va por dentro para que no lo recorte el contenedor */
+.gallery-tile:focus-visible,
+.media-tile:focus-visible,
+.msg-image:focus-visible,
+.account-btn:focus-visible {
+  outline-offset: calc(-1 * var(--focus-width));
 }
 
 .gallery-tile img {
@@ -671,7 +934,7 @@ body {
   display: none;
 }
 
-.reactions.compact.empty {
+.reactions.compact.no-reactions {
   display: none;
 }
 
@@ -684,7 +947,7 @@ body {
   display: inline-flex;
 }
 
-.comment .reactions.compact.empty {
+.comment .reactions.compact.no-reactions {
   display: flex;
 }
 
@@ -1006,7 +1269,11 @@ body {
 }
 
 .chat-thread-item:hover {
-  background: var(--bg);
+  background: var(--accent-soft);
+}
+
+.chat-thread-item:focus-visible {
+  outline-offset: calc(-1 * var(--focus-width));
 }
 
 .chat-thread-item.active {
@@ -1189,7 +1456,7 @@ body {
   float: right;
   margin: var(--space-1) 0 0 var(--space-4);
   font-size: var(--font-xs);
-  opacity: 0.65;
+  opacity: 0.8;
   white-space: nowrap;
   line-height: 1.6;
 }
@@ -1390,6 +1657,437 @@ body {
 
 .composer-status:empty {
   display: none;
+}
+
+.thread-view .chat-conversation {
+  width: 100%;
+}
+
+/* ==========================================================================
+   Páginas (perfil, grupos, notificaciones, ajustes)
+   ========================================================================== */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.page > * {
+  width: 100%;
+  max-width: var(--page-width);
+  flex-shrink: 0;
+}
+
+.page .feed {
+  padding: 0;
+}
+
+.page .load-more {
+  margin: var(--space-4) 0 0;
+  width: auto;
+}
+
+.page .error-box {
+  margin: 0;
+}
+
+.card {
+  background: var(--panel);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-5) var(--space-6);
+}
+
+.card-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-lg);
+}
+
+.input {
+  font: inherit;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  min-width: 0;
+}
+
+.tabs-bar {
+  display: flex;
+  margin-bottom: var(--space-4);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.badges:empty {
+  display: none;
+}
+
+.badge {
+  border: var(--border-width) solid var(--border);
+  border-radius: 999px;
+  padding: 0 var(--space-4);
+  font-size: var(--font-xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.badge.accent {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Cabecera de perfil y de grupo */
+.profile-head {
+  overflow: hidden;
+}
+
+.cover {
+  display: block;
+  width: calc(100% + 2 * var(--space-6));
+  max-width: none;
+  height: 120px;
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)) var(--space-5);
+  object-fit: cover;
+  background: var(--placeholder);
+}
+
+.profile-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.profile-id {
+  flex: 1;
+  min-width: 140px;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: var(--font-xl);
+  line-height: 1.25;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.profile-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin: var(--space-4) 0 0;
+  color: var(--muted);
+  font-size: var(--font-sm);
+}
+
+.profile-counters strong {
+  color: var(--text);
+}
+
+.profile-bio {
+  margin: var(--space-4) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.profile-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-5);
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-sm);
+}
+
+.profile-info dt {
+  color: var(--muted);
+}
+
+.profile-info dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.private-notice {
+  text-align: center;
+}
+
+.private-notice p {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+}
+
+/* Grilla de imágenes de un perfil */
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(110px * var(--icon-scale)), 1fr));
+  gap: var(--space-2);
+}
+
+.media-grid .empty {
+  grid-column: 1 / -1;
+}
+
+.media-tile {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--placeholder);
+  cursor: zoom-in;
+}
+
+.media-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Listas de personas / grupos (miembros, solicitudes, mis grupos) */
+.people-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.people-list.card {
+  padding: var(--space-2) var(--space-5);
+}
+
+.card .people-list {
+  padding: 0;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  min-width: 0;
+}
+
+.people-list > li + li {
+  border-top: var(--border-width) solid var(--border);
+}
+
+.person-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+}
+
+.person-main:hover {
+  text-decoration: none;
+}
+
+.person-main:hover .person-name {
+  text-decoration: underline;
+}
+
+.person-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.person-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.person-meta {
+  display: block;
+  color: var(--muted);
+  font-size: var(--font-sm);
+  font-weight: 400;
+}
+
+.event-icon {
+  font-size: var(--font-icon);
+  line-height: 1;
+}
+
+.post-footer:empty {
+  display: none;
+}
+
+/* Popover para invitar contactos a un grupo */
+.invite-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(280px, 80vw);
+}
+
+.invite-results {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.invite-results .person {
+  cursor: pointer;
+}
+
+.invite-box .status {
+  margin: 0;
+  font-size: var(--font-sm);
+}
+
+.invite-box .status:empty {
+  display: none;
+}
+
+/* Notificaciones */
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.notif-list > li + li {
+  border-top: var(--border-width) solid var(--border);
+}
+
+.notif {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.notif:hover:not(:disabled),
+.notif.unread {
+  background: var(--accent-soft);
+}
+
+.notif:focus-visible {
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.notif-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-text {
+  overflow-wrap: anywhere;
+}
+
+.notif-user {
+  font-weight: 600;
+}
+
+.notif-snippet {
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.notif-meta {
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+
+.notif .unread-dot {
+  align-self: center;
+}
+
+/* Ajustes */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--space-3);
+}
+
+.theme-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.theme-option.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* El radio queda oculto a la vista pero sigue siendo el control (teclado y lectores de pantalla) */
+.theme-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-option:focus-within {
+  outline: var(--focus-width) solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.settings-row label {
+  flex: 1 1 180px;
+}
+
+.settings-row input[type='range'] {
+  flex: 2 1 160px;
+  accent-color: var(--accent);
+}
+
+.settings-value {
+  width: 4.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 640px) {

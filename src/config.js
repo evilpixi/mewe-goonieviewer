@@ -32,7 +32,7 @@ export const config = {
       emojis: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}/emojis`,
       // multipart files[] -> { id }; 'pm' = chat con personas, 'gc' = chat de grupo
       upload: (isGroup) => `/api/v2/attachment/upload/${isGroup ? 'gc' : 'pm'}`,
-      chatTypes: { all: 'AllChat', users: 'UserChat', groups: 'GroupChat' },
+      chatTypes: { all: 'AllChat', users: 'UserChat', groups: 'GroupChat', events: 'EventChat' },
       pageSize: 25,
     },
 
@@ -45,6 +45,40 @@ export const config = {
       reply: (commentId) => `/api/v2/comments/${commentId}/reply`, // POST { text }
       emojis: (commentId) => `/api/v2/comments/${commentId}/emojis`, // como chat.emojis
       pageSize: 10,
+    },
+
+    // Perfiles y seguimiento
+    profile: {
+      details: (userId) => `/api/v2/following/${userId}`, // GET ?details=true
+      feed: (userId) => `/api/v2/home/user/${userId}/postsfeed`, // GET, paginado
+      media: (userId) => `/api/v2/home/user/${userId}/mediastream`, // GET, paginado
+      follow: (userId) => `/api/v2/following/${userId}/follow`, // POST sigue · DELETE deja de seguir
+      requestsReceived: '/api/v2/following/requests/received', // GET
+      acceptRequest: (requestId) => `/api/v2/following/request/${requestId}/accept`, // POST
+      removeRequest: (requestId) => `/api/v2/following/request/${requestId}/remove`, // DELETE (rechazar o cancelar)
+    },
+
+    groups: {
+      mine: '/api/v2/groups', // GET
+      details: (groupId) => `/api/v2/group/${groupId}`, // GET
+      feed: (groupId) => `/api/v3/group/${groupId}/postsfeed`, // GET, paginado
+      members: (groupId) => `/api/v2/group/${groupId}/members`, // GET ?offset=&maxResults=&onlyOwnerAdmins= · POST invita
+      member: (groupId, userId) => `/api/v2/group/${groupId}/member/${userId}/remove`, // DELETE (con mi id: salir)
+      apply: (publicUrlId) => `/api/v2/group/public/${encodeURIComponent(publicUrlId)}/apply`, // POST {}
+      confirmInvite: (groupId) => `/api/v2/group/${groupId}/invite/confirm`, // POST {}
+      contacts: (groupId) => `/api/v2/group/${groupId}/contacts/search`, // GET ?searchStr=
+      // when: 'upcoming' | 'past'
+      events: (groupId, when) => `/api/v2/events2/group/${groupId}/${when}`, // GET ?v=2&maxResults=
+      membersPageSize: 30,
+      eventsPageSize: 20,
+    },
+
+    notifications: {
+      feed: '/api/v2/notifications/feed', // GET ?maxResults=, paginado
+      unseen: '/api/v2/notifications/unseen', // GET { unseenCount }
+      markSeen: '/api/v2/notifications/markSeen', // POST (pone el contador en 0)
+      markVisited: '/api/v2/notifications/markVisited', // POST form: notificationId=… | all=true
+      pageSize: 30,
     },
 
     // Tiempo real: wss://ws.mewe.com/indexWS?userId=… con las cookies de la sesión.

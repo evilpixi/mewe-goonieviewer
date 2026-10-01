@@ -346,6 +346,8 @@ export function createConversation({ onSent } = {}) {
       messagesEl.replaceChildren(emptyState(text));
     },
     refresh: () => loadLatest(),
+    // Va a un mensaje y lo resalta (menciones desde las notificaciones)
+    goTo: (messageId) => scrollToMessage(messageId),
     // Con websocket conectado el polling pasa a ser lento
     setRealtime(connected) {
       const next = connected ? POLL_SLOW_MS : POLL_FAST_MS;

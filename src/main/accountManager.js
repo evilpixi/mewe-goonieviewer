@@ -16,7 +16,7 @@ export class AccountManager {
   }
 
   list() {
-    return this.store.list().map(({ id, name, email, avatar }) => ({ id, name, email, avatar }));
+    return this.store.list().map(({ id, name, email, avatar, userId }) => ({ id, name, email, avatar, userId }));
   }
 
   clientFor(id) {
@@ -56,7 +56,9 @@ export class AccountManager {
     const account = this.store.get(id);
     if (!account) throw new Error(`Cuenta desconocida: ${id}`);
     const ses = session.fromPartition(account.partition);
-    const profile = await this.#login({ id, ses, client: this.clientFor(id), email: account.email });
+    const client = this.clientFor(id);
+    // Si el refresh-token sigue vigente alcanza con renovar la sesión (getMe lo hace solo): no hace falta la ventana
+    const profile = await client.getMe().catch(() => this.#login({ id, ses, client, email: account.email }));
     await this.store.upsert({ ...account, ...profile });
     return this.list().find((a) => a.id === id);
   }

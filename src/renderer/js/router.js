@@ -23,7 +23,8 @@ export function createRouter({ host, toolbarSlot, onChange }) {
     return instances.get(name);
   }
 
-  function activate() {
+  // focus: al navegar con teclado, el foco pasa a la vista nueva (si no, queda en un botón que ya no existe)
+  function activate({ focus = false } = {}) {
     const entry = stack.at(-1);
     const next = instance(entry.view);
     active?.hide?.();
@@ -33,6 +34,10 @@ export function createRouter({ host, toolbarSlot, onChange }) {
     toolbarSlot.replaceChildren(...(next.toolbar ? [next.toolbar] : []));
     next.show(account, entry.params);
     onChange?.({ ...entry, canGoBack: stack.length > 1 });
+    if (focus) {
+      next.el.tabIndex = -1;
+      next.el.focus({ preventScroll: true });
+    }
   }
 
   function navigate(view, params = {}, { replace = false } = {}) {
@@ -42,13 +47,13 @@ export function createRouter({ host, toolbarSlot, onChange }) {
     }
     if (replace) stack.pop();
     stack.push({ view, params });
-    activate();
+    activate({ focus: true });
   }
 
   function back() {
     if (stack.length < 2) return;
     stack.pop();
-    activate();
+    activate({ focus: true });
   }
 
   return {

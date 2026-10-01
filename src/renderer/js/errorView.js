@@ -5,6 +5,7 @@ export function showError(container, err, context = 'MeWe API') {
 
   const box = document.createElement('div');
   box.className = 'error-box';
+  box.setAttribute('role', 'alert'); // los lectores de pantalla lo anuncian al aparecer
 
   const title = document.createElement('strong');
   title.textContent = details.message;

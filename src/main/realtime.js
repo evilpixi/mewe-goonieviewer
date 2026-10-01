@@ -96,6 +96,11 @@ export class Realtime {
     else if (msg.msgType !== 'chat-isOnline') this.#write(conn, { message: 'pong' });
 
     if (config.debug) console.log('[realtime]', conn.accountId, msg.msgType);
+    // Notificación nueva: la UI vuelve a pedir el contador
+    if (/notification/i.test(msg.msgType ?? '')) {
+      this.send('notif:event', { accountId: conn.accountId, type: msg.msgType });
+      return;
+    }
     if (!CHAT_EVENTS.has(msg.msgType)) return;
     const data = msg.data ?? {};
     this.send('chat:event', {

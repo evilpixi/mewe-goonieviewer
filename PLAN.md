@@ -65,22 +65,30 @@ Cubre: *Chat: ver y descargar imágenes, verlas en pantalla completa* · *Feed: 
 - Click en un autor → perfil; click en un grupo → grupo (las vistas llegan en los pasos 9 y 10).
 - Mover `renderPost` a `ui/post.js` para reutilizarlo en perfiles y grupos.
 
-## 9. Perfiles
+## 9. Perfiles ✅
+(Implementado; seguir / dejar de seguir / aceptar solicitudes falta probarlo con una cuenta real.
+El estado de seguimiento viene al lado de `user` en la respuesta, no adentro. Se llega al perfil propio con click en el nombre de la cuenta.)
 - Cabecera con la info del perfil; pestañas **Publicaciones** e **Imágenes** (grilla → lightbox).
 - Cuenta privada: mostrar el estado y ocultar el contenido.
 - Seguir, dejar de seguir, solicitud pendiente; **aceptar o rechazar** solicitudes de seguimiento.
 
-## 10. Grupos
+## 10. Grupos ✅
+(Implementado; unirse, salir, invitar y el chat de un evento faltan probarse con una cuenta real.
+Además del chat de cada evento, la cabecera del grupo abre el chat del grupo: ambos usan la vista `thread`.)
 - Lista de mis grupos y vista de grupo con pestañas: **Publicaciones**, **Miembros** (filtro de admins), **Eventos**.
 - Cada evento con su **chat** (reutiliza la conversación del paso 3).
 - Unirse, salir e invitar (buscador de contactos).
 
-## 11. Notificaciones
+## 11. Notificaciones ✅
+(Implementado; los enlaces de cada tipo de notificación faltan probarse uno por uno, ver paso 13.
+Arriba de la lista aparecen las solicitudes de seguimiento recibidas, con Aceptar / Rechazar.)
 - Lista con contador de no leídas en el header; marcar como leídas; actualización periódica.
 - Separadas en **Generales** y **Grupos** (publicaciones en grupos).
 - Click: seguimiento → perfil; reacción o comentario → post; mención → donde ocurrió (post con el comentario resaltado, o el mensaje en el chat).
 
-## 12. Ajustes de UI y temas
+## 12. Ajustes de UI y temas ✅
+(Implementado, falta verlo en pantalla. Fuentes empaquetadas en `src/renderer/fonts`: Noto Sans Math, Symbols y Symbols 2.
+No se empaquetaron Noto Sans ni Noto Color Emoji (~10 MB): para eso se usa la fuente del sistema.)
 - Vista de ajustes (guardada en `localStorage`): **zoom** (`webContents.setZoomFactor`), **tamaño de fuente**,
   **densidad** (padding/margin), **tamaño de iconos**, **tema** y colores.
 - Temas con estilos distintos: Claro, Oscuro, **Minimal**, **Glass** (blur y transparencias), **Stale/retro**, **Alto contraste**.
@@ -88,8 +96,21 @@ Cubre: *Chat: ver y descargar imágenes, verlas en pantalla completa* · *Feed: 
 - **Fuentes para nombres raros:** empaquetarlas localmente (agregar `font-src 'self'` a la CSP): Noto Sans, Noto Sans Math (𝓐𝕭𝖈),
   Noto Sans Symbols 1 y 2, Noto Color Emoji, como cadena de respaldo.
 
-## 13. Pasada final: compacto y accesible
+## 13. Pasada final: compacto y accesible (en curso)
 - Revisar todas las vistas: navegación con teclado, `aria-*`, foco visible, contraste en todos los temas, `prefers-reduced-motion`.
 - Ajustar espaciados para que todo quede compacto con la densidad por defecto.
 - Probar con dos cuentas a la vez (cada vista descarta las respuestas de la cuenta anterior).
 - Probar todos los enlaces de las notificaciones.
+
+Hecho en código (sin verificar en pantalla):
+- Teclado: todas las pestañas usan `ui/tabs.js` (← → Inicio Fin), flechas en el selector de emojis,
+  Ctrl+1…3 cambia de sección, Alt+← vuelve, F5 actualiza; al navegar el foco pasa a la vista nueva.
+- Lectores de pantalla: errores con `role="alert"`, "Cargando…" con `role="status"`, etiquetas en los botones de icono.
+- Foco visible también en miniaturas y segmentos (se dibuja por dentro para que no se recorte).
+- Contraste: acento claro `#2f5fe8` (5:1), texto oscuro sobre el acento del tema oscuro, "En vivo" más oscuro,
+  hora de los mensajes menos transparente; con un acento propio el color del texto se elige solo (negro o blanco).
+- `prefers-reduced-motion` global.
+- Dos cuentas: seguir / unirse / salir no recargan la vista si mientras tanto se cambió de cuenta.
+
+Falta (necesita la app abierta): recorrer cada tema mirando contraste y espaciados, probar con dos cuentas
+y probar los enlaces de cada tipo de notificación.

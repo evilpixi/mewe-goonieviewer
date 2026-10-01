@@ -3,6 +3,7 @@ import { createConversation } from './chat/conversation.js';
 import { clearError, showError } from './errorView.js';
 import { avatar } from './ui/avatar.js';
 import { emptyState, h } from './ui/dom.js';
+import { createTabs } from './ui/tabs.js';
 import { userName } from './ui/userName.js';
 
 const THREADS_POLL_MS = 30000;
@@ -26,11 +27,8 @@ function savedFilter() {
 // Chats de la cuenta activa: lista de conversaciones (personas / grupos) + conversación abierta.
 // Mensajes nuevos: websocket de MeWe desde main ('chat:event'); el polling queda como respaldo.
 export function createChatView() {
-  const filterEl = h(
-    'div',
-    { className: 'segmented', attrs: { role: 'tablist', 'aria-label': 'Tipo de chat' } },
-    FILTERS.map(([filter, label]) => h('button', { dataset: { filter }, attrs: { role: 'tab' } }, label)),
-  );
+  const filterTabs = createTabs({ label: 'Tipo de chat', tabs: FILTERS, onChange: changeFilter });
+  const filterEl = filterTabs.el;
   const liveEl = h('span', { className: 'live-status', attrs: { 'aria-live': 'polite' } });
   const toolbar = h('div', { className: 'view-toolbar-group' }, filterEl, liveEl);
   const threadsEl = h('ul', { className: 'chat-threads scroll', attrs: { 'aria-label': 'Conversaciones' } });
@@ -74,27 +72,20 @@ export function createChatView() {
   // --- Lista de conversaciones ---
 
   function renderFilter() {
-    for (const btn of filterEl.querySelectorAll('[data-filter]')) {
-      const selected = btn.dataset.filter === filter;
-      btn.classList.toggle('active', selected);
-      btn.setAttribute('aria-selected', String(selected));
-    }
+    filterTabs.select(filter);
   }
 
-  filterEl.addEventListener('click', (event) => {
-    const value = event.target.closest('[data-filter]')?.dataset.filter;
-    if (!value || value === filter) return;
+  function changeFilter(value) {
     filter = value;
     try {
       localStorage.setItem(FILTER_KEY, value);
     } catch {
       // sin storage: el filtro no se recuerda
     }
-    renderFilter();
     threads = [];
     threadsEl.replaceChildren(emptyState('Cargando…', 'li'));
     loadThreads();
-  });
+  }
 
   async function loadThreads() {
     if (!account) return;

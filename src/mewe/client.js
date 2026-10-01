@@ -5,19 +5,29 @@ import { MeweApiError } from './errors.js';
 import {
   normalizeComment,
   normalizeComments,
+  normalizeContacts,
+  normalizeEvents,
   normalizeFeed,
+  normalizeFollowRequests,
+  normalizeGroup,
+  normalizeGroups,
   normalizeMedias,
+  normalizeMediaStream,
+  normalizeMembers,
   normalizeMessage,
   normalizeMessages,
+  normalizeNotifications,
   normalizePostDetails,
   normalizeProfile,
   normalizeReactors,
   normalizeThreads,
+  normalizeUserProfile,
 } from './normalize.js';
 
-const { host, endpoints, userAgent, cookies: cookieNames, chat, comments } = config.mewe;
+const { host, endpoints, userAgent, cookies: cookieNames, chat, comments, profile, groups, notifications } = config.mewe;
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const REFRESH_MIN_INTERVAL_MS = 30000; // no renovar la sesión más seguido que esto
 
 // Los ids van dentro de rutas: sólo se aceptan [A-Za-z0-9_-]
 function assertId(value, label = 'id') {
@@ -49,6 +59,8 @@ function postBase(postId, groupId) {
 export class MeweClient {
   constructor(cookies) {
     this.cookies = cookies;
+    this.refreshing = null; // renovación de sesión en curso (promesa compartida)
+    this.refreshedAt = 0; // última renovación correcta
   }
 
   async headers(url, extra = {}) {
@@ -65,20 +77,33 @@ export class MeweClient {
     return headers;
   }
 
-  // json: cuerpo JSON · form: FormData (multipart, fetch pone el boundary)
-  async request(path, { method = 'GET', query, json, form } = {}) {
+  // json: cuerpo JSON · form: FormData (multipart, fetch pone el boundary) · urlencoded: objeto → form-urlencoded
+  async request(path, { method = 'GET', query, json, form, urlencoded } = {}) {
     const url = new URL(path, host);
     for (const [k, v] of Object.entries(query ?? {})) {
       if (v != null) url.searchParams.set(k, v);
     }
 
-    const extra = json !== undefined ? { 'content-type': 'application/json; charset=UTF-8' } : {};
-    const response = await fetch(url, {
-      method,
-      headers: await this.headers(url, extra),
-      body: form ?? (json !== undefined ? JSON.stringify(json) : undefined),
-    });
+    let extra = {};
+    if (json !== undefined) extra = { 'content-type': 'application/json; charset=UTF-8' };
+    else if (urlencoded) extra = { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' };
+    const send = async () =>
+      fetch(url, {
+        method,
+        headers: await this.headers(url, extra),
+        body:
+          form ??
+          (json !== undefined ? JSON.stringify(json) : urlencoded ? new URLSearchParams(urlencoded).toString() : undefined),
+      });
+
+    const startedAt = Date.now();
+    let response = await send();
     await this.cookies.storeFromResponse(url, response);
+    // 401/403 suele ser que faltan access-token / csrf-token (ver refreshSession): se renuevan y se reintenta una vez
+    if ((response.status === 401 || response.status === 403) && (await this.refreshSession(startedAt))) {
+      response = await send();
+      await this.cookies.storeFromResponse(url, response);
+    }
 
     const text = await response.text();
     let body = text;
@@ -93,10 +118,43 @@ export class MeweClient {
     return body;
   }
 
+  // Renueva las cookies de corta vida con el refresh-token, como hace la web al cargar (GET /auth/identify).
+  // access-token y csrf-token son cookies de sesión: Electron no las guarda entre arranques, y sin ellas
+  // MeWe responde 403 aunque la sesión siga siendo válida. Devuelve true si la sesión quedó renovada.
+  // Las peticiones simultáneas comparten una sola renovación.
+  //   since: cuándo salió la petición que falló. Si la sesión ya se renovó después, alcanza con reintentar;
+  //   si se renovó hace poco y aun así falla, el 403 es real (ej. una cuenta privada) y no se insiste.
+  refreshSession(since = Date.now()) {
+    if (this.refreshedAt > since) return Promise.resolve(true);
+    if (Date.now() - this.refreshedAt < REFRESH_MIN_INTERVAL_MS) return Promise.resolve(false);
+    this.refreshing ??= (async () => {
+      try {
+        const url = new URL(endpoints.identify, host);
+        const response = await fetch(url, { headers: await this.headers(url) });
+        await this.cookies.storeFromResponse(url, response);
+        if (config.debug) console.log(`[mewe] renovar sesión (identify) -> ${response.status}`);
+        if (response.ok) this.refreshedAt = Date.now();
+        return response.ok;
+      } catch (err) {
+        console.warn('[mewe] no se pudo renovar la sesión:', err.message);
+        return false;
+      } finally {
+        this.refreshing = null;
+      }
+    })();
+    return this.refreshing;
+  }
+
   // Descarga binaria (imágenes) con las cookies de la cuenta
   async fetchRaw(url) {
-    const response = await fetch(url, { headers: await this.headers(url) });
+    const startedAt = Date.now();
+    let response = await fetch(url, { headers: await this.headers(url) });
     await this.cookies.storeFromResponse(url, response);
+    // las cookies del CDN de imágenes duran ~20 min: se renuevan igual que la sesión
+    if ((response.status === 401 || response.status === 403) && (await this.refreshSession(startedAt))) {
+      response = await fetch(url, { headers: await this.headers(url) });
+      await this.cookies.storeFromResponse(url, response);
+    }
     return response;
   }
 
@@ -232,6 +290,135 @@ export class MeweClient {
 
   async getMessageReactors(threadId, messageId) {
     return normalizeReactors(await this.request(chat.emojis(assertId(threadId, 'threadId'), assertId(messageId))));
+  }
+
+  // --- Perfiles ---
+
+  async getProfile(userId, myUserId) {
+    const data = await this.request(profile.details(assertId(userId, 'userId')), { query: { details: true } });
+    return normalizeUserProfile(data, myUserId);
+  }
+
+  async getUserFeed(userId, nextPage) {
+    return normalizeFeed(await this.request(assertNextPage(nextPage) ?? profile.feed(assertId(userId, 'userId'))));
+  }
+
+  async getUserMedia(userId, nextPage) {
+    return normalizeMediaStream(await this.request(assertNextPage(nextPage) ?? profile.media(assertId(userId, 'userId'))));
+  }
+
+  // on: seguir (o pedir seguir, si la cuenta es privada) · off: dejar de seguir
+  async setFollow(userId, on) {
+    await this.request(profile.follow(assertId(userId, 'userId')), { method: on ? 'POST' : 'DELETE' });
+    return true;
+  }
+
+  async getFollowRequests() {
+    return normalizeFollowRequests(await this.request(profile.requestsReceived));
+  }
+
+  // accept: aceptar una solicitud recibida · si no, rechazarla (o cancelar una enviada)
+  async answerFollowRequest(requestId, accept) {
+    assertId(requestId, 'requestId');
+    if (accept) await this.request(profile.acceptRequest(requestId), { method: 'POST' });
+    else await this.request(profile.removeRequest(requestId), { method: 'DELETE' });
+    return true;
+  }
+
+  // --- Grupos ---
+
+  async getGroups() {
+    return normalizeGroups(await this.request(groups.mine));
+  }
+
+  async getGroup(groupId) {
+    return normalizeGroup(await this.request(groups.details(assertId(groupId, 'groupId'))));
+  }
+
+  async getGroupFeed(groupId, nextPage) {
+    assertId(groupId, 'groupId');
+    const page = normalizeFeed(await this.request(assertNextPage(nextPage) ?? groups.feed(groupId)));
+    for (const post of page.posts) post.groupId ??= groupId; // el feed de un grupo puede no repetirlo en cada post
+    return page;
+  }
+
+  async getGroupMembers(groupId, { offset = 0, adminsOnly = false } = {}) {
+    const data = await this.request(groups.members(assertId(groupId, 'groupId')), {
+      query: { offset: Number(offset) || 0, maxResults: groups.membersPageSize, onlyOwnerAdmins: adminsOnly ? true : undefined },
+    });
+    const members = normalizeMembers(data);
+    return { members, hasMore: members.length >= groups.membersPageSize };
+  }
+
+  // when: 'upcoming' | 'past'
+  async getGroupEvents(groupId, when = 'upcoming') {
+    if (!['upcoming', 'past'].includes(when)) throw new MeweApiError({ message: `Filtro de eventos desconocido: ${when}` });
+    const data = await this.request(groups.events(assertId(groupId, 'groupId'), when), {
+      query: { v: 2, maxResults: groups.eventsPageSize },
+    });
+    return normalizeEvents(data);
+  }
+
+  // Invitación pendiente → se confirma; grupo público → se pide entrar (puede quedar pendiente de aprobación)
+  async joinGroup(groupId) {
+    const group = await this.getGroup(groupId);
+    if (group.isInvited) {
+      await this.request(groups.confirmInvite(groupId), { method: 'POST', json: {} });
+    } else if (group.publicUrlId) {
+      await this.request(groups.apply(group.publicUrlId), { method: 'POST', json: {} });
+    } else {
+      throw new MeweApiError({ message: 'Este grupo es privado: sólo se puede entrar con una invitación.' });
+    }
+    return this.getGroup(groupId);
+  }
+
+  async leaveGroup(groupId, myUserId) {
+    await this.request(groups.member(assertId(groupId, 'groupId'), assertId(myUserId, 'userId')), { method: 'DELETE' });
+    return true;
+  }
+
+  async searchGroupContacts(groupId, query) {
+    const data = await this.request(groups.contacts(assertId(groupId, 'groupId')), {
+      query: { searchStr: String(query ?? '').slice(0, 100), maxResults: 20 },
+    });
+    return normalizeContacts(data);
+  }
+
+  async inviteToGroup(groupId, userIds) {
+    assertId(groupId, 'groupId');
+    const userInvitees = (userIds ?? []).map((id) => ({ userId: assertId(id, 'userId') }));
+    if (!userInvitees.length) throw new MeweApiError({ message: 'Elige al menos una persona para invitar.' });
+    await this.request(groups.members(groupId), { method: 'POST', json: { groupId, userInvitees } });
+    return true;
+  }
+
+  // --- Notificaciones ---
+
+  async getNotifications(nextPage) {
+    const data = nextPage
+      ? await this.request(assertNextPage(nextPage))
+      : await this.request(notifications.feed, { query: { maxResults: notifications.pageSize } });
+    return normalizeNotifications(data);
+  }
+
+  async getUnseenNotifications() {
+    const data = await this.request(notifications.unseen);
+    return { unseenCount: Number(data?.unseenCount ?? data?.count ?? data) || 0 };
+  }
+
+  // Pone en 0 el contador de no vistas (como abrir la campana en la web)
+  async markNotificationsSeen() {
+    await this.request(notifications.markSeen, { method: 'POST' });
+    return true;
+  }
+
+  // Sin id: marca todas como leídas
+  async markNotificationVisited(notificationId) {
+    await this.request(notifications.markVisited, {
+      method: 'POST',
+      urlencoded: notificationId ? { notificationId: assertId(notificationId, 'notificationId') } : { all: true },
+    });
+    return true;
   }
 
   // --- Imágenes ---

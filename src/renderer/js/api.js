@@ -50,6 +50,33 @@ export const api = {
   onChatEvent: (callback) => on('chat:event', callback),
   onChatStatus: (callback) => on('chat:status', callback),
 
+  getProfile: (id, userId) => invoke('profile:get', id, userId),
+  getUserFeed: (id, userId, nextPage) => invoke('profile:feed', id, userId, nextPage),
+  getUserMedia: (id, userId, nextPage) => invoke('profile:media', id, userId, nextPage),
+  setFollow: (id, userId, on) => invoke('profile:follow', id, userId, on),
+  getFollowRequests: (id) => invoke('profile:requests', id),
+  answerFollowRequest: (id, requestId, accept) => invoke('profile:answerRequest', id, requestId, accept),
+
+  getGroups: (id) => invoke('group:list', id),
+  getGroup: (id, groupId) => invoke('group:get', id, groupId),
+  getGroupFeed: (id, groupId, nextPage) => invoke('group:feed', id, groupId, nextPage),
+  // options: { offset, adminsOnly }
+  getGroupMembers: (id, groupId, options) => invoke('group:members', id, groupId, options),
+  // when: 'upcoming' | 'past'
+  getGroupEvents: (id, groupId, when) => invoke('group:events', id, groupId, when),
+  joinGroup: (id, groupId) => invoke('group:join', id, groupId),
+  leaveGroup: (id, groupId) => invoke('group:leave', id, groupId),
+  searchGroupContacts: (id, groupId, query) => invoke('group:contacts', id, groupId, query),
+  inviteToGroup: (id, groupId, userIds) => invoke('group:invite', id, groupId, userIds),
+
+  getNotifications: (id, nextPage) => invoke('notif:list', id, nextPage),
+  getUnseenNotifications: (id) => invoke('notif:unseen', id),
+  markNotificationsSeen: (id) => invoke('notif:markSeen', id),
+  // sin notificationId: todas
+  markNotificationVisited: (id, notificationId) => invoke('notif:markVisited', id, notificationId),
+  onNotification: (callback) => on('notif:event', callback),
+
+  setZoom: (factor) => invoke('ui:zoom', factor),
   downloadImage: (id, url, name) => invoke('ui:download', id, url, name),
 
   onLoginError: (callback) => on('login:error', callback),

@@ -57,6 +57,35 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   account('chat:reactors', (client, _me, threadId, messageId) => client.getMessageReactors(threadId, messageId));
   handle('chat:realtime', (accountId) => realtime.start(accountId));
 
+  account('profile:get', (client, me, userId) => client.getProfile(userId, me.userId));
+  account('profile:feed', (client, _me, userId, nextPage) => client.getUserFeed(userId, nextPage));
+  account('profile:media', (client, _me, userId, nextPage) => client.getUserMedia(userId, nextPage));
+  account('profile:follow', (client, _me, userId, on) => client.setFollow(userId, on));
+  account('profile:requests', (client) => client.getFollowRequests());
+  account('profile:answerRequest', (client, _me, requestId, accept) => client.answerFollowRequest(requestId, accept));
+
+  account('group:list', (client) => client.getGroups());
+  account('group:get', (client, _me, groupId) => client.getGroup(groupId));
+  account('group:feed', (client, _me, groupId, nextPage) => client.getGroupFeed(groupId, nextPage));
+  account('group:members', (client, _me, groupId, options) => client.getGroupMembers(groupId, options));
+  account('group:events', (client, _me, groupId, when) => client.getGroupEvents(groupId, when));
+  account('group:join', (client, _me, groupId) => client.joinGroup(groupId));
+  account('group:leave', (client, me, groupId) => client.leaveGroup(groupId, me.userId));
+  account('group:contacts', (client, _me, groupId, query) => client.searchGroupContacts(groupId, query));
+  account('group:invite', (client, _me, groupId, userIds) => client.inviteToGroup(groupId, userIds));
+
+  account('notif:list', (client, _me, nextPage) => client.getNotifications(nextPage));
+  account('notif:unseen', (client) => client.getUnseenNotifications());
+  account('notif:markSeen', (client) => client.markNotificationsSeen());
+  account('notif:markVisited', (client, _me, notificationId) => client.markNotificationVisited(notificationId));
+
+  // Zoom de toda la ventana (ajustes de UI)
+  handle('ui:zoom', (factor) => {
+    const zoom = Math.min(Math.max(Number(factor) || 1, 0.5), 2.5);
+    getWindow()?.webContents.setZoomFactor(zoom);
+    return zoom;
+  });
+
   // Descarga una imagen de MeWe (con las cookies de la cuenta) y la guarda donde elija el usuario
   account('ui:download', async (client, _me, url, suggestedName) => {
     const { data, contentType } = await client.downloadImage(url);
