@@ -5,12 +5,13 @@ import { createFeedView } from './feedView.js';
 import { createLoginModal } from './loginModal.js';
 import { clearError, showError } from './errorView.js';
 import { createRouter } from './router.js';
-import { applySettings } from './settings.js';
+import { applySettings, setSettingsAccount } from './settings.js';
 import { createGroupView } from './views/groupView.js';
 import { createGroupsView } from './views/groupsView.js';
 import { createNotificationsView } from './views/notificationsView.js';
 import { createPostView } from './views/postView.js';
 import { createProfileView } from './views/profileView.js';
+import { createSearchView } from './views/searchView.js';
 import { createSettingsView } from './views/settingsView.js';
 import { createThreadView } from './views/threadView.js';
 
@@ -27,6 +28,7 @@ const removeBtn = $('#remove-account');
 const notifBtn = $('#open-notifications');
 const notifBadge = $('#notif-badge');
 const settingsBtn = $('#open-settings');
+const searchBtn = $('#open-search');
 
 // Vistas raíz: las pestañas de la cabecera. El resto (perfil, grupo, post…) se abre con router.navigate.
 const ROOT_VIEWS = ['feed', 'chat', 'groups'];
@@ -52,6 +54,7 @@ const router = createRouter({
     }
     notifBtn.classList.toggle('active', view === 'notifications');
     settingsBtn.classList.toggle('active', view === 'settings');
+    searchBtn.classList.toggle('active', view === 'search');
   },
 });
 
@@ -64,6 +67,7 @@ router.registerView('group', createGroupView);
 router.registerView('thread', createThreadView);
 router.registerView('notifications', (nav) => createNotificationsView({ ...nav, onUnseenChange: setUnseen }));
 router.registerView('settings', createSettingsView);
+router.registerView('search', createSearchView);
 
 const column = createAccountsColumn({
   listEl: $('#account-list'),
@@ -115,6 +119,7 @@ titleEl.addEventListener('click', () => {
 });
 notifBtn.addEventListener('click', () => openView('notifications'));
 settingsBtn.addEventListener('click', () => openView('settings'));
+searchBtn.addEventListener('click', () => openView('search'));
 
 // Alt+← como en un navegador · F5 actualiza la vista · Ctrl+1…3 cambia de sección
 window.addEventListener('keydown', (event) => {
@@ -159,10 +164,11 @@ api.onNotification(({ accountId }) => {
 function selectAccount(account) {
   active = account;
   column.setActive(account?.id ?? null);
+  setSettingsAccount(account); // cada cuenta puede tener su tema y colores
   titleEl.textContent = account ? account.name : 'Sin cuenta seleccionada';
   titleEl.disabled = !account?.userId;
   viewTabsEl.hidden = !account;
-  for (const btn of [notifBtn, refreshBtn, reloginBtn, removeBtn]) btn.hidden = !account;
+  for (const btn of [searchBtn, notifBtn, refreshBtn, reloginBtn, removeBtn]) btn.hidden = !account;
   clearError(errorEl);
   setUnseen(0);
   router.setAccount(account, account ? rootView : 'feed'); // sin cuenta, el feed muestra cómo agregar una

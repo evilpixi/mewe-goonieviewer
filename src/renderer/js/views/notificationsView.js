@@ -4,6 +4,7 @@ import { avatar } from '../ui/avatar.js';
 import { formatDateTime, formatFull } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
 import { createFollowRequests } from '../ui/followRequests.js';
+import { plainText } from '../ui/richText.js';
 import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
 
@@ -220,7 +221,7 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
           ' ',
           actionText(n),
         ),
-        n.snippet && h('span', { className: 'notif-snippet', attrs: { dir: 'auto' } }, n.snippet),
+        n.snippet && h('span', { className: 'notif-snippet', attrs: { dir: 'auto' } }, plainText(n.snippet)),
         h(
           'span',
           { className: 'notif-meta' },

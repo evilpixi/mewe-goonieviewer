@@ -1,6 +1,7 @@
 import { avatar } from './avatar.js';
 import { emptyState, h } from './dom.js';
 import { openEmojiPicker } from './emojiPicker.js';
+import { icon } from './icon.js';
 import { openPopover } from './popover.js';
 import { userName } from './userName.js';
 
@@ -111,7 +112,7 @@ export function createReactions({ accountId, emojis = [], canReact = true, onTog
           attrs: { 'aria-label': 'Agregar reacción', 'aria-haspopup': 'dialog' },
           onClick: (event) => openEmojiPicker(event.currentTarget, toggleOn),
         },
-        '☺+',
+        icon('smile-plus'),
       );
     const whoBtn =
       state.length > 0 &&

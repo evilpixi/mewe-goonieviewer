@@ -233,6 +233,12 @@ export class MeweClient {
   // --- Chats ---
 
   async getChatThreads(myUserId, filter = 'users') {
+    // 'all': con el chatType AllChat de MeWe la lista no se veía; se juntan personas y grupos, que sí funcionan
+    if (filter === 'all') {
+      const lists = await Promise.all(['users', 'groups'].map((type) => this.getChatThreads(myUserId, type)));
+      const byId = new Map(lists.flat().map((thread) => [thread.id, thread]));
+      return [...byId.values()];
+    }
     const chatType = chat.chatTypes[filter];
     if (!chatType) throw new MeweApiError({ message: `Filtro de chats desconocido: ${filter}` });
     const data = await this.request(chat.threads, {
@@ -240,6 +246,23 @@ export class MeweClient {
       json: { addRequests: false, chatType },
     });
     return normalizeThreads(data, myUserId);
+  }
+
+  // Chat de a dos con una persona: el que ya existe o, si no hay, uno nuevo
+  async openChatWith(userId, myUserId) {
+    assertId(userId, 'userId');
+    const existing = (await this.getChatThreads(myUserId, 'users')).find((thread) => thread.userId === userId);
+    if (existing) return existing;
+    const data = await this.request(chat.create, { method: 'POST', json: { receivers: [userId] } });
+    const [created] = normalizeThreads({ threads: [data?.thread ?? data ?? {}], users: data?.users }, myUserId);
+    if (!created?.id) throw new MeweApiError({ message: 'MeWe no devolvió el chat creado.', body: data });
+    return { ...created, userId };
+  }
+
+  // Mensaje temporal visto: a partir de acá MeWe empieza a contar para borrarlo
+  async markMessageSeen(messageId) {
+    await this.request(chat.seen(assertId(messageId)), { method: 'POST' });
+    return true;
   }
 
   async getMessages(threadId, myUserId, beforeId) {
@@ -265,6 +288,15 @@ export class MeweClient {
 
     const data = await this.request(chat.send(threadId), { method: 'POST', json });
     return normalizeMessage(data?.message ?? data ?? {}, myUserId);
+  }
+
+  // Cambia el texto de un mensaje propio (igual que la web: PUT { text })
+  async editMessage(threadId, messageId, text) {
+    await this.request(chat.edit(assertId(threadId, 'threadId'), assertId(messageId, 'messageId')), {
+      method: 'PUT',
+      json: { text: requireText(text) },
+    });
+    return true;
   }
 
   // file = { name, type, data: Uint8Array } desde el renderer. Devuelve el id del adjunto.
@@ -297,6 +329,14 @@ export class MeweClient {
   async getProfile(userId, myUserId) {
     const data = await this.request(profile.details(assertId(userId, 'userId')), { query: { details: true } });
     return normalizeUserProfile(data, myUserId);
+  }
+
+  // Buscador de personas de MeWe (el mismo de la web)
+  async searchUsers(query) {
+    const text = String(query ?? '').trim().slice(0, 100);
+    if (text.length < 2) return [];
+    const data = await this.request(profile.search, { query: { query: text, limit: 30, nm: 1 } });
+    return normalizeContacts(data).filter((user) => user.id);
   }
 
   async getUserFeed(userId, nextPage) {
@@ -452,9 +492,10 @@ function requireText(text) {
 }
 
 // Modo debug: consola + la última respuesta de cada endpoint en ./mewe-debug/
+// (la app empaquetada define MEWE_DEBUG_DIR: su carpeta de instalación no es escribible)
 async function dumpResponse(method, url, status, text) {
   console.log(`[mewe] ${method} ${url} -> ${status}`, text.slice(0, 500));
-  const dir = path.join(process.cwd(), 'mewe-debug');
+  const dir = process.env.MEWE_DEBUG_DIR ?? path.join(process.cwd(), 'mewe-debug');
   const file = `${url.pathname.replace(/^\/api\//, '').replace(/[^\w-]+/g, '_')}.json`;
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, file), text);

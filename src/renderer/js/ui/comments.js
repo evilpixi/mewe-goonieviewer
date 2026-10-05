@@ -5,6 +5,7 @@ import { formatDateTime, formatFull } from './dates.js';
 import { emptyState, h } from './dom.js';
 import { renderGallery } from './gallery.js';
 import { createReactions } from './reactions.js';
+import { richText } from './richText.js';
 import { userName } from './userName.js';
 
 const PAGE_SIZE = 10; // igual que config.mewe.comments.pageSize
@@ -158,7 +159,7 @@ export function createComments({ account, post, onCountChange, navigate }) {
             authorLink(c.author),
             c.createdAt && h('time', { className: 'comment-date', title: formatFull(c.createdAt) }, formatDateTime(c.createdAt)),
           ),
-          c.text && h('p', { className: 'comment-text', attrs: { dir: 'auto' } }, c.text),
+          c.text && h('p', { className: 'comment-text', attrs: { dir: 'auto' } }, richText(c.text, { accountId, navigate })),
           renderGallery({ accountId, images: c.images }),
         ),
         actions,
@@ -182,7 +183,13 @@ export function createComments({ account, post, onCountChange, navigate }) {
   function createInput(placeholder, submit) {
     const textarea = h('textarea', { rows: 1, placeholder, attrs: { 'aria-label': placeholder } });
     const button = h('button', { type: 'submit', className: 'btn primary' }, 'Enviar');
-    const form = h('form', { className: 'comment-form' }, textarea, button);
+    // foto de la cuenta que va a comentar
+    const meEl = h(
+      'span',
+      { className: 'writing-as', title: `Comentas como ${account.name}`, attrs: { role: 'img', 'aria-label': `Comentas como ${account.name}` } },
+      avatar(accountId, account.avatar, { name: account.name, size: 'sm' }),
+    );
+    const form = h('form', { className: 'comment-form' }, meEl, textarea, button);
     async function sendIt() {
       const text = textarea.value.trim();
       if (!text || button.disabled) return;

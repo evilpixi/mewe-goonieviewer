@@ -6,7 +6,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img:; font-src 'self'"
     />
-    <title>MeWe Viewer</title>
+    <title>Goonie Mewe Viewer</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -27,6 +27,7 @@
         <!-- controles propios de la vista activa (ej. filtro del feed) -->
         <div id="view-toolbar" class="view-toolbar"></div>
         <div class="header-actions">
+          <button id="open-search" class="btn icon-btn" title="Buscar personas" aria-label="Buscar personas" hidden>🔍</button>
           <button id="open-notifications" class="btn icon-btn has-badge" title="Notificaciones" aria-label="Notificaciones" hidden>
             <span aria-hidden="true">🔔</span><span id="notif-badge" class="count-badge" hidden></span>
           </button>

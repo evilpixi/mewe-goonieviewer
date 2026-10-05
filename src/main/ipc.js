@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { dialog, ipcMain } from 'electron';
 import { serializeError } from '../mewe/errors.js';
+import { avatarColor } from './avatarColor.js';
 
 // Todas las respuestas IPC son { ok, data } | { ok: false, error }:
 // ipcMain.handle pierde las propiedades de los errores (status, body...) si se lanzan.
@@ -50,14 +51,18 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   account('chat:threads', (client, me, filter) => client.getChatThreads(me.userId, filter));
   account('chat:messages', (client, me, threadId, beforeId) => client.getMessages(threadId, me.userId, beforeId));
   account('chat:send', (client, me, threadId, message) => client.sendMessage(threadId, me.userId, message));
+  account('chat:edit', (client, _me, threadId, messageId, text) => client.editMessage(threadId, messageId, text));
   account('chat:upload', (client, _me, isGroup, file) => client.uploadChatImage(isGroup, file));
   account('chat:react', (client, _me, threadId, messageId, emoji, on) =>
     client.setMessageReaction(threadId, messageId, emoji, on),
   );
   account('chat:reactors', (client, _me, threadId, messageId) => client.getMessageReactors(threadId, messageId));
+  account('chat:open', (client, me, userId) => client.openChatWith(userId, me.userId));
+  account('chat:seen', (client, _me, messageId) => client.markMessageSeen(messageId));
   handle('chat:realtime', (accountId) => realtime.start(accountId));
 
   account('profile:get', (client, me, userId) => client.getProfile(userId, me.userId));
+  account('profile:search', (client, _me, query) => client.searchUsers(query));
   account('profile:feed', (client, _me, userId, nextPage) => client.getUserFeed(userId, nextPage));
   account('profile:media', (client, _me, userId, nextPage) => client.getUserMedia(userId, nextPage));
   account('profile:follow', (client, _me, userId, on) => client.setFollow(userId, on));
@@ -85,6 +90,9 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
     getWindow()?.webContents.setZoomFactor(zoom);
     return zoom;
   });
+
+  // Color predominante de una foto de perfil (borde de los globos del chat)
+  account('ui:avatarColor', (client, _me, url) => avatarColor(client, url));
 
   // Descarga una imagen de MeWe (con las cookies de la cuenta) y la guarda donde elija el usuario
   account('ui:download', async (client, _me, url, suggestedName) => {

@@ -6,9 +6,9 @@ import { userName } from '../ui/userName.js';
 // Ruta 'thread': { thread: { id, name, isGroup }, messageId? } → una conversación suelta a pantalla completa.
 // La usan el chat de un grupo, el chat de un evento y las menciones en chats desde las notificaciones
 // (messageId: va a ese mensaje y lo resalta).
-export function createThreadView() {
+export function createThreadView({ navigate } = {}) {
   const titleEl = h('div', { className: 'thread-title' });
-  const conversation = createConversation();
+  const conversation = createConversation({ navigate });
   const el = h('div', { className: 'view chat thread-view' }, conversation.el);
   let account = null;
   let visible = false;

@@ -29,11 +29,12 @@ function remember(emoji) {
 }
 
 // Abre el selector anclado a `anchor`; onSelect(emoji) se llama una vez.
-export function openEmojiPicker(anchor, onSelect) {
+// forText: el emoji va dentro de un texto (no es una reacción), así que se deja tal cual.
+export function openEmojiPicker(anchor, onSelect, { forText = false } = {}) {
   let popover = null;
   const choose = (picked) => {
-    // MeWe guarda los emojis sin el selector de variación (❤ y no ❤️): si no, serían reacciones distintas
-    const emoji = picked.replace(/️/g, '');
+    // MeWe guarda las reacciones sin el selector de variación (❤ y no ❤️): si no, serían reacciones distintas
+    const emoji = forText ? picked : picked.replace(/️/g, '');
     remember(emoji);
     popover?.close();
     onSelect(emoji);
@@ -42,7 +43,7 @@ export function openEmojiPicker(anchor, onSelect) {
     h(
       'div',
       { className: 'emoji-grid' },
-      list.map((emoji) => h('button', { className: 'emoji-option', title: emoji, attrs: { 'aria-label': `Reaccionar con ${emoji}` }, onClick: () => choose(emoji) }, emoji)),
+      list.map((emoji) => h('button', { className: 'emoji-option', title: emoji, attrs: { 'aria-label': forText ? `Insertar ${emoji}` : `Reaccionar con ${emoji}` }, onClick: () => choose(emoji) }, emoji)),
     );
 
   const input = h('input', {

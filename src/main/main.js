@@ -11,6 +11,9 @@ import { Realtime } from './realtime.js';
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow = null;
 
+// Empaquetada, los volcados de --mewe-debug van a la carpeta de datos del usuario
+if (app.isPackaged) process.env.MEWE_DEBUG_DIR ??= path.join(app.getPath('userData'), 'mewe-debug');
+
 registerImageScheme();
 
 function createMainWindow() {
@@ -18,7 +21,7 @@ function createMainWindow() {
     width: 900,
     height: 800,
     minWidth: 420,
-    title: 'MeWe Viewer',
+    title: 'Goonie Mewe Viewer',
     webPreferences: {
       preload: path.join(dirname, '../preload/preload.cjs'),
       contextIsolation: true,

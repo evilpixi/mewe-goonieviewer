@@ -14,6 +14,9 @@ Con `npm run debug`, la última respuesta de cada endpoint se guarda en `mewe-de
 | Subir imagen | `POST /api/v2/attachment/upload/pm` (chat con personas) o `/gc` (chat de grupo) | multipart, campo `files[]`. Responde `{ id }`, que se usa en `attachments`. |
 | Reaccionar | `POST /api/v2/chat/thread/{t}/message/{m}/emojis` con body `["😀"]` | Quitar: `DELETE …/emojis?emojis=😀`. |
 | Quién reaccionó | `GET /api/v2/chat/thread/{t}/message/{m}/emojis` | `{ usersWithEmojis: [{ user, emojis }], _links.nextPage }`. De un solo emoji: `GET …/emoji?emoji=😀` devuelve `{ users }`. |
+| Abrir / crear chat | `POST /api/v2/chat/thread` `{ receivers: [userId] }` | Devuelve el chat. Sacado del bundle web. **Sin probar.** |
+| Editar mensaje | `PUT /api/v2/chat/thread/{threadId}/message/{id}` | `{ text }`. Sólo mensajes propios de texto; el mensaje vuelve con `editedAt`. **Sin probar.** |
+| Mensaje temporal visto | `POST /api/v2/messages/message/{id}/seen` | La web lo llama al **terminar** de mostrar un mensaje con `expiresIn` (ahí MeWe lo borra), no al abrirlo. La imagen se pide a `mewe.com` (no a `img.mewe.com`) en `400x400`. **Sin probar.** |
 | Marcar leído | `DELETE /api/v2/messages/thread/{id}/unread` | Todavía sin usar. |
 
 Forma de un mensaje:
@@ -67,6 +70,7 @@ Tipos de evento:
 | Imágenes | `GET /api/v2/home/user/{userId}/mediastream` | `{ feed: [{ mediaId, postItemId, photo }], _links.nextPage }` |
 | Seguir / dejar de seguir | `POST` / `DELETE /api/v2/following/{userId}/follow` | En una cuenta privada, el POST deja una solicitud pendiente. **Sin probar.** |
 | Solicitudes recibidas | `GET /api/v2/following/requests/received` | `{ list: [...] }`. Sólo se vio vacía: la forma de cada elemento falta confirmarla. |
+| Buscar personas | `GET /api/v3/desktop/search/users?query=&limit=&offset=&nm=1` | `{ results: [{ user }], hasMoreResults }`. Sacado del bundle web. **Sin probar.** Hermanos: `/desktop/search` (todo), `/groups`, `/chats`, `/posts`. |
 | Aceptar solicitud | `POST /api/v2/following/request/{requestId}/accept` | **Sin probar.** |
 | Rechazar o cancelar | `DELETE /api/v2/following/request/{requestId}/remove` | **Sin probar.** |
 

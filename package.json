@@ -3,13 +3,51 @@
   "version": "0.1.0",
   "private": true,
   "description": "Cliente compacto multi-cuenta para MeWe",
+  "author": "evilpixi",
   "type": "module",
   "main": "src/main/main.js",
   "scripts": {
     "start": "node scripts/start.js",
-    "debug": "node scripts/start.js --mewe-debug"
+    "debug": "node scripts/start.js --mewe-debug",
+    "emoji:update": "node scripts/build-emoji.js",
+    "icons:update": "node scripts/build-icons.js",
+    "pack": "electron-builder --dir",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.evilpixi.meweviewer",
+    "productName": "Goonie Mewe Viewer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "tar.gz"
+      ],
+      "executableName": "meweviewer",
+      "category": "Network"
+    }
   },
   "devDependencies": {
-    "electron": "^44.5.1"
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "emojibase-data": "^17.0.0",
+    "lucide-static": "^1.52.0"
   }
 }

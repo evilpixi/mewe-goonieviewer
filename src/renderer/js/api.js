@@ -43,9 +43,12 @@ export const api = {
   getMessages: (id, threadId, beforeId) => invoke('chat:messages', id, threadId, beforeId),
   // message: { text, replyTo, attachments, expiresIn }
   sendMessage: (id, threadId, message) => invoke('chat:send', id, threadId, message),
+  editMessage: (id, threadId, messageId, text) => invoke('chat:edit', id, threadId, messageId, text),
   uploadChatImage: (id, isGroup, file) => invoke('chat:upload', id, isGroup, file),
   reactMessage: (id, threadId, messageId, emoji, on) => invoke('chat:react', id, threadId, messageId, emoji, on),
   getMessageReactors: (id, threadId, messageId) => invoke('chat:reactors', id, threadId, messageId),
+  openChatWith: (id, userId) => invoke('chat:open', id, userId),
+  markMessageSeen: (id, messageId) => invoke('chat:seen', id, messageId),
   startRealtime: (id) => invoke('chat:realtime', id),
   onChatEvent: (callback) => on('chat:event', callback),
   onChatStatus: (callback) => on('chat:status', callback),
@@ -57,6 +60,7 @@ export const api = {
   getFollowRequests: (id) => invoke('profile:requests', id),
   answerFollowRequest: (id, requestId, accept) => invoke('profile:answerRequest', id, requestId, accept),
 
+  searchUsers: (id, query) => invoke('profile:search', id, query),
   getGroups: (id) => invoke('group:list', id),
   getGroup: (id, groupId) => invoke('group:get', id, groupId),
   getGroupFeed: (id, groupId, nextPage) => invoke('group:feed', id, groupId, nextPage),
@@ -78,6 +82,7 @@ export const api = {
 
   setZoom: (factor) => invoke('ui:zoom', factor),
   downloadImage: (id, url, name) => invoke('ui:download', id, url, name),
+  getAvatarColor: (id, url) => invoke('ui:avatarColor', id, url),
 
   onLoginError: (callback) => on('login:error', callback),
   onLoginStatus: (callback) => on('login:status', callback),

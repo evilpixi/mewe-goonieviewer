@@ -139,7 +139,7 @@ export function createProfileView({ navigate }) {
     const p = profile;
     if (p.isMe) return [];
     const action = (label, run, className = 'btn') => h('button', { className, onClick: (event) => runAction(event.currentTarget, run) }, label);
-    const buttons = [];
+    const buttons = [h('button', { className: 'btn', onClick: (event) => openChat(event.currentTarget) }, '💬 Mensaje')];
     if (p.requestReceived) {
       const id = typeof p.requestReceived === 'string' ? p.requestReceived : null;
       buttons.push(
@@ -160,6 +160,23 @@ export function createProfileView({ navigate }) {
       buttons.push(action(p.isPublic ? 'Seguir' : 'Solicitar seguir', () => api.setFollow(account.id, p.id, true), 'btn primary'));
     }
     return buttons;
+  }
+
+  // Abre el chat con esta persona (el que ya existe o uno nuevo)
+  async function openChat(button) {
+    const gen = generation;
+    const p = profile;
+    button.disabled = true;
+    clearError(errorEl);
+    try {
+      const thread = await api.openChatWith(account.id, p.id);
+      if (gen !== generation) return;
+      navigate('thread', { thread: { ...thread, name: p.name, avatar: p.avatar, userId: p.id } });
+    } catch (err) {
+      if (gen === generation) showError(errorEl, err, 'MeWe chat');
+    } finally {
+      button.disabled = false;
+    }
   }
 
   // Ejecuta una acción de seguimiento y recarga el perfil para reflejar el estado real

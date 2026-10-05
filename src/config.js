@@ -28,6 +28,10 @@ export const config = {
       threads: '/api/v2/chat/threads', // POST { addRequests, chatType }
       messages: (threadId) => `/api/v2/chat/thread/${threadId}/messages`, // GET ?limit=&beforeId=
       send: (threadId) => `/api/v2/chat/thread/${threadId}/message`, // POST { message, setAsRead, replyTo, attachments }
+      edit: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}`, // PUT { text }
+      create: '/api/v2/chat/thread', // POST { receivers: [userId] } → el chat (nuevo o el que ya había)
+      seen: (messageId) => `/api/v2/messages/message/${messageId}/seen`, // POST: marca visto un mensaje temporal
+      disappearingImageSize: '400x400', // tamaño con el que la web pide las imágenes temporales
       // POST ["😀"] agrega · DELETE ?emojis= quita · GET lista quién reaccionó
       emojis: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}/emojis`,
       // multipart files[] -> { id }; 'pm' = chat con personas, 'gc' = chat de grupo
@@ -54,6 +58,7 @@ export const config = {
       media: (userId) => `/api/v2/home/user/${userId}/mediastream`, // GET, paginado
       follow: (userId) => `/api/v2/following/${userId}/follow`, // POST sigue · DELETE deja de seguir
       requestsReceived: '/api/v2/following/requests/received', // GET
+      search: '/api/v3/desktop/search/users', // GET ?query=&limit=&offset=&nm=1 → { results: [{ user }], hasMoreResults }
       acceptRequest: (requestId) => `/api/v2/following/request/${requestId}/accept`, // POST
       removeRequest: (requestId) => `/api/v2/following/request/${requestId}/remove`, // DELETE (rechazar o cancelar)
     },

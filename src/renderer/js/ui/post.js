@@ -5,6 +5,7 @@ import { formatDateTime, formatFull } from './dates.js';
 import { h } from './dom.js';
 import { renderGallery } from './gallery.js';
 import { createReactions } from './reactions.js';
+import { richText } from './richText.js';
 import { userName } from './userName.js';
 
 // Un post (feed, perfil, grupo o vista individual): cabecera, texto, fotos, reacciones y comentarios.
@@ -67,7 +68,7 @@ export function renderPost(post, { account, navigate, expanded = false }) {
     'article',
     { className: 'post', dataset: { postId: post.id ?? '' } },
     head,
-    post.text && h('p', { className: 'post-text', attrs: { dir: 'auto' } }, post.text),
+    post.text && h('p', { className: 'post-text', attrs: { dir: 'auto' } }, richText(post.text, { accountId, navigate })),
     renderGallery({
       accountId,
       images: post.images,

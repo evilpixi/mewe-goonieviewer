@@ -8,6 +8,8 @@
   /* Multiplicadores que controlan los ajustes de UI */
   --density: 1; /* padding / margin / gap */
   --font-scale: 1; /* tamaño de texto */
+  --chat-font-scale: 1; /* aumento extra del texto dentro de una conversación */
+  --line-scale: 1; /* alto de línea */
   --icon-scale: 1; /* iconos y avatares */
 
   /* Colores */
@@ -53,8 +55,11 @@
   /* Nombres de usuario: suelen usar letras matemáticas (𝓐𝕭), símbolos y emojis.
      Noto Sans Math / Symbols / Symbols 2 van empaquetadas (ver @font-face más abajo), así el nombre
      se lee igual aunque el sistema no tenga esas fuentes; los emojis usan la fuente del sistema. */
-  --font-names: var(--font-family), 'Noto Sans Math', 'Noto Sans Symbols', 'Noto Sans Symbols 2', 'Segoe UI Symbol',
-    'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 'Cambria Math', sans-serif;
+  /* Emojis: siempre los de color del sistema. Tienen que ir ANTES que las fuentes de símbolos,
+     que traen versiones en blanco y negro de muchos emojis y si no les ganan. */
+  --font-emoji: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji';
+  --font-names: var(--font-family), var(--font-emoji), 'Noto Sans Math', 'Noto Sans Symbols', 'Noto Sans Symbols 2',
+    'Segoe UI Symbol', 'Cambria Math', sans-serif;
   --line-height: 1.45;
   --font-xs: calc(11px * var(--font-scale));
   --font-sm: calc(12px * var(--font-scale));
@@ -84,11 +89,17 @@
 
   /* Layout */
   --sidebar-width: calc(var(--avatar-lg) + 2 * var(--space-5));
-  --threads-width: 230px;
+  --threads-width: min(calc(230px * var(--font-scale)), 35vw);
   --bubble-max-width: 75%;
-  --page-width: 760px;
+  --page-width: calc(760px * max(1, var(--font-scale))); /* crece con la fuente: mantiene el largo de línea */
 
   color-scheme: light;
+}
+
+/* Ajuste "Usar todo el ancho": el texto ocupa todo el espacio disponible */
+:root[data-full-width] {
+  --bubble-max-width: 100%;
+  --page-width: none;
 }
 
 /* ==========================================================================
@@ -227,6 +238,125 @@
   color-scheme: dark;
 }
 
+/* Los temas que siguen buscan legibilidad: texto principal ≥ 10:1 y secundario ≥ 5:1 sobre sus paneles */
+
+/* Medianoche: negro puro (teles y pantallas OLED) */
+:root[data-theme='midnight'] {
+  --bg: #000000;
+  --panel: #0e0e12;
+  --sidebar: #000000;
+  --sidebar-item: #26262e;
+  --sidebar-item-border: #6a6a78;
+  --text: #f2f2f5;
+  --muted: #b0b4c0;
+  --border: #33333c;
+  --accent: #7fb0ff;
+  --on-accent: #061022;
+  --danger: #ff7b7b;
+  --danger-bg: #3a1215;
+  --live: #4cd070;
+  color-scheme: dark;
+}
+
+/* Nórdico: gris azulado, contraste suave pero suficiente */
+:root[data-theme='nord'] {
+  --bg: #2e3440;
+  --panel: #3b4252;
+  --sidebar: #242933;
+  --sidebar-item: #434c5e;
+  --sidebar-item-border: #7b88a1;
+  --text: #f0f3f8;
+  --muted: #c8cfdc;
+  --border: #56617a;
+  --accent: #88c0d0;
+  --on-accent: #17202b;
+  --danger: #f4a6ae;
+  --danger-bg: #4a2f36;
+  --live: #a3be8c;
+  color-scheme: dark;
+}
+
+/* Bosque: oscuro con verdes */
+:root[data-theme='forest'] {
+  --bg: #0f1a14;
+  --panel: #17261d;
+  --sidebar: #0a120d;
+  --sidebar-item: #24382b;
+  --sidebar-item-border: #5a7d66;
+  --text: #e6f1e8;
+  --muted: #a6bcac;
+  --border: #2f4737;
+  --accent: #6fd08c;
+  --on-accent: #06170c;
+  --danger: #f58a8a;
+  --danger-bg: #3b1a1a;
+  --live: #6fd08c;
+  color-scheme: dark;
+}
+
+/* Ámbar: oscuro con texto cálido, tipo terminal */
+:root[data-theme='amber'] {
+  --bg: #120e08;
+  --panel: #1c160d;
+  --sidebar: #0a0704;
+  --sidebar-item: #2e2414;
+  --sidebar-item-border: #7a6238;
+  --text: #ffdfa8;
+  --muted: #d0ad72;
+  --border: #4a3a20;
+  --accent: #ffb000;
+  --on-accent: #1a1000;
+  --danger: #ff8f7a;
+  --danger-bg: #3a1610;
+  --live: #b8d94a;
+  color-scheme: dark;
+}
+
+/* Sepia: papel cálido */
+:root[data-theme='sepia'] {
+  --bg: #efe4cb;
+  --panel: #fbf5e6;
+  --sidebar: #4a3a28;
+  --sidebar-item: #6a563e;
+  --sidebar-item-border: #a8926f;
+  --text: #33281a;
+  --muted: #655540;
+  --border: #d6c6a2;
+  --accent: #8a4b12;
+  --on-accent: #fff8ea;
+  --danger: #a32626;
+  --danger-bg: #f6dfd3;
+  --live: #2c6b2f;
+}
+
+/* Océano: claro con azules */
+:root[data-theme='ocean'] {
+  --bg: #e6f2f7;
+  --panel: #ffffff;
+  --sidebar: #0f3550;
+  --sidebar-item: #1f4d6e;
+  --sidebar-item-border: #5f93b5;
+  --text: #0f2430;
+  --muted: #47616f;
+  --border: #c2dbe7;
+  --accent: #0b6a99;
+  --bubble: #f4fafc;
+}
+
+/* Rosa: claro con rosas */
+:root[data-theme='rose'] {
+  --bg: #fbeaf0;
+  --panel: #ffffff;
+  --sidebar: #5a1f3a;
+  --sidebar-item: #7a3553;
+  --sidebar-item-border: #b9768f;
+  --text: #2a1420;
+  --muted: #6e4c5c;
+  --border: #ecc6d4;
+  --accent: #b0245f;
+  --bubble: #fff6f9;
+}
+
 /* ==========================================================================
    Fuentes empaquetadas (src/renderer/fonts): sólo se usan para los caracteres que
    la fuente del sistema no tiene, vía --font-names.
@@ -260,9 +390,9 @@ body {
   margin: 0;
   height: 100vh;
   display: flex;
-  font-family: var(--font-family);
+  font-family: var(--font-family), var(--font-emoji);
   font-size: var(--font-md);
-  line-height: var(--line-height);
+  line-height: calc(var(--line-height) * var(--line-scale));
   background-color: var(--bg);
   background-image: var(--bg-image);
   background-attachment: fixed;
@@ -353,6 +483,37 @@ button:disabled {
   font-size: var(--font-icon);
 }
 
+/* Dentro de un texto (menciones): del alto de la línea. El tamaño va en em del texto que la rodea. */
+.avatar-inline {
+  font-size: 0.55em;
+  width: 2.2em;
+  height: 2.2em;
+  margin-right: 0.35em;
+  vertical-align: -0.5em;
+}
+
+/* Mención a un usuario en un texto (ui/richText.js) */
+.mention,
+.link-btn.mention {
+  display: inline;
+  color: inherit;
+  font-weight: 600;
+  white-space: normal;
+}
+
+button.mention:hover {
+  text-decoration: underline;
+}
+
+/* Foto de la cuenta activa junto a una caja de texto: deja claro quién va a escribir */
+.writing-as {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: flex-start;
+  border-radius: var(--radius-round);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
 .empty,
 .status {
   color: var(--muted);
@@ -366,6 +527,36 @@ button:disabled {
 
 .scroll {
   overflow-y: auto;
+}
+
+/* Barras de desplazamiento: finas, redondeadas y con los colores del tema */
+::-webkit-scrollbar {
+  width: calc(10px * var(--icon-scale));
+  height: calc(10px * var(--icon-scale));
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  /* el borde transparente deja aire alrededor del tirador */
+  border: calc(2px * var(--icon-scale)) solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 30%, transparent) content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text) 55%, transparent) content-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--accent) content-box;
+}
+
+.accounts::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--on-sidebar) 35%, transparent) content-box;
 }
 
 /* ==========================================================================
@@ -457,8 +648,8 @@ button:disabled {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-7);
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-5);
   background: var(--panel);
   border-bottom: var(--border-width) solid var(--border);
 }
@@ -665,7 +856,7 @@ button:disabled {
 }
 
 .single-post .post {
-  max-width: 760px;
+  max-width: var(--page-width);
 }
 
 /* Galería de fotos de un post (hasta 4 miniaturas, "+N" en la última) */
@@ -822,7 +1013,7 @@ button:disabled {
 
 .comment-form {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin-top: var(--space-4);
 }
 
@@ -882,6 +1073,49 @@ button:disabled {
   font-size: var(--font-lg);
 }
 
+/* Íconos de línea (ui/icon.js): miden 1em y se pintan con el color del texto */
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  background: currentcolor;
+  mask: center / contain no-repeat;
+  vertical-align: -0.15em;
+}
+
+.icon-reply {
+  mask-image: url('icons/reply.svg');
+}
+
+.icon-smile {
+  mask-image: url('icons/smile.svg');
+}
+
+.icon-smile-plus {
+  mask-image: url('icons/smile-plus.svg');
+}
+
+.icon-pencil {
+  mask-image: url('icons/pencil.svg');
+}
+
+.icon-paperclip {
+  mask-image: url('icons/paperclip.svg');
+}
+
+.icon-maximize-2 {
+  mask-image: url('icons/maximize-2.svg');
+}
+
+.icon-minimize-2 {
+  mask-image: url('icons/minimize-2.svg');
+}
+
+.icon-x {
+  mask-image: url('icons/x.svg');
+}
+
 /* Reacciones */
 .reactions {
   display: flex;
@@ -898,10 +1132,11 @@ button:disabled {
   background: var(--panel);
   color: var(--text);
   border-radius: 999px;
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-4);
   font: inherit;
-  font-size: var(--font-sm);
-  line-height: 1.6;
+  font-size: var(--font-md);
+  line-height: 1;
+  min-height: calc(var(--font-md) * 2);
   cursor: pointer;
 }
 
@@ -919,13 +1154,21 @@ button:disabled {
   color: var(--muted);
 }
 
+.reaction.add .icon {
+  font-size: 1.3em;
+}
+
+/* line-height 1 + centrado del flex: el emoji queda a la misma altura que el número o el "+" */
 .reaction-emoji {
-  font-family: var(--font-names);
+  font-family: var(--font-emoji), var(--font-names);
+  font-size: 1.15em;
+  line-height: 1;
 }
 
 .reactions.compact .reaction {
-  font-size: var(--font-xs);
-  padding: 0 var(--space-2);
+  font-size: var(--font-sm);
+  padding: 0 var(--space-3);
+  min-height: calc(var(--font-sm) * 1.9);
 }
 
 /* En los mensajes los botones "+" y "¿Quién?" sólo aparecen con el mouse encima */
@@ -961,7 +1204,7 @@ button:disabled {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   padding: var(--space-4);
-  max-width: min(320px, 92vw);
+  max-width: min(calc(320px * var(--font-scale)), 92vw);
   max-height: 60vh;
   overflow-y: auto;
 }
@@ -982,7 +1225,7 @@ button:disabled {
   border: 0;
   background: transparent;
   font-size: calc(var(--font-xl) * 1.2);
-  font-family: var(--font-names);
+  font-family: var(--font-emoji), var(--font-names);
   padding: var(--space-1);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -1023,7 +1266,7 @@ button:disabled {
 }
 
 .reactor-emojis {
-  font-family: var(--font-names);
+  font-family: var(--font-emoji), var(--font-names);
 }
 
 /* Visor de imágenes */
@@ -1172,7 +1415,7 @@ button:disabled {
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-8);
-  width: min(380px, 92vw);
+  width: min(calc(380px * var(--font-scale)), 92vw);
   background: var(--panel);
   color: var(--text);
 }
@@ -1221,6 +1464,7 @@ button:disabled {
 
 .chat-sidebar {
   width: var(--threads-width);
+  max-width: 60%;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1235,6 +1479,23 @@ button:disabled {
   padding: 0;
   flex: 1;
   min-height: 0;
+}
+
+/* Borde arrastrable entre la lista y la conversación (ver chatView.js): cambia el ancho de la lista */
+.chat-resizer {
+  flex-shrink: 0;
+  width: 6px;
+  margin-inline: -3px;
+  z-index: 3;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.chat-resizer:hover,
+.chat-resizer:focus-visible,
+.chat-resizer.dragging {
+  background: var(--accent);
+  outline: none;
 }
 
 .view-toolbar-group {
@@ -1258,7 +1519,7 @@ button:disabled {
   gap: var(--space-4);
   align-items: center;
   width: 100%;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-2) var(--space-4);
   border: 0;
   border-bottom: var(--border-width) solid var(--border);
   background: transparent;
@@ -1297,8 +1558,8 @@ button:disabled {
 }
 
 .unread-dot {
-  width: 8px;
-  height: 8px;
+  width: calc(8px * var(--font-scale));
+  height: calc(8px * var(--font-scale));
   border-radius: var(--radius-round);
   background: var(--accent);
   flex-shrink: 0;
@@ -1321,12 +1582,134 @@ button:disabled {
   font-size: var(--font-sm);
 }
 
+/* Dentro de una conversación los tamaños de texto se recalculan con --chat-font-scale
+   (mismos px base que en :root): mensajes y caja de redacción crecen sin agrandar el resto de la UI */
 .chat-conversation {
+  --chat-scale: calc(var(--font-scale) * var(--chat-font-scale));
+  --font-xs: calc(11px * var(--chat-scale));
+  --font-sm: calc(12px * var(--chat-scale));
+  --font-md: calc(14px * var(--chat-scale));
+  --font-lg: calc(15px * var(--chat-scale));
+  --font-xl: calc(16px * var(--chat-scale));
+
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   position: relative;
+  font-size: var(--font-md);
+}
+
+/* Barra del chat: con quién se habla + buscar + galería */
+.chat-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
+  background: var(--panel);
+  backdrop-filter: var(--panel-filter);
+}
+
+.chat-tools-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-tools-title .link-btn {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.chat-tools .btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.chat-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Ajuste "Portada como fondo del chat": la portada va atenuada con el color de fondo para que el texto se lea */
+:root[data-chat-cover] .chat-body {
+  background:
+    linear-gradient(color-mix(in srgb, var(--bg) 82%, transparent), color-mix(in srgb, var(--bg) 82%, transparent)),
+    var(--chat-cover, none) center / cover no-repeat;
+}
+
+/* Panel de búsqueda o de galería: tapa los mensajes mientras está abierto */
+.chat-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg);
+}
+
+.chat-panel > * {
+  flex-shrink: 0;
+}
+
+.chat-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.chat-panel-foot {
+  margin: 0;
+  font-size: var(--font-sm);
+}
+
+.chat-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chat-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-search-result:hover {
+  background: var(--accent-soft);
+}
+
+.chat-search-meta {
+  color: var(--muted);
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
+
+.chat-search-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* Aviso al arrastrar imágenes sobre la conversación */
@@ -1356,7 +1739,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  margin: var(--space-5) 0 var(--space-3);
+  margin: var(--space-3) 0 var(--space-1);
   color: var(--muted);
   font-size: var(--font-xs);
   font-weight: 600;
@@ -1369,19 +1752,35 @@ button:disabled {
   border-top: var(--border-width) solid var(--border);
 }
 
-/* Mensaje: [avatar] [autor / globo + acciones / reacciones] */
+/* Mensaje: [foto] [autor / globo + acciones / reacciones] [foto propia]
+   La foto va arriba, a la altura del nombre. Cada cambio de persona deja un espacio encima. */
 .msg {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--space-3);
   max-width: var(--bubble-max-width);
   align-self: flex-start;
   border-radius: var(--radius-md);
-  margin-top: var(--space-3);
+  margin-top: var(--space-7);
 }
 
 .msg.continues {
   margin-top: 0;
+}
+
+.day-separator + .msg,
+.load-older + .msg {
+  margin-top: 0;
+}
+
+.msg-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: var(--radius-round);
+}
+
+button.msg-avatar:hover {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .msg.mine {
@@ -1408,6 +1807,7 @@ button:disabled {
 }
 
 .msg-author {
+  align-self: flex-start;
   font-size: var(--font-xs);
   font-weight: 600;
   color: var(--muted);
@@ -1430,7 +1830,7 @@ button:disabled {
   background: var(--bubble);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-lg);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-1) var(--space-4);
 }
 
 .msg.mine .bubble {
@@ -1439,11 +1839,36 @@ button:disabled {
   color: var(--on-bubble-mine);
 }
 
+/* Costado izquierdo con el color predominante de la foto de quien habla (ver ui/avatarColor.js) */
+.bubble.tinted {
+  border-left: calc(4px * var(--font-scale)) solid var(--author-color);
+}
+
 .msg-text {
   display: inline;
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Mensaje de sólo emojis: grandes, y más grandes si son hasta tres */
+.msg-text.emoji-only {
+  font-family: var(--font-emoji), var(--font-names);
+  font-size: 2em;
+  line-height: 1.2;
+}
+
+.msg-text.emoji-xl {
+  font-size: 3.2em;
+}
+
+/* Formato de texto (ui/richText.js) */
+:is(.msg-text, .post-text, .comment-text) code {
+  font-family: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.92em;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: rgb(127 127 127 / 20%);
 }
 
 .msg-text.deleted {
@@ -1506,7 +1931,53 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
 }
 
+/* Imagen con temporizador: se abre al tocarla */
+.msg-timed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: var(--space-1) 0;
+  padding: var(--space-3) var(--space-5);
+  border: var(--border-width) dashed currentcolor;
+  border-radius: var(--radius-md);
+  background: rgb(127 127 127 / 15%);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.msg-timed:hover {
+  background: rgb(127 127 127 / 30%);
+}
+
+.msg-timed-icon {
+  font-size: var(--font-icon);
+  line-height: 1;
+}
+
+.msg-timed-hint {
+  display: block;
+  font-size: var(--font-xs);
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.gif-badge {
+  position: absolute;
+  left: var(--space-2);
+  bottom: var(--space-2);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 65%);
+  color: var(--on-overlay);
+  font-size: var(--font-xs);
+  font-weight: 700;
+}
+
 .msg-image {
+  position: relative;
   padding: 0;
   border: 0;
   background: var(--placeholder);
@@ -1525,6 +1996,9 @@ button:disabled {
 /* Botones Responder / Reaccionar al costado del globo: visibles con hover o foco */
 .msg-actions {
   display: flex;
+  align-items: center;
+  /* botones grandes sin estirar el renglón de un mensaje de una línea */
+  margin-block: calc(var(--space-2) * -1);
   opacity: 0;
   transition: opacity 0.1s;
 }
@@ -1534,8 +2008,8 @@ button:disabled {
   opacity: 1;
 }
 
-.msg-actions .icon-btn {
-  font-size: var(--font-lg);
+.msg-edited {
+  font-style: italic;
 }
 
 .msg .reactions {
@@ -1549,8 +2023,8 @@ button:disabled {
 .chat-composer {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   border-top: var(--border-width) solid var(--border);
   background: var(--panel);
 }
@@ -1561,16 +2035,40 @@ button:disabled {
   gap: var(--space-3);
 }
 
+.composer-row .writing-as {
+  align-self: flex-end;
+}
+
+/* Todo en la fila mide lo mismo que la foto de la cuenta: los botones son cuadrados de ese alto con el ícono
+   centrado, y la caja de una línea y "Enviar" también, así nada queda caído respecto del resto. */
+.composer-row .icon-btn {
+  width: var(--avatar-md);
+  height: var(--avatar-md);
+  font-size: calc(var(--avatar-md) * 0.72);
+}
+
+.composer-row .btn.primary {
+  min-height: var(--avatar-md);
+}
+
 .chat-composer textarea {
+  min-height: var(--avatar-md);
   flex: 1;
   resize: none;
   font: inherit;
-  padding: var(--space-3) var(--space-4);
+  /* con una sola línea el texto queda centrado en el alto de la foto */
+  padding: max(var(--space-2), calc((var(--avatar-md) - 1lh) / 2 - var(--border-width))) var(--space-4);
   border-radius: var(--radius-sm);
   border: var(--border-width) solid var(--border);
   background: var(--bg);
   color: var(--text);
-  max-height: 160px;
+  max-height: min(calc(160px * var(--chat-scale)), 40vh);
+}
+
+/* Caja agrandada (botón ⤢): para escribir textos de varias líneas */
+.chat-composer.expanded textarea {
+  height: 45vh;
+  max-height: none;
 }
 
 .composer-reply {
@@ -1714,6 +2212,13 @@ button:disabled {
   min-width: 0;
 }
 
+/* Buscador de personas (va en la cabecera) */
+.search-input {
+  flex: 1;
+  width: calc(240px * var(--font-scale));
+  max-width: 100%;
+}
+
 .tabs-bar {
   display: flex;
   margin-bottom: var(--space-4);
@@ -1737,6 +2242,16 @@ button:disabled {
   font-size: var(--font-xs);
   color: var(--muted);
   white-space: nowrap;
+}
+
+.badge.warn {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.contrast-info {
+  margin-top: var(--space-4);
 }
 
 .badge.accent {
@@ -1842,6 +2357,7 @@ button:disabled {
 }
 
 .media-tile {
+  position: relative;
   aspect-ratio: 1;
   padding: 0;
   border: 0;
@@ -1938,7 +2454,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  width: min(280px, 80vw);
+  width: min(calc(280px * var(--font-scale)), 80vw);
 }
 
 .invite-results {
@@ -2030,7 +2546,7 @@ button:disabled {
 /* Ajustes */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(170px * var(--font-scale))), 1fr));
   gap: var(--space-3);
 }
 
@@ -2090,16 +2606,57 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.settings-actions {
+  margin-top: var(--space-4);
+}
+
+.settings-hint {
+  margin: 0 0 var(--space-4);
+}
+
+.settings-check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  cursor: pointer;
+}
+
+.settings-check input {
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0.15em 0 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+/* Ajuste "Lista de chats compacta": sólo avatares (igual que en ventanas angostas) */
+/* Lista compacta (sólo fotos): por el ajuste, por achicarla arrastrando el borde, o en ventanas angostas */
+:root[data-compact-threads] .chat-sidebar,
+.chat.compact-threads .chat-sidebar {
+  width: auto;
+}
+
+:root[data-compact-threads] .chat-thread-info,
+.chat.compact-threads .chat-thread-info {
+  display: none;
+}
+
+/* con el ajuste activado la lista es siempre compacta: no hay ancho que cambiar */
+:root[data-compact-threads] .chat-resizer {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .chat-sidebar {
     width: auto;
   }
 
-  .chat-thread-info {
+  .chat-thread-info,
+  .chat-resizer {
     display: none;
   }
 
   .msg {
-    max-width: 92%;
+    max-width: max(92%, var(--bubble-max-width));
   }
 }

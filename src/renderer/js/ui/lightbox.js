@@ -2,14 +2,19 @@ import { api, imageUrl } from '../api.js';
 import { h } from './dom.js';
 
 // Visor de imágenes a pantalla completa (uno solo para toda la app).
-// openLightbox({ accountId, images: [{ src, full }], index, loadAll? })
+// openLightbox({ accountId, images: [{ src, full }], index, loadAll?, caption?, onClose? })
 // - loadAll: async () => [imágenes]; para posts cuyo feed trae sólo las primeras fotos
+// - caption: texto en la barra · onClose: se llama una vez al cerrarse (imágenes temporales del chat)
 // Teclado: ← → navegan, Esc cierra, Z alterna zoom, D descarga.
 let viewer = null;
 
 export function openLightbox(options) {
   viewer ??= createViewer();
   viewer.open(options);
+}
+
+export function closeLightbox() {
+  viewer?.close();
 }
 
 function createViewer() {
@@ -36,18 +41,28 @@ function createViewer() {
   let images = [];
   let index = 0;
   let session = 0; // invalida loadAll de una apertura anterior
+  let caption = '';
+  let onClose = null;
 
   function show() {
     const current = images[index];
     if (!current) return;
     dialog.classList.remove('zoomed');
-    status.textContent = '';
-    // primero la versión grande; si falla (no todas las rutas aceptan 1600x1600) la miniatura
-    img.onerror = () => {
+    status.textContent = caption;
+    const failed = () => {
       img.onerror = null;
-      img.src = imageUrl(accountId, current.src);
+      status.textContent = 'No se pudo cargar la imagen.';
     };
-    img.src = imageUrl(accountId, current.full ?? current.src);
+    // primero la versión grande; si falla (no todas las rutas aceptan 1600x1600) la miniatura
+    const full = current.full ?? current.src;
+    img.onerror =
+      full === current.src
+        ? failed
+        : () => {
+            img.onerror = failed;
+            img.src = imageUrl(accountId, current.src);
+          };
+    img.src = imageUrl(accountId, full);
     counter.textContent = images.length > 1 ? `${index + 1} / ${images.length}` : '';
     prevBtn.hidden = nextBtn.hidden = images.length < 2;
   }
@@ -101,12 +116,19 @@ function createViewer() {
   });
   dialog.addEventListener('close', () => {
     session++;
+    img.onerror = null;
     img.removeAttribute('src');
+    const closed = onClose;
+    onClose = null;
+    closed?.();
   });
 
   return {
-    async open({ accountId: id, images: list, index: start = 0, loadAll }) {
+    close: () => dialog.close(),
+    async open({ accountId: id, images: list, index: start = 0, loadAll, caption: text = '', onClose: closed = null }) {
       const current = ++session;
+      caption = text;
+      onClose = closed;
       accountId = id;
       images = list;
       index = Math.min(Math.max(start, 0), list.length - 1);

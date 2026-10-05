@@ -1,7 +1,8 @@
 import { config } from '../config.js';
+import { emojify } from './emoji.js';
 
 // Resuelve los href templated de MeWe ("/photo/{imageSize}/...") a URLs absolutas del host de imágenes
-export function resolveImageUrl(href, size = config.mewe.imageSize) {
+export function resolveImageUrl(href, size = config.mewe.imageSize, base = config.mewe.imgHost) {
   if (!href) return null;
   let path = href
     .replace('{imageSize}', size)
@@ -9,17 +10,22 @@ export function resolveImageUrl(href, size = config.mewe.imageSize) {
     .replace(/\{[^}]+\}/g, '');
   if (/^https?:\/\//.test(path)) return path;
   if (!path.startsWith('/api/v2')) path = `/api/v2${path.startsWith('/') ? '' : '/'}${path}`;
-  return config.mewe.imgHost + path;
+  return base + path;
 }
 
 // Imagen lista para la UI: miniatura (`src`) + tamaño grande para el visor (`full`)
-function image(href, size) {
+// animated: es un GIF (resolveImageUrl pide static=0, que es la versión con movimiento)
+// fixedSize: único tamaño a pedir (las imágenes temporales del chat). La web las pide a mewe.com,
+// no al host de imágenes, así que se hace igual.
+function image(href, size, animated = false, fixedSize = null) {
   if (!href) return null;
+  const temporal = fixedSize ? resolveImageUrl(href, fixedSize, config.mewe.host) : null;
   return {
-    src: resolveImageUrl(href),
-    full: resolveImageUrl(href, config.mewe.fullImageSize),
+    src: temporal ?? resolveImageUrl(href),
+    full: temporal ?? resolveImageUrl(href, config.mewe.fullImageSize),
     width: size?.width ?? null,
     height: size?.height ?? null,
+    animated: Boolean(animated),
   };
 }
 
@@ -92,7 +98,7 @@ function normalizePost(post, users, groups) {
   const images = extractImages(post);
   return {
     id: post.postItemId ?? post.id ?? post._id,
-    text: post.text ?? post.textPlain ?? '',
+    text: emojify(post.text ?? post.textPlain),
     createdAt: toMillis(post.createdAt ?? post.created ?? post.updatedAt),
     author: normalizeUser(author),
     groupId,
@@ -128,7 +134,7 @@ export function normalizeComment(c, users = new Map()) {
   const owner = c.owner ?? c.user ?? users.get(c.userId) ?? { id: c.userId };
   return {
     id: c.id,
-    text: c.text ?? c.textPlain ?? '',
+    text: emojify(c.text ?? c.textPlain),
     createdAt: toMillis(c.createdAt),
     author: normalizeUser(users.get(owner.id) ?? owner),
     replyTo: c.replyTo ?? null,
@@ -169,7 +175,9 @@ export function normalizeThreads(data, myUserId) {
         'Chat',
       avatar: isGroup ? groupAvatar(group ?? thread) : avatarOf(others[0]),
       participantsCount: others.length,
-      lastMessage: last.message ?? last.text ?? (last.attachments?.length ? '📷 Imagen' : ''),
+      // con quién se habla en un chat de a dos (para su perfil y su portada)
+      userId: !isGroup && others.length === 1 ? (others[0].id ?? others[0].userId ?? null) : null,
+      lastMessage: emojify(last.message ?? last.text) || (last.attachments?.length ? '📷 Imagen' : ''),
       updatedAt: toMillis(last.createdAt ?? last.date ?? thread.updatedAt ?? thread.lastActivity),
       unread: Boolean(thread.unread ?? thread.unreadCount ?? thread.unreadMessages),
     };
@@ -190,8 +198,12 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
   const author = users.get(authorId) ?? (owner && typeof owner === 'object' ? owner : {});
   // las fotos de chat vienen en attachments[]._links.self (aType 'photo')
   const photos = (m.attachments ?? []).filter((a) => !a.aType || a.aType === 'photo');
+  // los mensajes temporales se piden con el mismo tamaño que usa la web
+  const fixedSize = m.expiresIn ? config.mewe.chat.disappearingImageSize : null;
   const images = uniqueImages([
-    ...photos.map((a) => image(a._links?.self?.href ?? a._links?.img?.href ?? a.photo?._links?.img?.href, a.size)),
+    ...photos.map((a) =>
+      image(a._links?.self?.href ?? a._links?.img?.href ?? a.photo?._links?.img?.href, a.size, a.animated, fixedSize),
+    ),
     image(m.photo?._links?.img?.href, m.photo?.size),
     ...(m.stickers ?? []).map((s) => image(s._links?.img?.href ?? s._links?.self?.href)),
   ]);
@@ -201,7 +213,7 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
   return {
     id: m.id ?? m._id,
     threadId: m.threadId ?? null,
-    text: m.message ?? m.text ?? '',
+    text: emojify(m.message ?? m.text),
     // los mensajes traen `date` (segundos); `createdAt` queda por compatibilidad
     createdAt: toMillis(m.createdAt ?? m.date),
     mine: Boolean(myUserId) && authorId === myUserId,
@@ -212,9 +224,10 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
     files,
     emojis: normalizeEmojis(m),
     replyTo: m.replyTo
-      ? { id: m.replyTo.id, text: m.replyTo.text ?? m.replyTo.originalText ?? '', authorId: m.replyTo.authorId ?? null }
+      ? { id: m.replyTo.id, text: emojify(m.replyTo.text ?? m.replyTo.originalText), authorId: m.replyTo.authorId ?? null }
       : null,
     expiresIn: m.expiresIn ? Number(m.expiresIn) : null,
+    edited: Boolean(m.editedAt),
     deleted: Boolean(m.deleted),
   };
 }
@@ -448,7 +461,7 @@ function extractImages(post) {
   const list = [];
   for (const media of post.medias ?? []) {
     const photo = media.photo ?? media;
-    list.push(image(photo._links?.img?.href ?? photo._links?.self?.href, photo.size));
+    list.push(image(photo._links?.img?.href ?? photo._links?.self?.href, photo.size, photo.animated));
   }
   list.push(image(post.photo?._links?.img?.href, post.photo?.size));
   return uniqueImages(list);
