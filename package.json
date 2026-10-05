@@ -4,6 +4,25 @@
   "private": true,
   "description": "Cliente compacto multi-cuenta para MeWe",
   "author": "evilpixi",
+  "license": "MIT",
+  "homepage": "https://github.com/evilpixi/mewe-goonieviewer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/evilpixi/mewe-goonieviewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/evilpixi/mewe-goonieviewer/issues"
+  },
+  "keywords": [
+    "mewe",
+    "electron",
+    "desktop",
+    "client",
+    "multi-account"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "main": "src/main/main.js",
   "scripts": {
@@ -23,7 +42,9 @@
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md"
     ],
     "win": {
       "target": [
@@ -33,7 +54,11 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Goonie-Mewe-Viewer-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Goonie-Mewe-Viewer-${version}-portable.${ext}"
     },
     "linux": {
       "target": [
