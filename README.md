@@ -96,6 +96,23 @@ Get-FileHash .\Goonie-Mewe-Viewer-Setup-0.1.0.exe -Algorithm SHA256
 
 El hash que aparece tiene que coincidir con el de `SHA256SUMS.txt`.
 
+## Instalación (macOS)
+
+1. Entrá a la [última versión](https://github.com/evilpixi/mewe-goonieviewer/releases/latest).
+2. Descargá el `.dmg` que corresponda a tu Mac:
+   - `Goonie-Mewe-Viewer-x.y.z-mac-arm64.dmg`: Apple Silicon (M1 en adelante).
+   - `Goonie-Mewe-Viewer-x.y.z-mac-x64.dmg`: Intel.
+3. Abrí el `.dmg` y arrastrá la app a **Aplicaciones**.
+
+> [!NOTE]
+> La app **no está firmada ni notarizada por Apple**, así que la primera vez macOS se niega a abrirla.
+> Para continuar: **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente**.
+> Descargala siempre desde la página de Releases de este repositorio y, si querés, verificá su integridad:
+>
+> ```bash
+> shasum -a 256 Goonie-Mewe-Viewer-0.1.0-mac-arm64.dmg
+> ```
+
 ## Cómo se usa
 
 1. **Agregar una cuenta:** click en el botón **+** de la columna izquierda. Escribí tu email o teléfono (la contraseña
@@ -143,6 +160,7 @@ npm start
 | `npm start` | Abre la app en modo desarrollo. |
 | `npm run debug` | Igual, pero guarda la última respuesta de cada endpoint en `mewe-debug/` (contiene datos personales: no la subas). |
 | `npm run dist:win` | Genera el instalador y el portable de Windows en `dist/`. |
+| `npm run dist:mac` | Genera `.dmg` y `.zip` para macOS (arm64 y x64), sin firmar. Hay que correrlo en una Mac. |
 | `npm run dist:linux` | Genera AppImage y `.tar.gz` para Linux (sin probar todavía). |
 | `npm run pack` | Empaqueta sin generar instalador, para probar rápido. |
 | `npm run emoji:update` | Regenera los shortcodes de emojis. |

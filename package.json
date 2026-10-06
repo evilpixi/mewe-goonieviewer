@@ -32,6 +32,7 @@
     "icons:update": "node scripts/build-icons.js",
     "pack": "electron-builder --dir",
     "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
     "dist:linux": "electron-builder --linux"
   },
   "build": {
@@ -59,6 +60,27 @@
     },
     "portable": {
       "artifactName": "Goonie-Mewe-Viewer-${version}-portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.social-networking",
+      "identity": "-",
+      "artifactName": "Goonie-Mewe-Viewer-${version}-mac-${arch}.${ext}"
     },
     "linux": {
       "target": [
