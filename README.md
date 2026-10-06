@@ -46,8 +46,10 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 - Visor de imágenes a pantalla completa y descarga.
 
 ### Perfiles
-- Información del perfil, sus publicaciones y una pestaña con sus imágenes.
-- Seguir y dejar de seguir; aceptar o rechazar solicitudes de seguimiento.
+- Información del perfil, sus publicaciones y pestañas con sus imágenes y sus álbumes.
+- Al abrir una imagen del perfil, el visor muestra al lado su publicación, con el texto y los comentarios.
+- Foto de perfil y portada a pantalla completa al hacer click.
+- Seguir y dejar de seguir; aceptar o rechazar solicitudes de seguimiento, y seguir también a quien se acepta.
 - Manejo de cuentas privadas.
 - Búsqueda de personas y acceso directo para abrir un chat.
 
@@ -59,6 +61,7 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 ### Notificaciones
 - Contador de pendientes en la cabecera.
 - Las de grupos van en una pestaña aparte.
+- Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue, desde la misma lista.
 - Al hacer click llevan al lugar correspondiente: perfil, publicación, comentario o mensaje.
 
 ### Interfaz y accesibilidad

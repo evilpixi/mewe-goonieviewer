@@ -48,6 +48,7 @@ export const api = {
   reactMessage: (id, threadId, messageId, emoji, on) => invoke('chat:react', id, threadId, messageId, emoji, on),
   getMessageReactors: (id, threadId, messageId) => invoke('chat:reactors', id, threadId, messageId),
   openChatWith: (id, userId) => invoke('chat:open', id, userId),
+  markChatRead: (id, threadId) => invoke('chat:read', id, threadId),
   markMessageSeen: (id, messageId) => invoke('chat:seen', id, messageId),
   startRealtime: (id) => invoke('chat:realtime', id),
   onChatEvent: (callback) => on('chat:event', callback),
@@ -55,7 +56,10 @@ export const api = {
 
   getProfile: (id, userId) => invoke('profile:get', id, userId),
   getUserFeed: (id, userId, nextPage) => invoke('profile:feed', id, userId, nextPage),
-  getUserMedia: (id, userId, nextPage) => invoke('profile:media', id, userId, nextPage),
+  // album: nombre del álbum (sin él, todas las imágenes)
+  getUserMedia: (id, userId, nextPage, album) => invoke('profile:media', id, userId, nextPage, album),
+  getUserAlbums: (id, userId, nextPage) => invoke('profile:albums', id, userId, nextPage),
+  // → { following, requestSent }
   setFollow: (id, userId, on) => invoke('profile:follow', id, userId, on),
   getFollowRequests: (id) => invoke('profile:requests', id),
   answerFollowRequest: (id, requestId, accept) => invoke('profile:answerRequest', id, requestId, accept),
@@ -68,9 +72,11 @@ export const api = {
   getGroupMembers: (id, groupId, options) => invoke('group:members', id, groupId, options),
   // when: 'upcoming' | 'past'
   getGroupEvents: (id, groupId, when) => invoke('group:events', id, groupId, when),
-  joinGroup: (id, groupId) => invoke('group:join', id, groupId),
+  // answers: [{ question, answer }] si el grupo hace preguntas antes de entrar
+  joinGroup: (id, groupId, answers) => invoke('group:join', id, groupId, answers),
   leaveGroup: (id, groupId) => invoke('group:leave', id, groupId),
-  searchGroupContacts: (id, groupId, query) => invoke('group:contacts', id, groupId, query),
+  // → { contacts: [{ …, inGroup, invited }], hasMore }
+  searchGroupContacts: (id, groupId, query, offset) => invoke('group:contacts', id, groupId, query, offset),
   inviteToGroup: (id, groupId, userIds) => invoke('group:invite', id, groupId, userIds),
 
   getNotifications: (id, nextPage) => invoke('notif:list', id, nextPage),

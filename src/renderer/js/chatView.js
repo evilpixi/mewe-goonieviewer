@@ -49,7 +49,18 @@ export function createChatView({ navigate } = {}) {
   const toolbar = h('div', { className: 'view-toolbar-group' }, filterEl, liveEl);
   const threadsEl = h('ul', { className: 'chat-threads scroll', attrs: { 'aria-label': 'Conversaciones' } });
   const errorEl = h('div');
-  const conversation = createConversation({ navigate, onSent: () => scheduleThreadsRefresh() });
+  const conversation = createConversation({
+    navigate,
+    onSent: () => scheduleThreadsRefresh(),
+    // el chat abierto sabe si quedó leído (click, escribir, botón) o si le llegó algo nuevo
+    onUnreadChange: (threadId, unread) => {
+      const t = threads.find((item) => item.id === threadId);
+      if (lastThread?.id === threadId) lastThread.unread = unread;
+      if (!t) return;
+      t.unread = unread;
+      renderThreads();
+    },
+  });
   const sidebarEl = h('div', { className: 'chat-sidebar' }, errorEl, threadsEl);
   const resizerEl = h('div', {
     className: 'chat-resizer',
@@ -181,6 +192,9 @@ export function createChatView({ navigate } = {}) {
       const list = await api.getChatThreads(account.id, requested);
       if (gen !== generation || requested !== filter) return;
       threads = list.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+      // para el chat abierto vale lo que sabe la conversación (la lista puede llegar atrasada)
+      const open = threads.find((t) => t.id === conversation.threadId);
+      if (open) open.unread = conversation.unread;
       clearError(errorEl);
       // al entrar a una cuenta se abre el chat más reciente, sin tener que elegirlo
       if (!activeId && threads.length) openThread(threads[0]);
@@ -206,7 +220,7 @@ export function createChatView({ navigate } = {}) {
         const btn = h(
           'button',
           {
-            className: `chat-thread-item${active ? ' active' : ''}${t.unread && !active ? ' unread' : ''}`,
+            className: `chat-thread-item${active ? ' active' : ''}${t.unread ? ' unread' : ''}`,
             title: t.name,
             attrs: { 'aria-current': active ? 'true' : null },
             onClick: () => openThread(t),
@@ -223,7 +237,7 @@ export function createChatView({ navigate } = {}) {
             ),
             h('span', { className: 'chat-thread-last', attrs: { dir: 'auto' } }, plainText(t.lastMessage)),
           ),
-          t.unread && !active && h('span', { className: 'unread-dot', attrs: { 'aria-label': 'Sin leer' } }),
+          t.unread && h('span', { className: 'unread-dot', attrs: { 'aria-label': 'Sin leer' } }),
         );
         return h('li', {}, btn);
       }),
@@ -233,8 +247,7 @@ export function createChatView({ navigate } = {}) {
   function openThread(t) {
     activeId = t.id;
     lastThread = t;
-    t.unread = false;
-    renderThreads();
+    renderThreads(); // abrirlo no lo marca como leído: eso lo decide la conversación
     conversation.open(account, t);
   }
 

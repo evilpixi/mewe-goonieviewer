@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { MeweApiError } from './errors.js';
 import {
+  normalizeAlbums,
   normalizeComment,
   normalizeComments,
   normalizeContacts,
@@ -259,6 +260,12 @@ export class MeweClient {
     return { ...created, userId };
   }
 
+  // Marca un chat como leído (la web lo hace al enfocar la caja de texto)
+  async markChatRead(threadId) {
+    await this.request(chat.markRead(assertId(threadId, 'threadId')), { method: 'DELETE' });
+    return true;
+  }
+
   // Mensaje temporal visto: a partir de acá MeWe empieza a contar para borrarlo
   async markMessageSeen(messageId) {
     await this.request(chat.seen(assertId(messageId)), { method: 'POST' });
@@ -343,14 +350,29 @@ export class MeweClient {
     return normalizeFeed(await this.request(assertNextPage(nextPage) ?? profile.feed(assertId(userId, 'userId'))));
   }
 
-  async getUserMedia(userId, nextPage) {
-    return normalizeMediaStream(await this.request(assertNextPage(nextPage) ?? profile.media(assertId(userId, 'userId'))));
+  // album: nombre del álbum (sin él, todas las imágenes del perfil)
+  async getUserMedia(userId, nextPage, album) {
+    assertId(userId, 'userId');
+    if (album != null && (typeof album !== 'string' || !album || album.length > 200)) {
+      throw new MeweApiError({ message: `Álbum inválido: ${album}` });
+    }
+    const path = album ? profile.albumMedia(userId, album) : profile.media(userId);
+    return normalizeMediaStream(await this.request(assertNextPage(nextPage) ?? path));
+  }
+
+  async getUserAlbums(userId, nextPage) {
+    return normalizeAlbums(await this.request(assertNextPage(nextPage) ?? profile.albums(assertId(userId, 'userId'))));
   }
 
   // on: seguir (o pedir seguir, si la cuenta es privada) · off: dejar de seguir
+  // Devuelve cómo quedó: { following, requestSent } (requestSent = id de la solicitud pendiente)
   async setFollow(userId, on) {
-    await this.request(profile.follow(assertId(userId, 'userId')), { method: on ? 'POST' : 'DELETE' });
-    return true;
+    const data = await this.request(profile.follow(assertId(userId, 'userId')), { method: on ? 'POST' : 'DELETE' });
+    const follow = data?.follow ?? data ?? {};
+    return {
+      following: Boolean(on && follow.following),
+      requestSent: (on && (follow.followRequestId ?? follow.followRequestSent)) || null,
+    };
   }
 
   async getFollowRequests() {
@@ -400,12 +422,22 @@ export class MeweClient {
   }
 
   // Invitación pendiente → se confirma; grupo público → se pide entrar (puede quedar pendiente de aprobación)
-  async joinGroup(groupId) {
+  // answers: [{ question, answer }] para los grupos que hacen preguntas antes de entrar
+  async joinGroup(groupId, answers) {
     const group = await this.getGroup(groupId);
+    // MeWe exige la respuesta en `text` (con `answer` responde 400: "Missing required field at 'answers[0].text'")
+    const list = (Array.isArray(answers) ? answers : []).slice(0, 50).map((item) => ({
+      question: String(item?.question ?? '').slice(0, 2000),
+      text: String(item?.answer ?? '').trim().slice(0, 5000),
+    }));
+    if (group.mandatoryQuestions && group.questions.some((q, i) => !list[i]?.text)) {
+      throw new MeweApiError({ message: 'Este grupo exige responder todas sus preguntas para entrar.' });
+    }
+    const json = list.length ? { answers: list } : {};
     if (group.isInvited) {
-      await this.request(groups.confirmInvite(groupId), { method: 'POST', json: {} });
+      await this.request(groups.confirmInvite(groupId), { method: 'POST', json });
     } else if (group.publicUrlId) {
-      await this.request(groups.apply(group.publicUrlId), { method: 'POST', json: {} });
+      await this.request(groups.apply(group.publicUrlId), { method: 'POST', json });
     } else {
       throw new MeweApiError({ message: 'Este grupo es privado: sólo se puede entrar con una invitación.' });
     }
@@ -417,11 +449,20 @@ export class MeweClient {
     return true;
   }
 
-  async searchGroupContacts(groupId, query) {
-    const data = await this.request(groups.contacts(assertId(groupId, 'groupId')), {
-      query: { searchStr: String(query ?? '').slice(0, 100), maxResults: 20 },
+  // Contactos para invitar a un grupo (sin texto: todos). Cada uno dice si ya está en el grupo o ya fue invitado.
+  async searchGroupContacts(groupId, query, offset = 0) {
+    assertId(groupId, 'groupId');
+    const search = String(query ?? '').trim().slice(0, 100);
+    const data = await this.request(groups.toInvite, {
+      query: {
+        search: search || undefined,
+        maxResults: groups.invitePageSize,
+        offset: Math.max(0, Number(offset) || 0),
+        markGroupMembersOf: groupId,
+      },
     });
-    return normalizeContacts(data);
+    const contacts = normalizeContacts(data).filter((user) => user.id);
+    return { contacts, hasMore: contacts.length >= groups.invitePageSize };
   }
 
   async inviteToGroup(groupId, userIds) {

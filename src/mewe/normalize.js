@@ -256,10 +256,14 @@ export function normalizeUserProfile(data, myUserId) {
   const isMe = Boolean(id) && id === myUserId;
   const following = Boolean(user.following ?? user.isFollowing);
   const isPublic = (user.public ?? user.isPublic ?? profile.public) !== false;
+  const coverHref = user._links?.cover?.href ?? user._links?.coverPhoto?.href;
   return {
     ...normalizeUser(user),
     handle: user.publicLinkId ?? null,
-    cover: resolveImageUrl(user._links?.cover?.href ?? user._links?.coverPhoto?.href),
+    cover: resolveImageUrl(coverHref),
+    // foto de perfil y portada para el visor: { src, full }
+    avatarImage: image(avatarHref(user)),
+    coverImage: image(coverHref),
     bio: profile.text ?? profile.description ?? user.description ?? '',
     info: PROFILE_FIELDS.map(([label, key]) => [label, profile[key] ?? user[key]]).filter(([, value]) => value),
     counters: {
@@ -278,28 +282,51 @@ export function normalizeUserProfile(data, myUserId) {
   };
 }
 
-// Solicitudes de seguimiento recibidas: [{ requestId, user }]
+// Solicitudes de seguimiento recibidas: { list: [{ user, followRequestId }] } → [{ requestId, user }]
+// (a veces el usuario viene plano, con followRequestId al lado de su id: por eso nunca se usa item.id)
 export function normalizeFollowRequests(data) {
-  const list = data?.requests ?? data?.feed ?? data?.users ?? data?.list ?? (Array.isArray(data) ? data : []);
+  const list = data?.list ?? data?.requests ?? data?.feed ?? data?.users ?? (Array.isArray(data) ? data : []);
   return list.map((item) => {
     const user = item.user ?? item.follower ?? item.requester ?? item;
     return {
-      requestId: item.requestId ?? user.followRequestReceived ?? item.id ?? null,
-      user: { ...normalizeUser(user), handle: user.publicLinkId ?? null },
+      requestId:
+        item.followRequestId ?? user.followRequestId ?? item.requestId ?? item.followRequestReceived ?? user.followRequestReceived ?? null,
+      user: {
+        ...normalizeUser(user),
+        handle: user.publicLinkId ?? null,
+        isPublic: user.public !== false,
+        following: Boolean(item.following ?? user.following),
+      },
     };
   });
 }
 
-// Fotos de un perfil o grupo (…/mediastream): { images, nextPage }
+// Fotos de un perfil, grupo o álbum (…/mediastream): { images, nextPage }
+// Cada imagen lleva el postId de su publicación (para mostrarla con sus comentarios en el visor)
 export function normalizeMediaStream(data) {
-  const list = data?.feed ?? data?.medias ?? data?.items ?? (Array.isArray(data) ? data : []);
+  const list = data?.feed ?? data?.medias ?? data?.media ?? data?.items ?? (Array.isArray(data) ? data : []);
   const images = list.flatMap((item) => {
-    const found = extractImages(item);
-    if (found.length) return found;
     const media = item.media ?? item;
-    return [image(media._links?.img?.href ?? media._links?.self?.href, media.size)];
+    const found = extractImages(item);
+    if (!found.length) found.push(image(media._links?.img?.href ?? media._links?.self?.href, media.size));
+    return found.filter(Boolean).map((img) => ({ ...img, postId: item.postItemId ?? null }));
   });
   return { images: uniqueImages(images), nextPage: data?._links?.nextPage?.href ?? null };
+}
+
+// Álbumes de un perfil (…/albums): { feed: [{ name, count, image }] } → { albums: [{ name, count, cover }], nextPage }
+export function normalizeAlbums(data) {
+  const list = data?.feed ?? data?.albums ?? (Array.isArray(data) ? data : []);
+  return {
+    albums: list
+      .filter((a) => a?.name && a.count !== 0)
+      .map((a) => ({
+        name: String(a.name),
+        count: a.count ?? null,
+        cover: resolveImageUrl(a.image?._links?.img?.href ?? a.photo?._links?.img?.href ?? a._links?.img?.href),
+      })),
+    nextPage: data?._links?.nextPage?.href ?? null,
+  };
 }
 
 // --- Grupos ---
@@ -318,11 +345,15 @@ export function normalizeGroup(data) {
   const g = data?.group ?? data ?? {};
   const isMember = Boolean(g.isMember ?? g.isConfirmed ?? g.role);
   const isInvited = !isMember && Boolean(g.isInvited ?? g.invitedBy ?? g._links?.inviteConfirm);
+  const coverHref = g._links?.coverPhoto?.href ?? g._links?.cover?.href;
   return {
     id: g.id ?? g._id ?? null,
     name: g.name ?? 'Grupo',
     avatar: groupAvatar(g),
-    cover: resolveImageUrl(g._links?.coverPhoto?.href ?? g._links?.cover?.href),
+    cover: resolveImageUrl(coverHref),
+    // foto y portada para el visor: { src, full }
+    avatarImage: image(groupAvatarHref(g)),
+    coverImage: image(coverHref),
     description: g.descriptionPlain || g.description || '',
     membersCount: g.membersCount ?? null,
     isPublic: Boolean(g.isPublic),
@@ -333,6 +364,9 @@ export function normalizeGroup(data) {
     isMember,
     isInvited,
     alreadyApplied: Boolean(g.alreadyApplied),
+    // preguntas que el grupo hace antes de entrar (y si es obligatorio responderlas)
+    questions: (g.applyQuestions ?? []).map((q) => (typeof q === 'string' ? q : q?.question)).filter(Boolean),
+    mandatoryQuestions: Boolean(g.mandatoryQuestions),
     newPosts: g.newPosts ?? 0,
   };
 }
@@ -353,12 +387,18 @@ export function normalizeMembers(data) {
   });
 }
 
-// Contactos que se pueden invitar a un grupo: { members: [{ user, online }] }
+// Listas de personas: resultados de búsqueda ({ results: [{ user }] }) y contactos para invitar a un grupo
+// ({ list: [{ user, inGroup, invited }] }: inGroup = ya es miembro, invited = ya tiene una invitación)
 export function normalizeContacts(data) {
-  const list = data?.members ?? data?.contacts ?? data?.results ?? data?.users ?? (Array.isArray(data) ? data : []);
+  const list = data?.list ?? data?.members ?? data?.contacts ?? data?.results ?? data?.users ?? (Array.isArray(data) ? data : []);
   return list.map((item) => {
     const user = item.user ?? item;
-    return { ...normalizeUser(user), handle: user.publicLinkId ?? null };
+    return {
+      ...normalizeUser(user),
+      handle: user.publicLinkId ?? null,
+      inGroup: Boolean(item.inGroup ?? item.isGroupMember),
+      invited: Boolean(item.invited),
+    };
   });
 }
 
@@ -406,7 +446,7 @@ function normalizeNotification(n) {
     system: n.system ?? null,
     unread: n.visited === false,
     createdAt: toMillis(n.updatedAt ?? n.createdAt ?? n.occuredAt ?? n.date),
-    users: (n.actingUsers ?? []).map((u) => ({ ...normalizeUser(u), handle: u.publicLinkId ?? null })),
+    users: (n.actingUsers ?? []).map((u) => ({ ...normalizeUser(u), handle: u.publicLinkId ?? null, isPublic: u.public !== false })),
     usersCount: n.actingUsersCount ?? n.actingUsers?.length ?? 0,
     inGroup,
     group: n.group ? { id: n.group.id, name: n.group.name ?? 'Grupo' } : null,
@@ -444,17 +484,24 @@ function displayName(user) {
 
 // Avatar desde _links o, si falta, con el patrón que usa la web: /photo/profile/{size}/{userId}?f={fprint}
 function avatarOf(user) {
+  return resolveImageUrl(avatarHref(user), config.mewe.avatarSize);
+}
+
+function avatarHref(user) {
   if (!user) return null;
   const href = user._links?.avatar?.href;
-  if (href) return resolveImageUrl(href, config.mewe.avatarSize);
+  if (href) return href;
   const id = user.id ?? user.userId;
   const fprint = user.fprint ?? user.fingerprint;
-  return id && fprint ? resolveImageUrl(`/api/v2/photo/profile/{imageSize}/${id}?f=${fprint}`, config.mewe.avatarSize) : null;
+  return id && fprint ? `/api/v2/photo/profile/{imageSize}/${id}?f=${fprint}` : null;
+}
+
+function groupAvatarHref(group) {
+  return group?._links?.groupAvatar?.href ?? group?._links?.avatar?.href ?? null;
 }
 
 function groupAvatar(group) {
-  const href = group?._links?.groupAvatar?.href ?? group?._links?.avatar?.href;
-  return href ? resolveImageUrl(href, config.mewe.avatarSize) : null;
+  return resolveImageUrl(groupAvatarHref(group), config.mewe.avatarSize);
 }
 
 function extractImages(post) {

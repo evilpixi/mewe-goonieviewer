@@ -25,7 +25,10 @@ const fold = (text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, ''
 // Una conversación (mensajes + caja de redacción) para cualquier threadId:
 // chats con personas, de grupo y (más adelante) de eventos.
 // navigate: el del router; con él, los nombres y las fotos llevan al perfil.
-export function createConversation({ onSent, navigate } = {}) {
+// onUnreadChange(threadId, unread): el chat pasó a leído o volvió a tener mensajes sin leer.
+// Abrir un chat no lo marca como leído: se marca al hacer click en los mensajes, al escribir,
+// al enviar o con el botón de la barra (que sólo se ve mientras hay algo sin leer).
+export function createConversation({ onSent, onUnreadChange, navigate } = {}) {
   const messagesEl = h('div', { className: 'chat-messages scroll', attrs: { role: 'log', 'aria-label': 'Mensajes' } });
   const errorEl = h('div');
   const composer = createComposer({ onSend: send });
@@ -38,10 +41,13 @@ export function createConversation({ onSent, navigate } = {}) {
     search: toolButton('🔍', 'Buscar en este chat', 'search'),
     gallery: toolButton('🖼', 'Imágenes de este chat', 'gallery'),
   };
-  const toolsEl = h('div', { className: 'chat-tools', hidden: true }, titleEl, panelButtons.search, panelButtons.gallery);
+  const readBtn = h('button', { className: 'btn mark-read', hidden: true, onClick: () => markRead() }, '✓ Marcar como leído');
+  const toolsEl = h('div', { className: 'chat-tools', hidden: true }, titleEl, readBtn, panelButtons.search, panelButtons.gallery);
   // Panel (búsqueda o galería) que tapa los mensajes mientras está abierto
   const panelEl = h('div', { className: 'chat-panel scroll', hidden: true });
-  const bodyEl = h('div', { className: 'chat-body' }, messagesEl, panelEl);
+  // Indicador del anclaje al final: avisa que se siguen los últimos mensajes o, si se subió, lleva al final
+  const pinBtn = h('button', { className: 'chat-pin', hidden: true, onClick: () => scrollToBottom() });
+  const bodyEl = h('div', { className: 'chat-body' }, messagesEl, pinBtn, panelEl);
   const el = h('section', { className: 'chat-conversation' }, toolsEl, bodyEl, errorEl, composer.el);
   composer.acceptDrop(el);
   panelEl.addEventListener('keydown', (event) => {
@@ -57,6 +63,37 @@ export function createConversation({ onSent, navigate } = {}) {
   let pollTimer = null;
   let pollMs = POLL_FAST_MS;
   let panel = null; // 'search' | 'gallery' | null
+  let unread = false; // el chat abierto tiene mensajes sin leer
+  let pinned = true; // anclado al final: lo nuevo se sigue solo. Se suelta al subir a leer mensajes viejos
+  let missed = false; // llegaron mensajes mientras no estaba anclado
+
+  // --- Leído / sin leer ---
+
+  function setUnread(value) {
+    if (!thread || unread === value) return;
+    unread = value;
+    readBtn.hidden = !unread;
+    onUnreadChange?.(thread.id, unread);
+  }
+
+  async function markRead() {
+    if (!thread || !unread) return;
+    const gen = generation;
+    setUnread(false);
+    try {
+      await api.markChatRead(account.id, thread.id);
+    } catch (err) {
+      if (gen !== generation) return;
+      setUnread(true); // no se marcó: el botón vuelve para reintentar
+      showError(errorEl, err, 'MeWe chat');
+    }
+  }
+
+  // click en el fondo o en los mensajes, y click o tecla en la caja de texto
+  // (no el foco: al abrir un chat la caja se enfoca sola)
+  bodyEl.addEventListener('click', () => markRead());
+  composer.el.addEventListener('pointerdown', () => markRead());
+  composer.el.addEventListener('keydown', () => markRead());
 
   // --- Carga ---
 
@@ -68,10 +105,15 @@ export function createConversation({ onSent, navigate } = {}) {
       const page = await api.getMessages(account.id, thread.id);
       if (gen !== generation) return;
       if (!messages.length) hasOlder = page.length >= PAGE_SIZE;
-      const nearBottom = isNearBottom();
+      // un mensaje nuevo de otra persona (después de la carga inicial) deja el chat sin leer
+      const known = new Set(messages.map((m) => m.id));
+      const incoming = messages.length > 0 && page.some((m) => m.id && !m.mine && !known.has(m.id));
       const { added, changed } = merge(page);
+      if (incoming) setUnread(true);
+      if (added && !pinned && scroll !== 'bottom') missed = true;
       if (added || changed || !messagesEl.querySelector('.msg')) render();
-      if (scroll === 'bottom' || (added && nearBottom)) scrollToBottom();
+      if (scroll === 'bottom') scrollToBottom();
+      else renderPin();
     } catch (err) {
       if (gen === generation) showError(errorEl, err, 'MeWe chat');
     }
@@ -140,7 +182,9 @@ export function createConversation({ onSent, navigate } = {}) {
       nodes.push(renderMessage(m, { continues, names, allImages }));
       prev = m;
     }
+    const stick = pinned; // redibujar puede mover el scroll: si estaba anclado, sigue anclado
     messagesEl.replaceChildren(...nodes);
+    if (stick) scrollToBottom();
   }
 
   // Foto y nombre se muestran siempre, también en los chats de a dos
@@ -495,6 +539,8 @@ export function createConversation({ onSent, navigate } = {}) {
       return;
     }
     const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    pinned = false; // se va a otro mensaje: nada debe devolver el scroll al final
+    renderPin();
     target.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
     target.classList.remove('highlight');
     void target.offsetWidth; // reinicia la animación
@@ -543,6 +589,7 @@ export function createConversation({ onSent, navigate } = {}) {
         merge(sent.filter((m) => m?.id).map((m) => ({ ...m, mine: true })));
         render();
         scrollToBottom();
+        setUnread(false); // el envío va con setAsRead: MeWe ya lo marcó
         loadLatest();
         onSent?.();
       }
@@ -577,18 +624,45 @@ export function createConversation({ onSent, navigate } = {}) {
   }
 
   function scrollToBottom() {
+    pinned = true;
+    missed = false;
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    renderPin();
   }
 
-  // Al llegar arriba de todo carga los anteriores solo
+  function renderPin() {
+    pinBtn.hidden = !thread || !messages.length;
+    pinBtn.classList.toggle('pinned', pinned);
+    pinBtn.classList.toggle('missed', missed && !pinned);
+    pinBtn.textContent = pinned ? '📌 Siguiendo lo último' : missed ? '↓ Mensajes nuevos' : '↓ Ir al final';
+    pinBtn.title = pinned
+      ? 'El chat está anclado al final: los mensajes nuevos se muestran solos. Sube para leer los anteriores.'
+      : 'Ir al final y seguir los mensajes nuevos';
+  }
+
+  // Al llegar arriba de todo carga los anteriores solo. El anclaje sigue a la posición:
+  // al fondo se ancla, más arriba se suelta.
   messagesEl.addEventListener('scroll', () => {
     if (messagesEl.scrollTop < 40 && hasOlder && !loadingOlder) loadOlder();
+    const atBottom = isNearBottom();
+    if (atBottom === pinned) return;
+    pinned = atBottom;
+    if (pinned) missed = false;
+    renderPin();
   });
+
+  // Anclado, el fondo se mantiene aunque el contenido crezca después (imágenes que terminan de cargar)
+  // o cambie el alto disponible (la caja de texto, la ventana)
+  messagesEl.addEventListener('load', () => pinned && scrollToBottom(), true);
+  new ResizeObserver(() => pinned && thread && scrollToBottom()).observe(messagesEl);
 
   return {
     el,
     get threadId() {
       return thread?.id ?? null;
+    },
+    get unread() {
+      return unread;
     },
     async open(newAccount, newThread) {
       generation++;
@@ -596,6 +670,12 @@ export function createConversation({ onSent, navigate } = {}) {
       thread = newThread;
       messages = [];
       hasOlder = false;
+      // sin el dato (chat abierto desde un grupo o una notificación) se asume sin leer
+      unread = thread.unread !== false;
+      readBtn.hidden = !unread;
+      pinned = true; // todo chat se abre en el final
+      missed = false;
+      pinBtn.hidden = true;
       clearError(errorEl);
       composer.clear();
       composer.setAccount(account);
@@ -613,6 +693,9 @@ export function createConversation({ onSent, navigate } = {}) {
       generation++;
       thread = null;
       messages = [];
+      unread = false;
+      readBtn.hidden = true;
+      pinBtn.hidden = true;
       clearInterval(pollTimer);
       pollTimer = null;
       composer.el.hidden = true;

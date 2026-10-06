@@ -30,6 +30,7 @@ export const config = {
       send: (threadId) => `/api/v2/chat/thread/${threadId}/message`, // POST { message, setAsRead, replyTo, attachments }
       edit: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}`, // PUT { text }
       create: '/api/v2/chat/thread', // POST { receivers: [userId] } → el chat (nuevo o el que ya había)
+      markRead: (threadId) => `/api/v2/messages/thread/${threadId}/unread`, // DELETE: marca el chat como leído
       seen: (messageId) => `/api/v2/messages/message/${messageId}/seen`, // POST: marca visto un mensaje temporal
       disappearingImageSize: '400x400', // tamaño con el que la web pide las imágenes temporales
       // POST ["😀"] agrega · DELETE ?emojis= quita · GET lista quién reaccionó
@@ -56,6 +57,8 @@ export const config = {
       details: (userId) => `/api/v2/following/${userId}`, // GET ?details=true
       feed: (userId) => `/api/v2/home/user/${userId}/postsfeed`, // GET, paginado
       media: (userId) => `/api/v2/home/user/${userId}/mediastream`, // GET, paginado
+      albums: (userId) => `/api/v2/home/user/${userId}/albums`, // GET, paginado → { feed: [{ name, count, image }] }
+      albumMedia: (userId, album) => `/api/v2/home/user/${userId}/album/${encodeURIComponent(album)}/mediastream`, // GET, paginado
       follow: (userId) => `/api/v2/following/${userId}/follow`, // POST sigue · DELETE deja de seguir
       requestsReceived: '/api/v2/following/requests/received', // GET
       search: '/api/v3/desktop/search/users', // GET ?query=&limit=&offset=&nm=1 → { results: [{ user }], hasMoreResults }
@@ -71,7 +74,10 @@ export const config = {
       member: (groupId, userId) => `/api/v2/group/${groupId}/member/${userId}/remove`, // DELETE (con mi id: salir)
       apply: (publicUrlId) => `/api/v2/group/public/${encodeURIComponent(publicUrlId)}/apply`, // POST {}
       confirmInvite: (groupId) => `/api/v2/group/${groupId}/invite/confirm`, // POST {}
-      contacts: (groupId) => `/api/v2/group/${groupId}/contacts/search`, // GET ?searchStr=
+      // GET ?search=&maxResults=&offset=&markGroupMembersOf={groupId} → { list: [{ user, inGroup, invited }] }
+      // (el buscador del diálogo de invitar de la web; sin search lista todos los contactos)
+      toInvite: '/api/v2/following/followers/to-invite',
+      invitePageSize: 20,
       // when: 'upcoming' | 'past'
       events: (groupId, when) => `/api/v2/events2/group/${groupId}/${when}`, // GET ?v=2&maxResults=
       membersPageSize: 30,

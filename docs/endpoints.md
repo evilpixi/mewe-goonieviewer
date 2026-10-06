@@ -17,7 +17,7 @@ Con `npm run debug`, la última respuesta de cada endpoint se guarda en `mewe-de
 | Abrir / crear chat | `POST /api/v2/chat/thread` `{ receivers: [userId] }` | Devuelve el chat. Sacado del bundle web. **Sin probar.** |
 | Editar mensaje | `PUT /api/v2/chat/thread/{threadId}/message/{id}` | `{ text }`. Sólo mensajes propios de texto; el mensaje vuelve con `editedAt`. **Sin probar.** |
 | Mensaje temporal visto | `POST /api/v2/messages/message/{id}/seen` | La web lo llama al **terminar** de mostrar un mensaje con `expiresIn` (ahí MeWe lo borra), no al abrirlo. La imagen se pide a `mewe.com` (no a `img.mewe.com`) en `400x400`. **Sin probar.** |
-| Marcar leído | `DELETE /api/v2/messages/thread/{id}/unread` | Todavía sin usar. |
+| Marcar leído | `DELETE /api/v2/messages/thread/{id}/unread` | La web lo llama al enfocar la caja de texto. La app, al hacer click en los mensajes, al escribir o con el botón "Marcar como leído". **Sin probar.** |
 
 Forma de un mensaje:
 - Fotos en `attachments[]`, con `aType: 'photo'` y `_links.self.href`, una plantilla con `{imageSize}`.
@@ -68,8 +68,10 @@ Tipos de evento:
 | Perfil | `GET /api/v2/following/{userId}?details=true` | `{ user, profile: { text }, counters: { followers, following, posts }, following, follower }`. `user.public === false` es cuenta privada. |
 | Publicaciones | `GET /api/v2/home/user/{userId}/postsfeed` | Misma forma que el feed. 403 si la cuenta es privada y no la seguimos. |
 | Imágenes | `GET /api/v2/home/user/{userId}/mediastream` | `{ feed: [{ mediaId, postItemId, photo }], _links.nextPage }` |
-| Seguir / dejar de seguir | `POST` / `DELETE /api/v2/following/{userId}/follow` | En una cuenta privada, el POST deja una solicitud pendiente. **Sin probar.** |
-| Solicitudes recibidas | `GET /api/v2/following/requests/received` | `{ list: [...] }`. Sólo se vio vacía: la forma de cada elemento falta confirmarla. |
+| Imágenes de un álbum | `GET /api/v2/home/user/{userId}/album/{nombre}/mediastream` | Misma forma que las imágenes. Sacado del bundle web. **Sin probar.** |
+| Álbumes | `GET /api/v2/home/user/{userId}/albums` | `{ feed: [{ name, count, image: { _links.img } }], _links.nextPage }`. La web descarta los de `count` 0. Sacado del bundle web. **Sin probar.** |
+| Seguir / dejar de seguir | `POST` / `DELETE /api/v2/following/{userId}/follow` | Responde `{ follow: { user, following, follower, followRequestId? } }`: con `followRequestId` quedó una solicitud pendiente (cuenta privada). |
+| Solicitudes recibidas | `GET /api/v2/following/requests/received` | `{ list: [...] }`. Según el bundle web, cada elemento trae el usuario (en `user` o plano) y `followRequestId`, que es el id para aceptar o rechazar. Sólo se vio vacía. |
 | Buscar personas | `GET /api/v3/desktop/search/users?query=&limit=&offset=&nm=1` | `{ results: [{ user }], hasMoreResults }`. Sacado del bundle web. **Sin probar.** Hermanos: `/desktop/search` (todo), `/groups`, `/chats`, `/posts`. |
 | Aceptar solicitud | `POST /api/v2/following/request/{requestId}/accept` | **Sin probar.** |
 | Rechazar o cancelar | `DELETE /api/v2/following/request/{requestId}/remove` | **Sin probar.** |
@@ -87,7 +89,8 @@ Tipos de evento:
 | Unirse (grupo público) | `POST /api/v2/group/public/{publicUrlId}/apply` `{}` | Puede quedar pendiente de aprobación. **Sin probar.** |
 | Aceptar invitación | `POST /api/v2/group/{groupId}/invite/confirm` `{}` | **Sin probar.** |
 | Salir | `DELETE /api/v2/group/{groupId}/member/{miUserId}/remove` | **Sin probar.** |
-| Buscar contactos para invitar | `GET /api/v2/group/{groupId}/contacts/search?searchStr=&maxResults=` | `{ members: [{ user, online }] }`. `searchStr` es obligatorio. |
+| Buscar contactos para invitar | `GET /api/v2/following/followers/to-invite?search=&maxResults=&offset=&markGroupMembersOf={groupId}` | El que usa el diálogo de invitar de la web: `{ list: [{ user, inGroup, invited }] }`. Sin `search` lista todos. **Sin probar.** `/group/{id}/contacts/search?searchStr=` existe pero la web no lo usa y devolvía resultados incompletos. |
+| Preguntas para entrar | Vienen en el detalle del grupo: `applyQuestions: [texto]` y `mandatoryQuestions` | Las respuestas van en el body de unirse o de aceptar la invitación: `{ answers: [{ question, text }] }`. `text` es obligatorio en cada respuesta (confirmado por el 400 de MeWe); que acepte `question` al lado falta confirmarlo. |
 | Invitar | `POST /api/v2/group/{groupId}/members` `{ groupId, userInvitees: [{ userId }] }` | La forma de `userInvitees` está deducida del bundle. **Sin probar.** |
 
 ## Notificaciones

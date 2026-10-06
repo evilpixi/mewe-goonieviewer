@@ -3,7 +3,7 @@ import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
 import { formatDateTime, formatFull } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
-import { createFollowRequests } from '../ui/followRequests.js';
+import { createFollowRequests, followButton } from '../ui/followRequests.js';
 import { plainText } from '../ui/richText.js';
 import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
@@ -147,7 +147,13 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
   const markAllBtn = h('button', { className: 'btn', onClick: markAll }, 'Marcar todas como leídas');
   const toolbar = h('div', { className: 'view-toolbar-group' }, tabs.el, markAllBtn);
   const errorEl = h('div');
-  const requests = createFollowRequests({ navigate });
+  const requests = createFollowRequests({
+    navigate,
+    onChange: (userId) => {
+      pending.delete(userId);
+      render();
+    },
+  });
   const listEl = h('ul', { className: 'notif-list card', attrs: { 'aria-label': 'Notificaciones' } });
   const moreBtn = h('button', { className: 'btn load-more', hidden: true, onClick: () => load(true) }, 'Cargar más');
   const el = h('div', { className: 'view scroll page' }, errorEl, requests.el, listEl, moreBtn);
@@ -156,6 +162,9 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
   let items = [];
   let nextPage = null;
   let generation = 0;
+  let pending = new Map(); // userId → id de su solicitud de seguimiento sin responder
+  const rejected = new Set(); // userId de las solicitudes rechazadas desde acá
+  const followResults = new Map(); // userId → resultado de "Seguir" (ver followButton)
 
   async function load(append = false) {
     const gen = append ? generation : ++generation;
@@ -231,7 +240,48 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
       ),
       n.unread && h('span', { className: 'unread-dot', attrs: { 'aria-label': 'Sin leer' } }),
     );
-    return h('li', {}, btn);
+    const actions = user?.id && !others ? followActions(n, user) : [];
+    return h('li', { className: 'notif-row' }, btn, actions.length > 0 && h('div', { className: 'notif-actions' }, actions));
+  }
+
+  // Acciones de seguimiento sin salir de la lista: aceptar / rechazar la solicitud y seguir a quien nos sigue
+  function followActions(n, user) {
+    const acc = account;
+    const onError = (err) => showError(errorEl, err, 'MeWe seguimiento');
+    const follow = () => followButton({ account: acc, user, results: followResults, onError });
+    if (n.type === 'new_follower') return [follow()];
+    if (n.type !== 'new_follow_request' || rejected.has(user.id)) return [];
+    const requestId = pending.get(user.id);
+    if (!requestId) return [follow()]; // ya respondida: queda seguirlo también
+    const answer = async (accept, button) => {
+      const buttons = [...button.parentElement.querySelectorAll('.btn')];
+      for (const btn of buttons) btn.disabled = true;
+      clearError(errorEl);
+      try {
+        await api.answerFollowRequest(acc.id, requestId, accept);
+        if (acc !== account) return;
+        pending.delete(user.id);
+        if (!accept) rejected.add(user.id);
+        requests.remove(user.id);
+        render();
+      } catch (err) {
+        for (const btn of buttons) btn.disabled = false;
+        onError(err);
+      }
+    };
+    return [
+      h('button', { className: 'btn primary', onClick: (event) => answer(true, event.currentTarget) }, 'Aceptar'),
+      h('button', { className: 'btn', onClick: (event) => answer(false, event.currentTarget) }, 'Rechazar'),
+    ];
+  }
+
+  // Las notificaciones no traen el id de la solicitud: sale de la lista de solicitudes recibidas
+  async function loadRequests() {
+    const acc = account;
+    const list = await requests.load(acc);
+    if (acc !== account) return;
+    pending = new Map(list.filter((r) => r.requestId && r.user.id).map((r) => [r.user.id, r.requestId]));
+    if (items.length) render();
   }
 
   function open(n, destination) {
@@ -262,7 +312,10 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
       account = newAccount;
       items = [];
       nextPage = null;
-      requests.load(account);
+      pending = new Map();
+      rejected.clear();
+      followResults.clear();
+      loadRequests();
       if (account) load();
       else listEl.replaceChildren();
     },
@@ -271,7 +324,7 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
     },
     reload() {
       if (!account) return;
-      requests.load(account);
+      loadRequests();
       load();
     },
   };

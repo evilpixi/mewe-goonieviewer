@@ -10,7 +10,8 @@ import { userName } from './userName.js';
 
 // Un post (feed, perfil, grupo o vista individual): cabecera, texto, fotos, reacciones y comentarios.
 // expanded: muestra los comentarios abiertos (vista de post individual)
-export function renderPost(post, { account, navigate, expanded = false }) {
+// gallery: false omite las fotos (el visor de imágenes ya las está mostrando)
+export function renderPost(post, { account, navigate, expanded = false, gallery = true }) {
   const accountId = account.id;
   const ref = { id: post.id, groupId: post.groupId };
 
@@ -69,12 +70,13 @@ export function renderPost(post, { account, navigate, expanded = false }) {
     { className: 'post', dataset: { postId: post.id ?? '' } },
     head,
     post.text && h('p', { className: 'post-text', attrs: { dir: 'auto' } }, richText(post.text, { accountId, navigate })),
-    renderGallery({
-      accountId,
-      images: post.images,
-      total: post.imagesCount,
-      loadAll: () => api.getPostImages(accountId, ref),
-    }),
+    gallery &&
+      renderGallery({
+        accountId,
+        images: post.images,
+        total: post.imagesCount,
+        loadAll: () => api.getPostImages(accountId, ref),
+      }),
     h('div', { className: 'post-footer' }, reactions.el, (post.commentsCount > 0 || post.canComment) && commentsBtn),
     commentsSlot,
   );

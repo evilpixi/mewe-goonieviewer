@@ -3,12 +3,13 @@ import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
 import { emptyState, h } from '../ui/dom.js';
 import { createFollowRequests } from '../ui/followRequests.js';
-import { openLightbox } from '../ui/lightbox.js';
+import { closeLightbox, openLightbox } from '../ui/lightbox.js';
+import { renderPost } from '../ui/post.js';
 import { createPostList } from '../ui/postList.js';
 import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
 
-// Ruta 'profile': { userId } → cabecera con la info, botón de seguimiento y pestañas Publicaciones / Imágenes.
+// Ruta 'profile': { userId } → cabecera con la info, botón de seguimiento y pestañas Publicaciones / Imágenes / Álbumes.
 // Si la cuenta es privada y no la seguimos, se muestra el aviso en lugar del contenido.
 export function createProfileView({ navigate }) {
   const errorEl = h('div');
@@ -19,6 +20,7 @@ export function createProfileView({ navigate }) {
     tabs: [
       ['posts', 'Publicaciones'],
       ['images', 'Imágenes'],
+      ['albums', 'Álbumes'],
     ],
     onChange: showTab,
   });
@@ -34,28 +36,55 @@ export function createProfileView({ navigate }) {
     emptyText: 'Todavía no publicó nada.',
     onError: (err) => isForbidden(err) && showPrivate(),
   });
-  const imagesGrid = h('div', { className: 'media-grid' });
-  const imagesMore = h('button', { className: 'btn load-more', hidden: true, onClick: () => loadImages(true) }, 'Cargar más');
-  const imagesError = h('div');
-  const imagesEl = h('div', { className: 'profile-images', hidden: true }, imagesError, imagesGrid, imagesMore);
-  const contentEl = h('div', { className: 'profile-content', hidden: true }, h('div', { className: 'tabs-bar' }, tabs.el), posts.el, imagesEl);
+  // Imágenes: todas las del perfil
+  const allImages = createMediaGrid((nextPage) => api.getUserMedia(account.id, profile.id, nextPage));
+  allImages.el.hidden = true;
+
+  // Álbumes: la lista y, al abrir uno, sus imágenes
+  const albumsGrid = h('div', { className: 'media-grid album-grid' });
+  const albumsMore = h('button', { className: 'btn load-more', hidden: true, onClick: () => loadAlbums(true) }, 'Cargar más');
+  const albumsError = h('div');
+  const albumsListEl = h('div', {}, albumsError, albumsGrid, albumsMore);
+  const albumTitle = h('strong', { className: 'album-title', attrs: { dir: 'auto' } });
+  const albumImages = createMediaGrid((nextPage) => api.getUserMedia(account.id, profile.id, nextPage, openedAlbum));
+  const albumEl = h(
+    'div',
+    { hidden: true },
+    h('div', { className: 'album-head' }, h('button', { className: 'btn', onClick: () => closeAlbum() }, '← Álbumes'), albumTitle),
+    albumImages.el,
+  );
+  const albumsEl = h('div', { hidden: true }, albumsListEl, albumEl);
+
+  const contentEl = h(
+    'div',
+    { className: 'profile-content', hidden: true },
+    h('div', { className: 'tabs-bar' }, tabs.el),
+    posts.el,
+    allImages.el,
+    albumsEl,
+  );
   const el = h('div', { className: 'view scroll page' }, errorEl, headerEl, requests.el, privateEl, contentEl);
 
   let account = null;
   let profile = null;
-  let images = [];
-  let imagesNext = null;
-  let imagesLoaded = false;
+  let albums = [];
+  let albumsNext = null;
+  let openedAlbum = null; // nombre del álbum abierto
   let generation = 0; // descarta respuestas de otro perfil u otra cuenta
   let last = null;
+  const loaded = new Set(); // pestañas ya cargadas para este perfil
 
   async function show(newAccount, params = {}) {
     const gen = ++generation;
     last = params;
     account = newAccount;
     profile = null;
-    images = [];
-    imagesLoaded = false;
+    albums = [];
+    albumsNext = null;
+    loaded.clear();
+    allImages.reset();
+    closeAlbum();
+    closeLightbox();
     clearError(errorEl);
     posts.reset();
     requests.load(null);
@@ -105,12 +134,25 @@ export function createProfileView({ navigate }) {
       ['seguidores', p.counters.followers],
       ['siguiendo', p.counters.following],
     ].filter(([, value]) => value != null);
+    const view = (image, caption) => openLightbox({ accountId: account.id, images: [image], caption });
+    const photo = avatar(account.id, p.avatar, { name: p.name, size: 'xl' });
     const parts = [
-      p.cover && h('img', { className: 'cover', src: imageUrl(account.id, p.cover), alt: '' }),
+      p.coverImage &&
+        h(
+          'button',
+          { className: 'cover-btn', title: 'Ver portada', attrs: { 'aria-label': 'Ver portada' }, onClick: () => view(p.coverImage, `Portada de ${p.name}`) },
+          h('img', { className: 'cover', src: imageUrl(account.id, p.cover), alt: '' }),
+        ),
       h(
         'div',
         { className: 'profile-main' },
-        avatar(account.id, p.avatar, { name: p.name, size: 'xl' }),
+        p.avatarImage
+          ? h(
+              'button',
+              { className: 'avatar-btn', title: 'Ver foto de perfil', attrs: { 'aria-label': 'Ver foto de perfil' }, onClick: () => view(p.avatarImage, p.name) },
+              photo,
+            )
+          : photo,
         h(
           'div',
           { className: 'profile-id' },
@@ -132,6 +174,7 @@ export function createProfileView({ navigate }) {
       p.info.length > 0 &&
         h('dl', { className: 'profile-info' }, p.info.map(([label, value]) => [h('dt', {}, label), h('dd', { attrs: { dir: 'auto' } }, String(value))])),
     ];
+    headerEl.classList.toggle('has-cover', Boolean(p.coverImage));
     headerEl.replaceChildren(...parts.filter(Boolean));
   }
 
@@ -198,54 +241,154 @@ export function createProfileView({ navigate }) {
 
   function showTab(tab) {
     posts.el.hidden = tab !== 'posts';
-    imagesEl.hidden = tab !== 'images';
+    allImages.el.hidden = tab !== 'images';
+    albumsEl.hidden = tab !== 'albums';
+    if (loaded.has(tab)) return;
+    loaded.add(tab);
     if (tab === 'posts') posts.load(account);
-    else if (!imagesLoaded) loadImages();
+    else if (tab === 'images') allImages.load();
+    else loadAlbums();
   }
 
-  async function loadImages(append = false) {
+  // Grilla paginada de imágenes (todas las del perfil o las de un álbum). fetchPage(nextPage) → { images, nextPage }
+  // Al abrir una imagen, el visor muestra al lado su publicación con los comentarios.
+  function createMediaGrid(fetchPage) {
+    const grid = h('div', { className: 'media-grid' });
+    const more = h('button', { className: 'btn load-more', hidden: true, onClick: () => load(true) }, 'Cargar más');
+    const error = h('div');
+    let images = [];
+    let next = null;
+    let token = 0; // descarta respuestas de antes de un reset (otro álbum)
+
+    function reset() {
+      token++;
+      images = [];
+      next = null;
+      more.hidden = true;
+      clearError(error);
+      grid.replaceChildren();
+    }
+
+    async function load(append = false) {
+      const gen = generation;
+      const current = token;
+      more.disabled = true;
+      clearError(error);
+      if (!append) grid.replaceChildren(emptyState('Cargando…'));
+      try {
+        const page = await fetchPage(append ? next : undefined);
+        if (gen !== generation || current !== token) return;
+        const known = new Set(images.map((img) => img.src));
+        images = append ? [...images, ...page.images.filter((img) => !known.has(img.src))] : page.images;
+        next = page.nextPage;
+        render();
+      } catch (err) {
+        if (gen !== generation || current !== token) return;
+        if (!append) grid.replaceChildren();
+        if (isForbidden(err)) showPrivate();
+        else showError(error, err, 'MeWe imágenes');
+      } finally {
+        more.disabled = false;
+      }
+    }
+
+    function render() {
+      more.hidden = !next;
+      if (!images.length) {
+        grid.replaceChildren(emptyState('No hay imágenes.'));
+        return;
+      }
+      grid.replaceChildren(
+        ...images.map((img, index) =>
+          h(
+            'button',
+            {
+              className: 'media-tile',
+              title: 'Ver imagen',
+              attrs: { 'aria-label': `Ver imagen ${index + 1} de ${images.length}` },
+              onClick: () => openLightbox({ accountId: account.id, images, index, loadPost }),
+            },
+            h('img', { src: imageUrl(account.id, img.src), alt: '', loading: 'lazy' }),
+          ),
+        ),
+      );
+    }
+
+    return { el: h('div', { className: 'profile-images' }, error, grid, more), load, reset };
+  }
+
+  // La publicación de una imagen, para el panel del visor. Sus enlaces cierran el visor antes de navegar.
+  async function loadPost(img) {
+    const acc = account;
+    const post = await api.getPost(acc.id, img.postId);
+    const go = (...args) => {
+      closeLightbox();
+      navigate(...args);
+    };
+    return renderPost(post, { account: acc, navigate: go, expanded: true, gallery: false }).el;
+  }
+
+  // --- Álbumes ---
+
+  async function loadAlbums(append = false) {
     const gen = generation;
-    imagesMore.disabled = true;
-    clearError(imagesError);
-    if (!append) imagesGrid.replaceChildren(emptyState('Cargando…'));
+    albumsMore.disabled = true;
+    clearError(albumsError);
+    if (!append) albumsGrid.replaceChildren(emptyState('Cargando…'));
     try {
-      const page = await api.getUserMedia(account.id, profile.id, append ? imagesNext : undefined);
+      const page = await api.getUserAlbums(account.id, profile.id, append ? albumsNext : undefined);
       if (gen !== generation) return;
-      const known = new Set(images.map((img) => img.src));
-      images = append ? [...images, ...page.images.filter((img) => !known.has(img.src))] : page.images;
-      imagesNext = page.nextPage;
-      imagesLoaded = true;
-      renderImages();
+      const known = new Set(albums.map((album) => album.name));
+      albums = append ? [...albums, ...page.albums.filter((album) => !known.has(album.name))] : page.albums;
+      albumsNext = page.nextPage;
+      renderAlbums();
     } catch (err) {
       if (gen !== generation) return;
-      if (!append) imagesGrid.replaceChildren();
+      if (!append) albumsGrid.replaceChildren();
       if (isForbidden(err)) showPrivate();
-      else showError(imagesError, err, 'MeWe imágenes');
+      else showError(albumsError, err, 'MeWe álbumes');
     } finally {
-      imagesMore.disabled = false;
+      albumsMore.disabled = false;
     }
   }
 
-  function renderImages() {
-    imagesMore.hidden = !imagesNext;
-    if (!images.length) {
-      imagesGrid.replaceChildren(emptyState('No hay imágenes.'));
+  function renderAlbums() {
+    albumsMore.hidden = !albumsNext;
+    if (!albums.length) {
+      albumsGrid.replaceChildren(emptyState('No hay álbumes.'));
       return;
     }
-    imagesGrid.replaceChildren(
-      ...images.map((img, index) =>
+    albumsGrid.replaceChildren(
+      ...albums.map((album) =>
         h(
           'button',
-          {
-            className: 'media-tile',
-            title: 'Ver imagen',
-            attrs: { 'aria-label': `Ver imagen ${index + 1} de ${images.length}` },
-            onClick: () => openLightbox({ accountId: account.id, images, index }),
-          },
-          h('img', { src: imageUrl(account.id, img.src), alt: '', loading: 'lazy' }),
+          { className: 'media-tile album-tile', title: `Abrir el álbum ${album.name}`, onClick: () => openAlbum(album) },
+          album.cover && h('img', { src: imageUrl(account.id, album.cover), alt: '', loading: 'lazy' }),
+          h(
+            'span',
+            { className: 'album-caption' },
+            h('span', { className: 'album-name', attrs: { dir: 'auto' } }, album.name),
+            album.count != null && h('span', { className: 'album-count' }, album.count === 1 ? '1 imagen' : `${album.count} imágenes`),
+          ),
         ),
       ),
     );
+  }
+
+  function openAlbum(album) {
+    openedAlbum = album.name;
+    albumTitle.textContent = album.name;
+    albumsListEl.hidden = true;
+    albumEl.hidden = false;
+    albumImages.reset();
+    albumImages.load();
+  }
+
+  function closeAlbum() {
+    openedAlbum = null;
+    albumImages.reset();
+    albumEl.hidden = true;
+    albumsListEl.hidden = false;
   }
 
   return {
@@ -254,6 +397,7 @@ export function createProfileView({ navigate }) {
     hide() {
       generation++;
       posts.reset();
+      closeLightbox();
     },
     reload() {
       if (last) show(account, last);

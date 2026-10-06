@@ -492,6 +492,16 @@ button:disabled {
   vertical-align: -0.5em;
 }
 
+/* GIF de Giphy en un texto (ui/richText.js): en su propio renglón, como una imagen adjunta */
+.gif-embed {
+  display: block;
+  max-width: min(100%, 320px);
+  max-height: 260px;
+  margin: var(--space-1) 0;
+  border-radius: var(--radius-sm);
+  background: var(--placeholder);
+}
+
 /* Mención a un usuario en un texto (ui/richText.js) */
 .mention,
 .link-btn.mention {
@@ -1358,6 +1368,47 @@ button.mention:hover {
   background: rgb(0 0 0 / 70%);
 }
 
+/* Panel con la publicación de la imagen (texto, reacciones y comentarios): la imagen cede ese ancho */
+.lightbox {
+  --lightbox-post-width: min(calc(380px * var(--font-scale)), 45vw);
+}
+
+.lightbox-post {
+  display: none;
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 3;
+  width: var(--lightbox-post-width);
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.lightbox.with-post .lightbox-post {
+  display: block;
+}
+
+.lightbox.with-post .lightbox-stage {
+  width: calc(100% - var(--lightbox-post-width));
+}
+
+.lightbox.with-post .lightbox-bar {
+  right: var(--lightbox-post-width);
+}
+
+.lightbox.with-post .lightbox-nav.next {
+  right: calc(var(--lightbox-post-width) + var(--space-5));
+}
+
+.lightbox-post .post {
+  border: 0;
+  border-radius: 0;
+}
+
+.lightbox-post .empty {
+  padding: var(--space-6);
+}
+
 /* Resaltado temporal (ir a un mensaje citado, comentario de una notificación) */
 .highlight {
   animation: highlight 2s ease-out;
@@ -1625,6 +1676,11 @@ button.mention:hover {
   font-weight: inherit;
 }
 
+.chat-tools .mark-read {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .chat-tools .btn[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -1646,6 +1702,36 @@ button.mention:hover {
 }
 
 /* Panel de búsqueda o de galería: tapa los mensajes mientras está abierto */
+/* Anclaje al final del chat: discreto mientras sigue lo último; botón marcado cuando se subió a leer */
+.chat-pin {
+  position: absolute;
+  right: var(--space-6);
+  bottom: var(--space-4);
+  z-index: 1;
+  padding: var(--space-1) var(--space-4);
+  border: var(--border-width) solid var(--accent);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-xs);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.chat-pin.pinned {
+  border-color: var(--border);
+  color: var(--muted);
+  box-shadow: none;
+  opacity: 0.75;
+  cursor: default;
+}
+
+.chat-pin.missed {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
 .chat-panel {
   position: absolute;
   inset: 0;
@@ -2265,14 +2351,29 @@ button.msg-avatar:hover {
   overflow: hidden;
 }
 
-.cover {
+/* Portada a todo el ancho de la tarjeta; al hacer click se abre en el visor */
+.cover-btn {
   display: block;
   width: calc(100% + 2 * var(--space-6));
-  max-width: none;
-  height: 120px;
   margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)) var(--space-5);
-  object-fit: cover;
+  padding: 0;
+  border: 0;
   background: var(--placeholder);
+  cursor: zoom-in;
+}
+
+.cover-btn:focus-visible {
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.cover {
+  display: block;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 3 / 1;
+  min-height: 140px;
+  max-height: 360px;
+  object-fit: cover;
 }
 
 .profile-main {
@@ -2280,6 +2381,28 @@ button.msg-avatar:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-5);
+}
+
+.avatar-btn {
+  display: grid;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: none;
+  cursor: zoom-in;
+}
+
+/* Con portada, la foto de perfil se monta sobre su borde inferior */
+.profile-head.has-cover .profile-main {
+  align-items: flex-start;
+}
+
+.profile-head.has-cover .profile-main > .avatar-btn,
+.profile-head.has-cover .profile-main > .avatar {
+  position: relative;
+  margin-top: calc(-0.5 * var(--avatar-xl) - var(--space-5));
+  box-shadow: 0 0 0 3px var(--panel);
 }
 
 .profile-id {
@@ -2374,6 +2497,51 @@ button.msg-avatar:hover {
   object-fit: cover;
 }
 
+/* Álbumes de un perfil: portada con el nombre y la cantidad encima */
+.album-grid {
+  grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--icon-scale)), 1fr));
+}
+
+.album-tile {
+  cursor: pointer;
+}
+
+.album-caption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6) var(--space-3) var(--space-2);
+  background: linear-gradient(transparent, rgb(0 0 0 / 75%));
+  color: var(--on-overlay);
+  font-size: var(--font-sm);
+  text-align: left;
+}
+
+.album-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-count {
+  font-size: var(--font-xs);
+  opacity: 0.85;
+}
+
+.album-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.album-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Listas de personas / grupos (miembros, solicitudes, mis grupos) */
 .people-list {
   list-style: none;
@@ -2466,6 +2634,22 @@ button.msg-avatar:hover {
   cursor: pointer;
 }
 
+/* Preguntas del grupo antes de entrar (en el mismo popover) */
+.questions-box p {
+  margin: 0;
+}
+
+.questions-box .question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.questions-box textarea {
+  resize: vertical;
+}
+
 .invite-box .status {
   margin: 0;
   font-size: var(--font-sm);
@@ -2499,6 +2683,27 @@ button.msg-avatar:hover {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* Fila: la notificación y, al lado, sus acciones (aceptar / rechazar / seguir) */
+.notif-row {
+  display: flex;
+  align-items: center;
+}
+
+.notif-row .notif {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: 0 var(--space-5) 0 var(--space-2);
 }
 
 .notif:hover:not(:disabled),

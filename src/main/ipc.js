@@ -58,13 +58,15 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   );
   account('chat:reactors', (client, _me, threadId, messageId) => client.getMessageReactors(threadId, messageId));
   account('chat:open', (client, me, userId) => client.openChatWith(userId, me.userId));
+  account('chat:read', (client, _me, threadId) => client.markChatRead(threadId));
   account('chat:seen', (client, _me, messageId) => client.markMessageSeen(messageId));
   handle('chat:realtime', (accountId) => realtime.start(accountId));
 
   account('profile:get', (client, me, userId) => client.getProfile(userId, me.userId));
   account('profile:search', (client, _me, query) => client.searchUsers(query));
   account('profile:feed', (client, _me, userId, nextPage) => client.getUserFeed(userId, nextPage));
-  account('profile:media', (client, _me, userId, nextPage) => client.getUserMedia(userId, nextPage));
+  account('profile:media', (client, _me, userId, nextPage, album) => client.getUserMedia(userId, nextPage, album));
+  account('profile:albums', (client, _me, userId, nextPage) => client.getUserAlbums(userId, nextPage));
   account('profile:follow', (client, _me, userId, on) => client.setFollow(userId, on));
   account('profile:requests', (client) => client.getFollowRequests());
   account('profile:answerRequest', (client, _me, requestId, accept) => client.answerFollowRequest(requestId, accept));
@@ -74,9 +76,9 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   account('group:feed', (client, _me, groupId, nextPage) => client.getGroupFeed(groupId, nextPage));
   account('group:members', (client, _me, groupId, options) => client.getGroupMembers(groupId, options));
   account('group:events', (client, _me, groupId, when) => client.getGroupEvents(groupId, when));
-  account('group:join', (client, _me, groupId) => client.joinGroup(groupId));
+  account('group:join', (client, _me, groupId, answers) => client.joinGroup(groupId, answers));
   account('group:leave', (client, me, groupId) => client.leaveGroup(groupId, me.userId));
-  account('group:contacts', (client, _me, groupId, query) => client.searchGroupContacts(groupId, query));
+  account('group:contacts', (client, _me, groupId, query, offset) => client.searchGroupContacts(groupId, query, offset));
   account('group:invite', (client, _me, groupId, userIds) => client.inviteToGroup(groupId, userIds));
 
   account('notif:list', (client, _me, nextPage) => client.getNotifications(nextPage));

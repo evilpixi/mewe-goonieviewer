@@ -3,6 +3,7 @@ import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
 import { formatDateTime, formatDay, formatFull } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
+import { openLightbox } from '../ui/lightbox.js';
 import { closePopover, openPopover } from '../ui/popover.js';
 import { createPostList } from '../ui/postList.js';
 import { createTabs } from '../ui/tabs.js';
@@ -128,12 +129,25 @@ export function createGroupView({ navigate }) {
     } else {
       actions.push(h('button', { className: 'btn primary', onClick: (event) => join(event.currentTarget) }, g.isInvited ? 'Aceptar invitación' : 'Unirse'));
     }
+    const view = (image, caption) => openLightbox({ accountId: account.id, images: [image], caption });
+    const photo = avatar(account.id, g.avatar, { name: g.name, size: 'xl' });
     const parts = [
-      g.cover && h('img', { className: 'cover', src: imageUrl(account.id, g.cover), alt: '' }),
+      g.coverImage &&
+        h(
+          'button',
+          { className: 'cover-btn', title: 'Ver portada', attrs: { 'aria-label': 'Ver portada' }, onClick: () => view(g.coverImage, `Portada de ${g.name}`) },
+          h('img', { className: 'cover', src: imageUrl(account.id, g.cover), alt: '' }),
+        ),
       h(
         'div',
         { className: 'profile-main' },
-        avatar(account.id, g.avatar, { name: g.name, size: 'xl' }),
+        g.avatarImage
+          ? h(
+              'button',
+              { className: 'avatar-btn', title: 'Ver foto del grupo', attrs: { 'aria-label': 'Ver foto del grupo' }, onClick: () => view(g.avatarImage, g.name) },
+              photo,
+            )
+          : photo,
         h(
           'div',
           { className: 'profile-id' },
@@ -151,11 +165,55 @@ export function createGroupView({ navigate }) {
       ),
       g.description && h('p', { className: 'profile-bio', attrs: { dir: 'auto' } }, g.description),
     ];
+    headerEl.classList.toggle('has-cover', Boolean(g.coverImage));
     headerEl.replaceChildren(...parts.filter(Boolean));
   }
 
   function join(button) {
+    if (group.questions.length) return openQuestions(button);
     return membership(button, () => api.joinGroup(account.id, group.id));
+  }
+
+  // Preguntas que el grupo hace antes de entrar: se responden acá y van con la solicitud
+  function openQuestions(anchor) {
+    const g = group;
+    const gen = generation;
+    const status = h('p', { className: 'status', attrs: { 'aria-live': 'polite' } });
+    const sendBtn = h('button', { className: 'btn primary', type: 'submit' }, g.isInvited ? 'Aceptar invitación' : 'Enviar solicitud');
+    const fields = g.questions.map((question) =>
+      h('textarea', { className: 'input', rows: 2, maxLength: 5000, required: g.mandatoryQuestions, attrs: { 'aria-label': question, dir: 'auto' } }),
+    );
+    const updateSend = () => {
+      sendBtn.disabled = g.mandatoryQuestions && fields.some((field) => !field.value.trim());
+    };
+    const form = h(
+      'form',
+      { className: 'invite-box questions-box' },
+      h('strong', {}, `Preguntas de ${g.name}`),
+      h('p', { className: 'person-meta' }, g.mandatoryQuestions ? 'Hay que responder todas para entrar.' : 'Responderlas es opcional.'),
+      g.questions.map((question, i) => h('label', { className: 'question' }, h('span', { attrs: { dir: 'auto' } }, question), fields[i])),
+      status,
+      sendBtn,
+    );
+    form.addEventListener('input', updateSend);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const answers = g.questions.map((question, i) => ({ question, answer: fields[i].value.trim() }));
+      sendBtn.disabled = true;
+      status.textContent = 'Enviando…';
+      try {
+        await api.joinGroup(account.id, g.id, answers);
+        if (gen !== generation) return;
+        closePopover();
+        await show(account, last);
+      } catch (err) {
+        status.textContent = `No se pudo enviar: ${err.message}`;
+        updateSend();
+      }
+    });
+    updateSend();
+    openPopover(anchor, form, { className: 'invite-popover', label: 'Preguntas del grupo' });
+    fields[0]?.focus();
   }
 
   function leave(button) {
@@ -186,50 +244,70 @@ export function createGroupView({ navigate }) {
     const input = h('input', { type: 'search', className: 'input', placeholder: 'Buscar contactos…', attrs: { 'aria-label': 'Buscar contactos' } });
     const results = h('ul', { className: 'people-list invite-results' });
     const status = h('p', { className: 'status', attrs: { 'aria-live': 'polite' } });
+    const moreBtn = h('button', { className: 'btn', hidden: true, onClick: () => search(true) }, 'Cargar más');
     const sendBtn = h('button', { className: 'btn primary', disabled: true }, 'Invitar');
-    const content = h('div', { className: 'invite-box' }, h('strong', {}, `Invitar a ${group.name}`), input, results, status, sendBtn);
+    const content = h('div', { className: 'invite-box' }, h('strong', {}, `Invitar a ${group.name}`), input, results, moreBtn, status, sendBtn);
     openPopover(anchor, content, { className: 'invite-popover', label: 'Invitar al grupo' });
     let timer = null;
     let searchId = 0;
+    let shown = 0; // contactos ya listados para la búsqueda actual (offset de la página siguiente)
 
     const updateSend = () => {
       sendBtn.disabled = !selected.size;
       sendBtn.textContent = selected.size ? `Invitar (${selected.size})` : 'Invitar';
     };
 
-    async function search() {
+    // Quien ya está en el grupo o ya fue invitado se muestra, pero no se puede elegir
+    function renderContact(user) {
+      const taken = user.inGroup ? 'Ya está en el grupo' : user.invited ? 'Ya invitado' : null;
+      const checkbox = h('input', {
+        type: 'checkbox',
+        checked: selected.has(user.id),
+        disabled: Boolean(taken),
+        onChange: () => {
+          if (checkbox.checked) selected.set(user.id, user.name);
+          else selected.delete(user.id);
+          updateSend();
+        },
+      });
+      return h(
+        'li',
+        {},
+        h(
+          'label',
+          { className: 'person' },
+          checkbox,
+          avatar(account.id, user.avatar, { name: user.name, size: 'sm' }),
+          h('span', { className: 'person-info' }, userName(user.name, { className: 'person-name' }), taken && h('span', { className: 'person-meta' }, taken)),
+        ),
+      );
+    }
+
+    // Sin texto lista todos los contactos; con texto, los que coinciden. append: la página siguiente.
+    async function search(append = false) {
       const current = ++searchId;
+      if (!append) shown = 0;
+      moreBtn.disabled = true;
       status.textContent = 'Buscando…';
       try {
-        const contacts = await api.searchGroupContacts(account.id, groupId, input.value.trim());
+        const page = await api.searchGroupContacts(account.id, groupId, input.value.trim(), shown);
         if (current !== searchId) return;
-        status.textContent = contacts.length ? '' : 'Sin resultados.';
-        results.replaceChildren(
-          ...contacts.map((user) => {
-            const checkbox = h('input', {
-              type: 'checkbox',
-              checked: selected.has(user.id),
-              onChange: () => {
-                if (checkbox.checked) selected.set(user.id, user.name);
-                else selected.delete(user.id);
-                updateSend();
-              },
-            });
-            return h(
-              'li',
-              {},
-              h('label', { className: 'person' }, checkbox, avatar(account.id, user.avatar, { name: user.name, size: 'sm' }), userName(user.name, { className: 'person-name' })),
-            );
-          }),
-        );
+        shown += page.contacts.length;
+        const items = page.contacts.map(renderContact);
+        if (append) results.append(...items);
+        else results.replaceChildren(...items);
+        moreBtn.hidden = !page.hasMore;
+        status.textContent = shown ? '' : 'Sin resultados.';
       } catch (err) {
         if (current === searchId) status.textContent = `No se pudo buscar: ${err.message}`;
+      } finally {
+        moreBtn.disabled = false;
       }
     }
 
     input.addEventListener('input', () => {
       clearTimeout(timer);
-      timer = setTimeout(search, SEARCH_DEBOUNCE_MS);
+      timer = setTimeout(() => search(), SEARCH_DEBOUNCE_MS);
     });
     sendBtn.addEventListener('click', async () => {
       sendBtn.disabled = true;
