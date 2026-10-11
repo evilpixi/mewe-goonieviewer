@@ -1,106 +1,18 @@
 import fs from 'node:fs/promises';
 import { clipboard, dialog, ipcMain, nativeImage } from 'electron';
-import { serializeError } from '../mewe/errors.js';
+import { accountChannels, registerChannels, wrapHandler } from '../core/channels.js';
 import { avatarColor } from './avatarColor.js';
 
-// Todas las respuestas IPC son { ok, data } | { ok: false, error }:
-// ipcMain.handle pierde las propiedades de los errores (status, body...) si se lanzan.
+// Engancha a ipcMain los canales compartidos (src/core/channels.js) y los propios de Electron ('ui:*').
 function handle(channel, fn) {
-  ipcMain.handle(channel, async (_event, ...args) => {
-    try {
-      return { ok: true, data: await fn(...args) };
-    } catch (err) {
-      const error = serializeError(err);
-      console.error(`[ipc:${channel}]`, error);
-      return { ok: false, error };
-    }
-  });
-}
-
-// Canal que opera sobre una cuenta: el renderer manda (accountId, ...args)
-// y fn recibe (client, me, ...args), con me = { id, userId } de esa cuenta.
-// Agregar un endpoint = un método en MeweClient + una línea acá (el preload ya acepta el prefijo).
-function handleAccount(accountManager, channel, fn) {
-  handle(channel, (accountId, ...args) => accountManager.withClient(accountId, (client, me) => fn(client, me, ...args)));
+  const run = wrapHandler(channel, fn);
+  ipcMain.handle(channel, (_event, ...args) => run(...args));
 }
 
 export function registerIpc({ accountManager, realtime, getWindow }) {
-  handle('accounts:list', () => accountManager.list());
-  handle('accounts:add', (credentials) => accountManager.add(credentials));
-  handle('accounts:relogin', (id) => accountManager.relogin(id));
-  handle('accounts:remove', async (id) => {
-    realtime.stop(id);
-    return accountManager.remove(id);
-  });
+  registerChannels({ handle, accountManager, realtime });
 
-  const account = (channel, fn) => handleAccount(accountManager, channel, fn);
-
-  account('feed:get', (client, _me, type, nextPage) => client.getFeed(type, nextPage));
-
-  account('post:get', (client, _me, postId, groupId) => client.getPost(postId, groupId));
-  account('post:images', (client, _me, postId, groupId) => client.getPostImages(postId, groupId));
-  account('post:react', (client, _me, postId, groupId, emoji, on) => client.setPostReaction(postId, groupId, emoji, on));
-  account('post:reactors', (client, _me, postId, groupId) => client.getPostReactors(postId, groupId));
-  account('post:comments', (client, _me, postId, groupId, page) => client.getComments(postId, groupId, page));
-  account('post:comment', (client, _me, postId, groupId, text) => client.addComment(postId, groupId, text));
-  account('post:replies', (client, _me, commentId) => client.getReplies(commentId));
-  account('post:reply', (client, _me, commentId, text) => client.addReply(commentId, text));
-  account('post:commentReact', (client, _me, commentId, emoji, on) => client.setCommentReaction(commentId, emoji, on));
-  account('post:commentReactors', (client, _me, commentId) => client.getCommentReactors(commentId));
-  account('post:upload', (client, _me, file) => client.uploadPostImage(file));
-  account('post:create', (client, _me, post) => client.createPost(post));
-  account('post:edit', (client, _me, postId, groupId, changes) => client.editPost(postId, groupId, changes));
-
-  account('chat:threads', (client, me, filter) => client.getChatThreads(me.userId, filter));
-  account('chat:messages', (client, me, threadId, beforeId) => client.getMessages(threadId, me.userId, beforeId));
-  account('chat:send', (client, me, threadId, message) => client.sendMessage(threadId, me.userId, message));
-  account('chat:edit', (client, _me, threadId, messageId, text) => client.editMessage(threadId, messageId, text));
-  account('chat:upload', (client, _me, isGroup, file) => client.uploadChatImage(isGroup, file));
-  account('chat:react', (client, _me, threadId, messageId, emoji, on) =>
-    client.setMessageReaction(threadId, messageId, emoji, on),
-  );
-  account('chat:reactors', (client, _me, threadId, messageId) => client.getMessageReactors(threadId, messageId));
-  account('chat:open', (client, me, userId) => client.openChatWith(userId, me.userId));
-  account('chat:read', (client, _me, threadId) => client.markChatRead(threadId));
-  account('chat:seen', (client, _me, messageId) => client.markMessageSeen(messageId));
-  handle('chat:realtime', (accountId) => realtime.start(accountId));
-
-  account('profile:get', (client, me, userId) => client.getProfile(userId, me.userId));
-  account('profile:search', (client, _me, query) => client.searchUsers(query));
-  account('profile:feed', (client, _me, userId, nextPage) => client.getUserFeed(userId, nextPage));
-  account('profile:media', (client, _me, userId, nextPage, album) => client.getUserMedia(userId, nextPage, album));
-  account('profile:albums', (client, _me, userId, nextPage) => client.getUserAlbums(userId, nextPage));
-  account('profile:follow', (client, _me, userId, on) => client.setFollow(userId, on));
-  account('profile:requests', (client) => client.getFollowRequests());
-  account('profile:answerRequest', (client, _me, requestId, accept) => client.answerFollowRequest(requestId, accept));
-  account('profile:people', (client, _me, kind, nextPage) => client.getPeople(kind, nextPage));
-  account('profile:block', (client, _me, userId) => client.blockUser(userId));
-  account('profile:unblock', (client, _me, userId) => client.unblockUser(userId));
-  account('profile:update', (client, me, changes) => client.updateProfile(me.userId, changes));
-  account('profile:setAvatar', (client, _me, file, crop) => client.setAvatar(file, crop));
-  account('profile:setCover', (client, _me, file, crop) => client.setCover(file, crop));
-
-  account('group:list', (client) => client.getGroups());
-  account('group:get', (client, _me, groupId) => client.getGroup(groupId));
-  account('group:feed', (client, _me, groupId, nextPage) => client.getGroupFeed(groupId, nextPage));
-  account('group:members', (client, _me, groupId, options) => client.getGroupMembers(groupId, options));
-  account('group:events', (client, _me, groupId, when) => client.getGroupEvents(groupId, when));
-  account('group:join', (client, _me, groupId, answers) => client.joinGroup(groupId, answers));
-  account('group:leave', (client, me, groupId) => client.leaveGroup(groupId, me.userId));
-  account('group:contacts', (client, _me, groupId, query, offset) => client.searchGroupContacts(groupId, query, offset));
-  account('group:invite', (client, _me, groupId, userIds) => client.inviteToGroup(groupId, userIds));
-
-  account('story:tellers', (client, me) => client.getStorytellers(me.userId));
-  account('story:list', (client, _me, tellerId, isPage) => client.getStories(tellerId, isPage));
-  account('story:seen', (client, _me, views) => client.markStoriesSeen(views));
-  account('story:reply', (client, _me, tellerId, storyId, text) => client.replyToStory(tellerId, storyId, text));
-  account('story:create', (client, _me, file, scope) => client.createStory(file, scope));
-  account('story:delete', (client, _me, storyId, scope) => client.deleteStory(storyId, scope));
-
-  account('notif:list',(client, _me, nextPage) => client.getNotifications(nextPage));
-  account('notif:unseen', (client) => client.getUnseenNotifications());
-  account('notif:markSeen', (client) => client.markNotificationsSeen());
-  account('notif:markVisited', (client, _me, notificationId) => client.markNotificationVisited(notificationId));
+  const account = accountChannels(handle, accountManager);
 
   // Zoom de toda la ventana (ajustes de UI)
   handle('ui:zoom', (factor) => {
@@ -131,7 +43,7 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   // devuelve { copied: false } y la UI recurre a ui:copyImageAt.
   account('ui:copyImage', async (client, _me, url) => {
     const { data } = await client.downloadImage(url);
-    const image = nativeImage.createFromBuffer(data);
+    const image = nativeImage.createFromBuffer(Buffer.from(data));
     if (image.isEmpty()) return { copied: false };
     clipboard.writeImage(image);
     return { copied: true };

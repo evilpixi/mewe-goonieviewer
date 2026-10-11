@@ -2,11 +2,12 @@
 //
 // Una vista se registra con registerView(name, factory). factory({ navigate, back }) se llama una sola vez
 // (la primera vez que se navega a ella) y devuelve:
-//   { el, toolbar?, show(account, params), hide?(), reload?() }
+//   { el, toolbar?, show(account, params), hide?(), reload?(), back?() }
 // - el: raíz de la vista; el router la agrega a `host` y la oculta/muestra
 // - toolbar: controles propios que van en el segundo panel mientras la vista está activa. Un nodo (va al centro)
 //   o { left, center, right } para repartirlos en las tres zonas.
 // - show: se llama cada vez que la vista pasa a estar activa (o cambia la cuenta/los params)
+// - back: "atrás" del sistema dentro de la vista; devuelve true si tenía algo que cerrar
 // toolbarSlots: { left, center, right }, los contenedores de cada zona.
 // onChange({ view, params, canGoBack, hasToolbar, canReload }) avisa de cada cambio de vista.
 export function createRouter({ host, toolbarSlots, onChange }) {
@@ -66,12 +67,22 @@ export function createRouter({ host, toolbarSlots, onChange }) {
     activate({ focus: true });
   }
 
+  // "Atrás" del sistema (Android): primero lo atiende la vista activa (ej. el chat vuelve a la lista),
+  // después el historial. Devuelve si había adónde volver.
+  function goBack() {
+    if (active?.back?.()) return true;
+    if (stack.length < 2) return false;
+    back();
+    return true;
+  }
+
   return {
     registerView(name, factory) {
       factories.set(name, factory);
     },
     navigate,
     back,
+    goBack,
     // Cambiar de cuenta reinicia el historial en la vista raíz indicada
     setAccount(newAccount, rootView) {
       account = newAccount;

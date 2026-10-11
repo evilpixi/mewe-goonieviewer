@@ -1,6 +1,6 @@
 {
   "name": "meweviewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Cliente compacto multi-cuenta para MeWe",
   "author": "evilpixi",
@@ -33,7 +33,12 @@
     "pack": "electron-builder --dir",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux"
+    "dist:linux": "electron-builder --linux",
+    "android:www": "node scripts/build-android.js",
+    "android:sync": "npm run android:www && cap sync android",
+    "android:run": "npm run android:www && cap run android",
+    "android:apk": "node scripts/build-apk.js",
+    "android:publish": "node scripts/publish-apk.js"
   },
   "build": {
     "appId": "com.evilpixi.meweviewer",
@@ -92,14 +97,12 @@
     }
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "emojibase-data": "^17.0.0",
     "lucide-static": "^1.52.0"
-  },
-  "dependencies": {
-    "@capacitor/android": "^8.5.3",
-    "@capacitor/cli": "^8.5.3",
-    "@capacitor/core": "^8.5.3"
   }
 }

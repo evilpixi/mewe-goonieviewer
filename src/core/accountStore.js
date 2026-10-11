@@ -1,20 +1,18 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
-
-// Persiste la lista de cuentas (sin contraseñas; las cookies viven en cada partition).
+// Persiste la lista de cuentas (sin contraseñas; las cookies las guarda la plataforma).
+// storage: { read() → texto o null si todavía no hay nada, write(texto) }
 export class AccountStore {
-  #file;
+  #storage;
   #accounts = [];
 
-  constructor(dir) {
-    this.#file = path.join(dir, 'accounts.json');
+  constructor(storage) {
+    this.#storage = storage;
   }
 
   async load() {
     try {
-      this.#accounts = JSON.parse(await fs.readFile(this.#file, 'utf8'));
+      this.#accounts = JSON.parse((await this.#storage.read()) ?? '[]');
     } catch (err) {
-      if (err.code !== 'ENOENT') console.error('[store] accounts.json ilegible:', err);
+      console.error('[store] lista de cuentas ilegible:', err);
       this.#accounts = [];
     }
   }
@@ -44,7 +42,6 @@ export class AccountStore {
   }
 
   async #save() {
-    await fs.mkdir(path.dirname(this.#file), { recursive: true });
-    await fs.writeFile(this.#file, JSON.stringify(this.#accounts, null, 2));
+    await this.#storage.write(JSON.stringify(this.#accounts, null, 2));
   }
 }

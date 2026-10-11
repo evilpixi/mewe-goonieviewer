@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { config } from '../config.js';
 import { MeweApiError } from './errors.js';
 import {
@@ -84,13 +82,19 @@ function postBase(postId, groupId) {
   return config.mewe.post(assertId(postId, 'postId'), groupId ? assertId(groupId, 'groupId') : null);
 }
 
-// Cliente de la API interna de MeWe para UNA cuenta.
-// Las cookies viven en la sesión de Electron de esa cuenta (ver SessionCookies).
+// Cliente de la API interna de MeWe para UNA cuenta. No depende de Electron ni de Node:
+// las cookies, el fetch y el volcado de debug los pone la plataforma.
+//   cookies: { header(url), get(name), storeFromResponse(url, response) } (ver SessionCookies)
+//   fetch: por defecto el global · dump(url, text): guarda una respuesta en modo debug
 export class MeweClient {
   #temporal = new Map(); // url → { data, contentType } de las imágenes temporales ya vistas
+  #fetch;
+  #dump;
 
-  constructor(cookies) {
+  constructor(cookies, { fetch: fetchImpl = globalThis.fetch, dump = null } = {}) {
     this.cookies = cookies;
+    this.#fetch = (...args) => fetchImpl(...args);
+    this.#dump = dump;
     this.refreshing = null; // renovación de sesión en curso (promesa compartida)
     this.refreshedAt = 0; // última renovación correcta
   }
@@ -120,7 +124,7 @@ export class MeweClient {
     if (json !== undefined) extra = { 'content-type': 'application/json; charset=UTF-8' };
     else if (urlencoded) extra = { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' };
     const send = async () =>
-      fetch(url, {
+      this.#fetch(url, {
         method,
         headers: await this.headers(url, extra),
         body:
@@ -145,7 +149,10 @@ export class MeweClient {
       // respuesta no JSON: se deja como texto
     }
 
-    if (config.debug) await dumpResponse(method, url, response.status, text);
+    if (config.debug) {
+      console.log(`[mewe] ${method} ${url} -> ${response.status}`, text.slice(0, 500));
+      await this.#dump?.(url, text);
+    }
     if (!response.ok) throw new MeweApiError({ status: response.status, url, body });
     return body;
   }
@@ -162,7 +169,7 @@ export class MeweClient {
     this.refreshing ??= (async () => {
       try {
         const url = new URL(endpoints.identify, host);
-        const response = await fetch(url, { headers: await this.headers(url) });
+        const response = await this.#fetch(url, { headers: await this.headers(url) });
         await this.cookies.storeFromResponse(url, response);
         if (config.debug) console.log(`[mewe] renovar sesión (identify) -> ${response.status}`);
         if (response.ok) this.refreshedAt = Date.now();
@@ -180,11 +187,11 @@ export class MeweClient {
   // Descarga binaria (imágenes y videos) con las cookies de la cuenta. extra: headers de más (ej. range)
   async fetchRaw(url, extra = {}) {
     const startedAt = Date.now();
-    let response = await fetch(url, { headers: await this.headers(url, extra) });
+    let response = await this.#fetch(url, { headers: await this.headers(url, extra) });
     await this.cookies.storeFromResponse(url, response);
     // las cookies del CDN de imágenes duran ~20 min: se renuevan igual que la sesión
     if ((response.status === 401 || response.status === 403) && (await this.refreshSession(startedAt))) {
-      response = await fetch(url, { headers: await this.headers(url, extra) });
+      response = await this.#fetch(url, { headers: await this.headers(url, extra) });
       await this.cookies.storeFromResponse(url, response);
     }
     return response;
@@ -203,7 +210,7 @@ export class MeweClient {
     const hit = this.#temporal.get(key);
     if (hit) return { status: 200, ...hit, cached: true };
     const response = await this.fetchRaw(url);
-    const data = Buffer.from(await response.arrayBuffer());
+    const data = new Uint8Array(await response.arrayBuffer());
     const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
     if (response.ok && data.length && data.length <= TEMPORAL_CACHE_MAX_BYTES) {
       this.#temporal.set(key, { data, contentType });
@@ -697,7 +704,7 @@ export class MeweClient {
     const response = await this.fetchRaw(target);
     if (!response.ok) throw new MeweApiError({ status: response.status, url: target, message: 'No se pudo descargar la imagen.' });
     return {
-      data: Buffer.from(await response.arrayBuffer()),
+      data: new Uint8Array(await response.arrayBuffer()),
       contentType: response.headers.get('content-type') ?? 'application/octet-stream',
     };
   }
@@ -723,14 +730,4 @@ function requireText(text) {
   const value = String(text ?? '').trim();
   if (!value) throw new MeweApiError({ message: 'El texto está vacío.' });
   return value;
-}
-
-// Modo debug: consola + la última respuesta de cada endpoint en ./mewe-debug/
-// (la app empaquetada define MEWE_DEBUG_DIR: su carpeta de instalación no es escribible)
-async function dumpResponse(method, url, status, text) {
-  console.log(`[mewe] ${method} ${url} -> ${status}`, text.slice(0, 500));
-  const dir = process.env.MEWE_DEBUG_DIR ?? path.join(process.cwd(), 'mewe-debug');
-  const file = `${url.pathname.replace(/^\/api\//, '').replace(/[^\w-]+/g, '_')}.json`;
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, file), text);
 }

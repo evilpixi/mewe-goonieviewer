@@ -349,5 +349,11 @@ export function createChatView({ navigate } = {}) {
       loadThreads();
       conversation.refresh();
     },
+    // "Atrás" del sistema: en mobile, de la conversación se vuelve a la lista de chats
+    back() {
+      if (!isMobile() || !activeId) return false;
+      closeThread();
+      return true;
+    },
   };
 }

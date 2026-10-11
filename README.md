@@ -4,19 +4,19 @@
 
 # Goonie Mewe Viewer
 
-**Cliente de escritorio compacto y multi-cuenta para [MeWe](https://mewe.com).**
+**Cliente compacto y multi-cuenta para [MeWe](https://mewe.com), para escritorio y Android.**
 
 [![Última versión](https://img.shields.io/github/v/release/evilpixi/mewe-goonieviewer?label=versi%C3%B3n)](https://github.com/evilpixi/mewe-goonieviewer/releases/latest)
 [![Licencia MIT](https://img.shields.io/github/license/evilpixi/mewe-goonieviewer?label=licencia)](LICENSE)
-![Plataforma](https://img.shields.io/badge/plataforma-Windows-blue)
+![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20macOS%20%7C%20Android-blue)
 
-[**Descargar para Windows**](https://github.com/evilpixi/mewe-goonieviewer/releases/latest)
+[**Descargar para Windows, macOS o Android**](https://github.com/evilpixi/mewe-goonieviewer/releases/latest)
 
 </div>
 
-Goonie Mewe Viewer es una aplicación de escritorio hecha con Electron para usar MeWe con varias cuentas a la vez, en una
-interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto, espaciado e iconos. Incluye feed,
-chats, historias, perfiles, grupos y notificaciones.
+Goonie Mewe Viewer es una aplicación para usar MeWe con varias cuentas a la vez, en una interfaz compacta que se puede
+adaptar a gusto: temas, colores, tamaño de texto, espaciado e iconos. Incluye feed, chats, historias, perfiles, grupos
+y notificaciones. En escritorio está hecha con Electron; en Android es la misma interfaz, empaquetada con Capacitor.
 
 > [!IMPORTANT]
 > Proyecto **no oficial**: no está afiliado ni respaldado por MeWe. Usa la API interna de la web de MeWe, que no está
@@ -82,9 +82,9 @@ chats, historias, perfiles, grupos y notificaciones.
 - Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue (si todavía no lo seguís), desde la misma lista.
 - Al hacer click llevan al lugar correspondiente: perfil, publicación, comentario o mensaje.
 
-### Vista mobile (en desarrollo)
-Con la ventana a 640 px de ancho o menos, la interfaz pasa a un formato de teléfono. Por ahora es sólo el formato de
-pantalla: la app sigue siendo de escritorio y todavía no hay versión para Android ni iOS.
+### Vista mobile y Android
+Con 640 px de ancho o menos, la interfaz pasa a un formato de teléfono. Es la que usa la app de Android, y en
+escritorio aparece al achicar la ventana. No hay versión para iOS.
 
 - La cabecera va abajo, al alcance del pulgar, con botones más grandes: Feed, Chats, Listas, Historias, Notificaciones
   y tu foto.
@@ -96,6 +96,14 @@ pantalla: la app sigue siendo de escritorio y todavía no hay versión para Andr
 - En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho; responder, reaccionar y editar están
   siempre a la vista.
 - Las notificaciones y las pestañas de perfiles y grupos se acomodan a la pantalla vertical.
+
+En Android, además:
+
+- El botón o gesto **atrás** cierra lo que esté abierto (un menú, el visor, una conversación, un perfil); en la
+  pantalla principal manda la app al fondo.
+- Las imágenes y los videos se guardan en la galería, en la carpeta `Goonie Mewe` (requiere Android 10 o posterior).
+- El ajuste de zoom cambia el tamaño del texto, no el de toda la interfaz.
+- Los mensajes llegan en tiempo real sólo con la app abierta: no hay notificaciones del sistema.
 
 ### Interfaz y accesibilidad
 - 14 temas: automático, claro, oscuro, minimal, glass, retro, alto contraste, medianoche, nórdico, bosque, ámbar, sepia,
@@ -146,6 +154,21 @@ El hash que aparece tiene que coincidir con el de `SHA256SUMS.txt`.
 > shasum -a 256 Goonie-Mewe-Viewer-0.1.0-mac-arm64.dmg
 > ```
 
+## Instalación (Android)
+
+Requiere Android 7.0 o posterior.
+
+1. Desde el teléfono, entrá a la [última versión](https://github.com/evilpixi/mewe-goonieviewer/releases/latest).
+2. Descargá `Goonie-Mewe-Viewer-x.y.z.apk` y abrilo.
+3. Android va a pedir permiso para **instalar apps desconocidas** desde el navegador o el gestor de archivos que estés
+   usando: aceptalo y confirmá la instalación.
+
+> [!NOTE]
+> La app **no está en Google Play**: se instala desde el APK, así que no se actualiza sola. Para actualizarla,
+> instalá el APK de la versión nueva encima; las cuentas se conservan.
+> Descargala siempre desde la página de Releases de este repositorio y, si querés, verificá su integridad con el
+> hash de `SHA256SUMS.txt`.
+
 ## Cómo se usa
 
 1. **Agregar una cuenta:** click en el botón **+** de la columna izquierda. Escribí tu email o teléfono (la contraseña
@@ -169,7 +192,8 @@ El menú de la ventana (File, Edit, View, Window) está oculto: aparece al pulsa
 
 ### En la vista mobile
 
-Achicá la ventana a 640 px de ancho o menos y la interfaz cambia sola. Lo que se hace distinto:
+Es la interfaz de la app de Android; en escritorio, achicá la ventana a 640 px de ancho o menos y cambia sola. Lo que
+se hace distinto:
 
 - **Cuentas y opciones:** tocá tu foto, abajo a la derecha. Ahí están tu perfil, las otras cuentas, **Agregar cuenta**,
   **Buscar personas**, **Ajustes de la interfaz**, **Reconectar** y **Quitar cuenta**. Sin ninguna cuenta agregada, en
@@ -177,6 +201,7 @@ Achicá la ventana a 640 px de ancho o menos y la interfaz cambia sola. Lo que s
 - **Chats:** tocá un chat para abrirlo y la flecha de arriba a la izquierda para volver a la lista. El agarrador del
   borde izquierdo muestra la lista compacta sin salir de la conversación. **Buscar en el chat** e **Imágenes** están en
   el menú ⋮ de la barra del chat.
+- **Volver (Android):** con el botón o gesto atrás del teléfono.
 
 ### Atajos de teclado
 
@@ -198,7 +223,8 @@ Achicá la ventana a 640 px de ancho o menos y la interfaz cambia sola. Lo que s
 - La app habla únicamente con los servidores de MeWe (`mewe.com`, `img.mewe.com`, `ws.mewe.com`). No hay telemetría ni
   servidores propios.
 - Las contraseñas no se guardan. Las cookies de sesión quedan en tu equipo, dentro de la carpeta de datos de la app
-  (`%APPDATA%\meweviewer` en Windows).
+  (`%APPDATA%\meweviewer` en Windows). En Android quedan en el almacenamiento privado de la app y no entran en las
+  copias de seguridad del teléfono.
 - **Quitar** una cuenta borra su sesión de tu equipo.
 
 ## Desarrollo
@@ -223,17 +249,61 @@ npm start
 | `npm run emoji:update` | Regenera los shortcodes de emojis. |
 | `npm run icons:update` | Copia los íconos de Lucide que usa la app. |
 
+### Android
+
+Requisitos, además de lo anterior: Node.js 22 o superior, JDK 21 y [Android Studio](https://developer.android.com/studio)
+con el SDK de Android (plataforma API 36), con la variable `ANDROID_HOME` apuntando al SDK.
+
+| Comando | Qué hace |
+|---|---|
+| `npm run android:run` | Compila la versión de debug y la abre en un emulador o en un teléfono con depuración USB. |
+| `npm run android:sync` | Arma `www/` desde `src/` y la copia al proyecto de Android (para compilar desde Android Studio). |
+| `npm run android:apk` | Genera el APK de release en `dist/`. |
+| `npm run android:publish` | Sube ese APK a la versión de GitHub de `package.json` y agrega su hash a `SHA256SUMS.txt`. Necesita la [CLI de GitHub](https://cli.github.com/). |
+
+El número de versión de la app de Android sale de `package.json`.
+
+**Firma.** Para que `android:apk` genere un APK instalable hace falta una clave de firma, que no está en el
+repositorio. Se crea una sola vez:
+
+```bash
+cd android
+keytool -genkeypair -v -storetype PKCS12 -keystore meweviewer-release.jks -alias meweviewer -keyalg RSA -keysize 2048 -validity 10000
+```
+
+y se la declara en `android/keystore.properties`:
+
+```properties
+storeFile=meweviewer-release.jks
+storePassword=la contraseña elegida
+keyAlias=meweviewer
+keyPassword=la contraseña elegida
+```
+
+Los dos archivos están en `.gitignore`. Guardá una copia fuera del proyecto: Android sólo deja actualizar la app con
+un APK firmado con la misma clave.
+
 ### Estructura
 
 ```
 src/
-  main/      Proceso principal de Electron: cuentas, login, IPC, websocket, imágenes
   mewe/      Cliente de la API de MeWe y normalización de sus respuestas
-  preload/   Puente seguro entre el proceso principal y la interfaz
+  core/      Lógica común a escritorio y Android: cuentas, canales de la interfaz, tiempo real
+  main/      Escritorio: proceso principal de Electron (sesiones, login, IPC, imágenes)
+  preload/   Escritorio: puente seguro entre el proceso principal y la interfaz
+  android/   Android: el mismo puente, sobre el plugin nativo
   renderer/  Interfaz: HTML, CSS y JavaScript sin frameworks
+android/     Proyecto de Android (Capacitor) y el plugin nativo: HTTP con las cookies de cada cuenta,
+             login, imágenes y video, websocket
+scripts/     Tareas de build
 docs/
-  endpoints.md  Endpoints de MeWe que usa la app
+  endpoints.md     Endpoints de MeWe que usa la app
+  android-plan.md  Cómo se hizo la versión de Android
 ```
+
+La interfaz es la misma en las dos plataformas y sólo habla con `window.mewe`. En escritorio lo provee el preload y la
+lógica corre en el proceso principal; en Android lo provee `src/android/` y la lógica corre en el WebView, con un
+plugin nativo para lo que el WebView no puede hacer (las cookies de sesión nunca pasan por él).
 
 El renderer corre con `contextIsolation`, `sandbox` y una Content Security Policy estricta.
 

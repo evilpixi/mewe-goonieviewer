@@ -1,7 +1,8 @@
 // Configuración central. Los endpoints salen del bundle web de mewe.com
 // (API interna, no oficial): pueden cambiar sin aviso.
 export const config = {
-  debug: process.env.MEWE_DEBUG === '1' || process.argv.includes('--mewe-debug'),
+  // process sólo existe en Electron: en Android (WebView) este módulo se carga sin él
+  debug: typeof process !== 'undefined' && (process.env.MEWE_DEBUG === '1' || process.argv.includes('--mewe-debug')),
 
   mewe: {
     host: 'https://mewe.com',

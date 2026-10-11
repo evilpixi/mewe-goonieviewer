@@ -3,6 +3,7 @@ import { clearError, showError } from '../errorView.js';
 import { confirmDialog } from './confirm.js';
 import { h } from './dom.js';
 import { openEmojiPicker } from './emojiPicker.js';
+import { takeFiles } from './files.js';
 import { icon } from './icon.js';
 
 // La historia se arma sobre un lienzo de 1080×1920 (9:16) y se sube como una sola imagen JPEG.
@@ -456,9 +457,8 @@ export function openStoryEditor({ account, onDone }) {
     ),
   );
   for (const btn of [imageBtn, pickBtn]) btn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => {
-    setImage(fileInput.files[0]);
-    fileInput.value = '';
+  fileInput.addEventListener('change', async () => {
+    setImage((await takeFiles(fileInput))[0]);
   });
   fitBtn.addEventListener('click', () => {
     fit = fit === 'cover' ? 'contain' : 'cover';

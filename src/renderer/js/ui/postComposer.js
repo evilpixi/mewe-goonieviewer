@@ -2,6 +2,7 @@ import { api, imageUrl } from '../api.js';
 import { clearError, showError } from '../errorView.js';
 import { h } from './dom.js';
 import { openEmojiPicker } from './emojiPicker.js';
+import { takeFiles } from './files.js';
 import { icon } from './icon.js';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
@@ -276,9 +277,8 @@ export function openPostComposer({ account, groupId = null, groupName = '', post
   });
   audience.addEventListener('change', scheduleSave);
   attachBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => {
-    addFiles(fileInput.files);
-    fileInput.value = '';
+  fileInput.addEventListener('change', async () => {
+    addFiles(await takeFiles(fileInput));
   });
   emojiBtn.addEventListener('click', () =>
     openEmojiPicker(

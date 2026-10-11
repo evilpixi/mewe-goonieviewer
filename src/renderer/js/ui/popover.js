@@ -44,8 +44,11 @@ export function openPopover(anchor, content, { className = '', label } = {}) {
   return current;
 }
 
+// Devuelve si había uno abierto
 export function closePopover() {
+  const open = Boolean(current);
   current?.close();
+  return open;
 }
 
 // Debajo del ancla si entra; si no, arriba. Siempre dentro de la ventana.
