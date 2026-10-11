@@ -1,4 +1,4 @@
-import shortcodes from './emojiShortcodes.json' with { type: 'json' };
+import shortcodes from './emojiShortcodes.js';
 
 // MeWe manda los emojis como :codigo: (":grin:"). Los conocidos se convierten al emoji real;
 // los propios de MeWe (":hearts_doodle:") no tienen equivalente y quedan como texto.

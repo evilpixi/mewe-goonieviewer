@@ -36,6 +36,13 @@
   --highlight: color-mix(in srgb, #f5c400 35%, transparent); /* mensaje/comentario resaltado */
   --overlay: rgb(0 0 0 / 92%); /* fondo del visor de imágenes */
   --on-overlay: #ffffff;
+  /* Historias: "vista de cine", siempre sobre negro sea cual sea el tema */
+  --cinema: #000000;
+  --on-cinema: #ffffff;
+  --cinema-muted: rgb(255 255 255 / 68%);
+  --cinema-panel: rgb(255 255 255 / 10%);
+  --cinema-border: rgb(255 255 255 / 24%);
+  --cinema-scrim: rgb(0 0 0 / 68%); /* degradados que hacen legible lo que va sobre la imagen */
   --live: #1e7d38;
   --shadow: 0 4px 18px rgb(0 0 0 / 18%);
 
@@ -492,6 +499,16 @@ button:disabled {
   vertical-align: -0.5em;
 }
 
+/* GIF de Giphy en un texto (ui/richText.js): en su propio renglón, como una imagen adjunta */
+.gif-embed {
+  display: block;
+  max-width: min(100%, 320px);
+  max-height: 260px;
+  margin: var(--space-1) 0;
+  border-radius: var(--radius-sm);
+  background: var(--placeholder);
+}
+
 /* Mención a un usuario en un texto (ui/richText.js) */
 .mention,
 .link-btn.mention {
@@ -616,6 +633,17 @@ button.mention:hover {
   border: 2px dashed var(--sidebar-item-border);
 }
 
+/* Versión mobile: no hay columna de cuentas; se cambia de cuenta desde el menú de la cabecera */
+@media (max-width: 640px) {
+  body {
+    height: 100dvh;
+  }
+
+  .accounts {
+    display: none;
+  }
+}
+
 /* ==========================================================================
    Estructura principal y cabecera
    ========================================================================== */
@@ -644,36 +672,181 @@ button.mention:hover {
   outline: none;
 }
 
+/* Panel superior: [volver] [foto de la cuenta] · secciones centradas · [buscar] [notificaciones] [opciones].
+   Las columnas de los costados miden lo mismo, así el centro queda centrado de verdad. */
 .app-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
   background: var(--panel);
   border-bottom: var(--border-width) solid var(--border);
 }
 
-.app-header h1 {
-  font-size: var(--font-lg);
-  margin: 0;
+.header-start,
+.header-tabs,
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   min-width: 0;
 }
 
-/* El nombre de la cuenta abre su perfil */
-.app-header h1 .link-btn {
-  display: block;
-  max-width: 100%;
-  color: inherit;
-  font-weight: inherit;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.header-tabs {
+  grid-column: 2;
+  gap: var(--space-4);
+}
+
+.header-actions {
+  grid-column: 3;
+  justify-content: flex-end;
+}
+
+/* Los botones de la cabecera son iconos grandes */
+.app-header .btn.icon-btn {
+  font-size: var(--font-icon);
+  width: calc(var(--font-icon) + var(--space-6));
+  height: calc(var(--font-icon) + var(--space-6));
 }
 
 .app-header .btn.active {
   border-color: var(--accent);
   background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* Foto de la cuenta activa: abre su perfil */
+.profile-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: transparent;
+  cursor: pointer;
+}
+
+.profile-btn:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* sin cuenta activa no hay foto: sólo se ve en mobile, donde abre el menú de la cuenta */
+.profile-btn.no-account {
+  display: none;
+}
+
+/* Segundo panel: controles de la vista activa repartidos en izquierda / centro / derecha */
+.view-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-5);
+  background: var(--panel);
+  border-bottom: var(--border-width) solid var(--border);
+  backdrop-filter: var(--panel-filter);
+}
+
+.toolbar-zone,
+.toolbar-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.toolbar-zone.center {
+  grid-column: 2;
+  justify-content: center;
+}
+
+.toolbar-zone.right {
+  grid-column: 3;
+  justify-content: flex-end;
+}
+
+/* Menú desplegable (Opciones) dentro de un popover */
+.menu-popover {
+  padding: var(--space-2);
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  min-width: calc(180px * var(--font-scale));
+}
+
+.menu-item {
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--accent-soft);
+}
+
+.menu-item.danger {
+  color: var(--danger);
+}
+
+/* Menú de la cuenta (mobile, se abre desde la foto): foto + nombre; la cuenta activa va resaltada */
+
+.account-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* la cuenta activa, arriba de todo: abre su perfil */
+.account-current {
+  font-weight: 600;
+}
+
+.account-current .avatar {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.account-current-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-current-hint {
+  color: var(--muted);
+  font-size: var(--font-sm);
+  font-weight: 400;
+}
+
+/* ícono de una acción del menú: ocupa lo mismo que una foto, así los textos quedan alineados */
+.account-item-icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--avatar-md);
+  height: var(--avatar-md);
+  font-size: var(--font-icon);
+}
+
+.menu-label {
+  padding: var(--space-2) var(--space-5);
+  color: var(--muted);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.menu-sep {
+  width: 100%;
+  margin: var(--space-2) 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--border);
 }
 
 /* Botón con contador encima (campana de notificaciones) */
@@ -701,22 +874,6 @@ button.mention:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.view-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.view-toolbar:empty {
-  display: none;
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--space-3);
-  margin-left: auto;
 }
 
 .segmented {
@@ -782,6 +939,13 @@ button.mention:hover {
   color: var(--danger);
 }
 
+/* Confirmar una acción destructiva (bloquear, quitar la cuenta) */
+.btn.danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-accent);
+}
+
 /* ==========================================================================
    Feed
    ========================================================================== */
@@ -835,6 +999,12 @@ button.mention:hover {
 
 .post-date-link {
   margin-left: auto;
+}
+
+/* Lápiz para editar un post propio */
+.post-edit {
+  flex-shrink: 0;
+  font-size: var(--font-lg);
 }
 
 .post-footer {
@@ -1116,6 +1286,147 @@ button.mention:hover {
   mask-image: url('icons/x.svg');
 }
 
+.icon-arrow-left {
+  mask-image: url('icons/arrow-left.svg');
+}
+
+.icon-newspaper {
+  mask-image: url('icons/newspaper.svg');
+}
+
+.icon-message-circle {
+  mask-image: url('icons/message-circle.svg');
+}
+
+.icon-list {
+  mask-image: url('icons/list.svg');
+}
+
+.icon-layout-grid {
+  mask-image: url('icons/layout-grid.svg');
+}
+
+.icon-user {
+  mask-image: url('icons/user.svg');
+}
+
+.icon-users-round {
+  mask-image: url('icons/users-round.svg');
+}
+
+.icon-user-check {
+  mask-image: url('icons/user-check.svg');
+}
+
+.icon-heart {
+  mask-image: url('icons/heart.svg');
+}
+
+.icon-check-check {
+  mask-image: url('icons/check-check.svg');
+}
+
+.icon-radio {
+  mask-image: url('icons/radio.svg');
+}
+
+.icon-settings {
+  mask-image: url('icons/settings.svg');
+}
+
+.icon-arrow-down {
+  mask-image: url('icons/arrow-down.svg');
+}
+
+/* Ícono que reemplaza a una etiqueta en la barra de la vista en mobile; en escritorio se ve el texto */
+.label-icon {
+  display: none;
+}
+
+.icon-users {
+  mask-image: url('icons/users.svg');
+}
+
+.icon-circle-dashed {
+  mask-image: url('icons/circle-dashed.svg');
+}
+
+.icon-search {
+  mask-image: url('icons/search.svg');
+}
+
+.icon-bell {
+  mask-image: url('icons/bell.svg');
+}
+
+.icon-ellipsis-vertical {
+  mask-image: url('icons/ellipsis-vertical.svg');
+}
+
+.icon-plus {
+  mask-image: url('icons/plus.svg');
+}
+
+.icon-refresh-cw {
+  mask-image: url('icons/refresh-cw.svg');
+}
+
+.icon-ban {
+  mask-image: url('icons/ban.svg');
+}
+
+.icon-download {
+  mask-image: url('icons/download.svg');
+}
+
+.icon-copy {
+  mask-image: url('icons/copy.svg');
+}
+
+.icon-link {
+  mask-image: url('icons/link.svg');
+}
+
+.icon-check {
+  mask-image: url('icons/check.svg');
+}
+
+.icon-play {
+  mask-image: url('icons/play.svg');
+}
+
+.icon-pause {
+  mask-image: url('icons/pause.svg');
+}
+
+.icon-trash-2 {
+  mask-image: url('icons/trash-2.svg');
+}
+
+.icon-send {
+  mask-image: url('icons/send.svg');
+}
+
+.icon-chevron-left {
+  mask-image: url('icons/chevron-left.svg');
+}
+
+.icon-chevron-right {
+  mask-image: url('icons/chevron-right.svg');
+}
+
+.icon-type {
+  mask-image: url('icons/type.svg');
+}
+
+.icon-image {
+  mask-image: url('icons/image.svg');
+}
+
+.icon-eye {
+  mask-image: url('icons/eye.svg');
+}
+
 /* Reacciones */
 .reactions {
   display: flex;
@@ -1294,6 +1605,8 @@ button.mention:hover {
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
+  /* en el teléfono el visor llega hasta arriba de todo: los botones van debajo de la barra de estado */
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
   background: linear-gradient(rgb(0 0 0 / 60%), transparent);
 }
 
@@ -1356,6 +1669,47 @@ button.mention:hover {
 
 .lightbox-nav:hover {
   background: rgb(0 0 0 / 70%);
+}
+
+/* Panel con la publicación de la imagen (texto, reacciones y comentarios): la imagen cede ese ancho */
+.lightbox {
+  --lightbox-post-width: min(calc(380px * var(--font-scale)), 45vw);
+}
+
+.lightbox-post {
+  display: none;
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: 3;
+  width: var(--lightbox-post-width);
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.lightbox.with-post .lightbox-post {
+  display: block;
+}
+
+.lightbox.with-post .lightbox-stage {
+  width: calc(100% - var(--lightbox-post-width));
+}
+
+.lightbox.with-post .lightbox-bar {
+  right: var(--lightbox-post-width);
+}
+
+.lightbox.with-post .lightbox-nav.next {
+  right: calc(var(--lightbox-post-width) + var(--space-5));
+}
+
+.lightbox-post .post {
+  border: 0;
+  border-radius: 0;
+}
+
+.lightbox-post .empty {
+  padding: var(--space-6);
 }
 
 /* Resaltado temporal (ir a un mensaje citado, comentario de una notificación) */
@@ -1452,7 +1806,119 @@ button.mention:hover {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: var(--space-4);
+}
+
+.modal-actions .spacer {
+  flex: 1;
+}
+
+/* Confirmación (ui/confirm.js) */
+.modal.confirm h2 {
+  overflow-wrap: anywhere;
+}
+
+.confirm-text {
+  margin: 0 0 var(--space-8);
+  color: var(--muted);
+}
+
+/* Diálogos anchos: crear / editar una publicación y editar el perfil.
+   Sin backdrop-filter: haría de contenedor de los popovers (emojis) que se abren adentro. */
+.modal.wide {
+  width: min(calc(560px * var(--font-scale)), 94vw);
+  max-height: 92vh;
+  backdrop-filter: none;
+}
+
+.modal.wide .status {
+  margin: 0 0 var(--space-4);
+}
+
+.modal.wide .status:empty {
+  display: none;
+}
+
+.modal textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.post-composer-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.post-composer-form h2,
+.post-composer-form .status {
+  margin: 0;
+}
+
+.post-composer-target {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.post-composer-target select {
+  flex: 1 1 140px;
+  max-width: 100%;
+}
+
+.post-composer-text {
+  min-height: calc(120px * var(--font-scale));
+}
+
+.post-composer .composer-thumbs:empty {
+  display: none;
+}
+
+.profile-edit-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+
+.profile-edit-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+/* Las vistas previas muestran el mismo recorte centrado que hace MeWe (ver ui/profileEditor.js) */
+.profile-edit-avatar,
+.profile-edit-cover {
+  display: block;
+  object-fit: cover;
+  background: var(--placeholder);
+}
+
+.profile-edit-avatar {
+  width: calc(96px * var(--icon-scale));
+  aspect-ratio: 1;
+  border-radius: var(--radius-round);
+}
+
+.profile-edit-cover {
+  width: calc(100px * var(--icon-scale));
+  aspect-ratio: 1 / 1.11;
+  border-radius: var(--radius-md);
+}
+
+.profile-edit-name {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.profile-edit-name label {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ==========================================================================
@@ -1496,12 +1962,6 @@ button.mention:hover {
 .chat-resizer.dragging {
   background: var(--accent);
   outline: none;
-}
-
-.view-toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
 }
 
 .live-status {
@@ -1625,6 +2085,19 @@ button.mention:hover {
   font-weight: inherit;
 }
 
+.chat-tools .mark-read {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Sólo en mobile: volver a la lista de chats, el menú que junta buscar y galería, y el agarrador
+   que muestra la lista compacta al lado de la conversación (ver chatView.js) */
+.chat-tools .chat-back,
+.chat-tools .chat-more,
+.chat-grabber {
+  display: none;
+}
+
 .chat-tools .btn[aria-pressed='true'] {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -1643,6 +2116,44 @@ button.mention:hover {
   background:
     linear-gradient(color-mix(in srgb, var(--bg) 82%, transparent), color-mix(in srgb, var(--bg) 82%, transparent)),
     var(--chat-cover, none) center / cover no-repeat;
+}
+
+/* Botón para volver al final del chat: sólo aparece al subir a leer mensajes viejos (ver renderPin) */
+.chat-pin {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-5);
+  transform: translateX(-50%);
+  z-index: 1;
+  padding: var(--space-3) var(--space-7);
+  border: var(--border-width) solid var(--accent);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-md);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
+.chat-pin.missed {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Degradado oscuro detrás del botón: da a entender que queda chat más abajo */
+.chat-fade {
+  display: none;
+  position: absolute;
+  inset: auto 0 0;
+  height: calc(72px * var(--font-scale));
+  background: linear-gradient(transparent, rgb(0 0 0 / 55%));
+  pointer-events: none;
+}
+
+.chat-body.unpinned .chat-fade {
+  display: block;
 }
 
 /* Panel de búsqueda o de galería: tapa los mensajes mientras está abierto */
@@ -1806,12 +2317,24 @@ button.msg-avatar:hover {
   align-items: flex-end;
 }
 
+/* El nombre va sobre el fondo del chat (que puede ser la portada): la sombra, del color del fondo, lo despega */
 .msg-author {
   align-self: flex-start;
   font-size: var(--font-xs);
   font-weight: 600;
-  color: var(--muted);
+  color: var(--text);
   margin: 0 var(--space-4) var(--space-1);
+  text-shadow:
+    0 0 2px var(--bg),
+    0 0 4px var(--bg),
+    0 1px 6px var(--bg);
+}
+
+.msg-handle {
+  margin-left: var(--space-3);
+  font-size: 0.9em;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .msg-line {
@@ -1919,6 +2442,52 @@ button.msg-avatar:hover {
   opacity: 0.85;
 }
 
+/* Respuesta a una historia: su miniatura 9:16 y de quién era */
+.msg-story {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+  border: 0;
+  border-left: 3px solid currentcolor;
+  border-radius: var(--radius-sm);
+  background: rgb(127 127 127 / 15%);
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-sm);
+  text-align: left;
+}
+
+button.msg-story:not(:disabled) {
+  cursor: pointer;
+}
+
+.msg-story-thumb {
+  position: relative;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: calc(54px * var(--icon-scale));
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--placeholder);
+}
+
+.msg-story-thumb img {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.msg-story-thumb .msg-video-icon {
+  grid-area: 1 / 1;
+  position: static;
+}
+
 .msg-images {
   display: grid;
   gap: var(--space-1);
@@ -1962,6 +2531,57 @@ button.msg-avatar:hover {
   font-size: var(--font-xs);
   font-weight: 400;
   opacity: 0.85;
+}
+
+/* Video adjunto: miniatura con botón de play y, al tocarla, el reproductor en el mismo lugar */
+.msg-video {
+  margin: var(--space-1) 0;
+}
+
+.msg-video video {
+  display: block;
+  width: min(100%, calc(360px * var(--font-scale)));
+  max-height: 420px;
+  border-radius: var(--radius-sm);
+  background: #000;
+}
+
+.msg-video-play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: calc(200px * var(--font-scale));
+  min-height: calc(120px * var(--font-scale));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #000;
+  cursor: pointer;
+}
+
+.msg-video-play img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+}
+
+.msg-video-icon {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: calc(var(--font-icon) * 2.2);
+  height: calc(var(--font-icon) * 2.2);
+  border-radius: var(--radius-round);
+  background: rgb(0 0 0 / 60%);
+  color: var(--on-overlay);
+  font-size: var(--font-icon);
+}
+
+.msg-video-play:hover .msg-video-icon {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .gif-badge {
@@ -2212,10 +2832,16 @@ button.msg-avatar:hover {
   min-width: 0;
 }
 
-/* Buscador de personas (va en la cabecera) */
+/* Buscador de personas (va en el segundo panel) */
 .search-input {
   flex: 1;
   width: calc(240px * var(--font-scale));
+  max-width: 100%;
+}
+
+/* Filtro de una lista, a la izquierda del segundo panel */
+.toolbar-zone.left .input {
+  width: calc(200px * var(--font-scale));
   max-width: 100%;
 }
 
@@ -2265,14 +2891,29 @@ button.msg-avatar:hover {
   overflow: hidden;
 }
 
-.cover {
+/* Portada a todo el ancho de la tarjeta; al hacer click se abre en el visor */
+.cover-btn {
   display: block;
   width: calc(100% + 2 * var(--space-6));
-  max-width: none;
-  height: 120px;
   margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-6)) var(--space-5);
-  object-fit: cover;
+  padding: 0;
+  border: 0;
   background: var(--placeholder);
+  cursor: zoom-in;
+}
+
+.cover-btn:focus-visible {
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+.cover {
+  display: block;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 3 / 1;
+  min-height: 140px;
+  max-height: 360px;
+  object-fit: cover;
 }
 
 .profile-main {
@@ -2280,6 +2921,28 @@ button.msg-avatar:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-5);
+}
+
+.avatar-btn {
+  display: grid;
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: none;
+  cursor: zoom-in;
+}
+
+/* Con portada, la foto de perfil se monta sobre su borde inferior */
+.profile-head.has-cover .profile-main {
+  align-items: flex-start;
+}
+
+.profile-head.has-cover .profile-main > .avatar-btn,
+.profile-head.has-cover .profile-main > .avatar {
+  position: relative;
+  margin-top: calc(-0.5 * var(--avatar-xl) - var(--space-5));
+  box-shadow: 0 0 0 3px var(--panel);
 }
 
 .profile-id {
@@ -2374,6 +3037,51 @@ button.msg-avatar:hover {
   object-fit: cover;
 }
 
+/* Álbumes de un perfil: portada con el nombre y la cantidad encima */
+.album-grid {
+  grid-template-columns: repeat(auto-fill, minmax(calc(150px * var(--icon-scale)), 1fr));
+}
+
+.album-tile {
+  cursor: pointer;
+}
+
+.album-caption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6) var(--space-3) var(--space-2);
+  background: linear-gradient(transparent, rgb(0 0 0 / 75%));
+  color: var(--on-overlay);
+  font-size: var(--font-sm);
+  text-align: left;
+}
+
+.album-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.album-count {
+  font-size: var(--font-xs);
+  opacity: 0.85;
+}
+
+.album-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.album-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Listas de personas / grupos (miembros, solicitudes, mis grupos) */
 .people-list {
   list-style: none;
@@ -2466,6 +3174,22 @@ button.msg-avatar:hover {
   cursor: pointer;
 }
 
+/* Preguntas del grupo antes de entrar (en el mismo popover) */
+.questions-box p {
+  margin: 0;
+}
+
+.questions-box .question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.questions-box textarea {
+  resize: vertical;
+}
+
 .invite-box .status {
   margin: 0;
   font-size: var(--font-sm);
@@ -2499,6 +3223,27 @@ button.msg-avatar:hover {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+/* Fila: la notificación y, al lado, sus acciones (aceptar / rechazar / seguir) */
+.notif-row {
+  display: flex;
+  align-items: center;
+}
+
+.notif-row .notif {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+  padding: 0 var(--space-5) 0 var(--space-2);
 }
 
 .notif:hover:not(:disabled),
@@ -2647,16 +3392,1052 @@ button.msg-avatar:hover {
 }
 
 @media (max-width: 640px) {
-  .chat-sidebar {
+  /* Chats en dos pantallas: la lista a todo el ancho, o la conversación (clase thread-open, ver chatView.js).
+     La lista nunca es compacta acá, diga lo que diga el ajuste o el ancho guardado. */
+  .view.chat .chat-sidebar {
+    width: 100%;
+    max-width: none;
+    border-right: 0;
+  }
+
+  .view.chat .chat-thread-info {
+    display: block;
+  }
+
+  .chat-resizer,
+  .chat-conversation,
+  .chat.thread-open .chat-sidebar {
+    display: none;
+  }
+
+  .chat.thread-open .chat-conversation {
+    display: flex;
+  }
+
+  .chat-thread-item {
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .chat-thread-item .avatar {
+    width: var(--avatar-lg);
+    height: var(--avatar-lg);
+  }
+
+  /* Con una conversación abierta, el agarrador de su borde izquierdo muestra la lista compacta: sólo
+     fotos, sin barra de desplazamiento y con el punto de "sin leer" sobre la esquina de la foto */
+  .chat.thread-open .chat-grabber {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: var(--space-7);
+    padding: 0;
+    border: 0;
+    border-right: var(--border-width) solid var(--border);
+    background: var(--panel);
+    cursor: pointer;
+  }
+
+  .chat-grabber::before {
+    content: '';
+    width: var(--space-2);
+    height: var(--space-9);
+    border-radius: 999px;
+    background: var(--muted);
+  }
+
+  .chat.thread-open.threads-shown .chat-sidebar {
+    display: flex;
     width: auto;
   }
 
-  .chat-thread-info,
-  .chat-resizer {
+  .chat.thread-open .chat-thread-info {
     display: none;
+  }
+
+  .chat.thread-open .chat-threads::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat.thread-open .chat-thread-item {
+    position: relative;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .chat.thread-open .chat-thread-item .avatar {
+    width: var(--avatar-md);
+    height: var(--avatar-md);
+  }
+
+  .chat.thread-open .unread-dot {
+    position: absolute;
+    right: var(--space-2);
+    bottom: var(--space-1);
+    width: calc(11px * var(--font-scale));
+    height: calc(11px * var(--font-scale));
+    box-shadow: 0 0 0 2px var(--panel);
+  }
+
+  /* Mensajes: la foto va arriba con el nombre al lado, así el globo usa todo el ancho. Sin foto propia.
+     Responder / reaccionar / editar van en columna y siempre a la vista (no hay hover). */
+  .chat-messages {
+    padding: var(--space-3);
+  }
+
+  .msg {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    width: 100%;
+    max-width: none;
+  }
+
+  .msg.mine {
+    justify-content: flex-end;
+  }
+
+  .msg-body {
+    display: contents;
+  }
+
+  .msg-avatar-space,
+  .msg.mine .msg-avatar {
+    display: none;
+  }
+
+  .msg-author {
+    flex: 1;
+    align-self: center;
+    min-width: 0;
+    margin: 0;
+    text-align: left;
+  }
+
+  .msg-line {
+    flex: 0 0 100%;
+  }
+
+  .msg-actions {
+    flex-direction: column;
+    align-self: flex-start;
+    margin-block: 0;
+    opacity: 1;
+  }
+
+  .msg-actions .icon-btn {
+    width: calc(var(--font-icon) + var(--space-2));
+    height: calc(var(--font-icon) + var(--space-2));
+    font-size: calc(var(--font-icon) * 0.8);
+  }
+
+  /* lo que en escritorio aparece con el mouse encima, acá está siempre */
+  .msg .reactions.compact .reaction.who,
+  .comment .reactions.compact .reaction.add,
+  .comment .reactions.compact .reaction.who {
+    display: inline-flex;
+  }
+
+  /* barra del chat: buscar y galería se juntan en un menú */
+  .chat-tools .chat-panel-btn {
+    display: none;
+  }
+
+  .chat-tools .chat-more {
+    display: inline-grid;
+  }
+
+  /* Notificaciones: aceptar / rechazar / seguir van debajo del texto, no al costado */
+  .notif-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notif-actions {
+    justify-content: flex-start;
+    padding: 0 var(--space-5) var(--space-4) calc(var(--avatar-md) + var(--space-5) + var(--space-4));
+  }
+
+  /* Pestañas dentro de una página (perfil, grupo): si no entran, se deslizan */
+  .tabs-bar .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tabs-bar .segmented button {
+    flex: 1 0 auto;
+    padding: var(--space-3) var(--space-4);
+    white-space: nowrap;
+  }
+
+  /* dentro de una conversación la barra de la vista (filtros de la lista) no hace falta: se gana alto */
+  .main:has(.chat.thread-open:not([hidden])) .view-toolbar {
+    display: none;
+  }
+
+  /* barra del chat: flecha para volver y botones para el dedo */
+  .chat-tools {
+    --font-lg: var(--font-icon);
+
+    padding: var(--space-3);
+  }
+
+  .chat-tools .chat-back {
+    display: inline-grid;
+  }
+
+  .chat-tools .btn {
+    flex-shrink: 0;
+    min-width: calc(var(--font-icon) + var(--space-8));
+    height: calc(var(--font-icon) + var(--space-8));
+  }
+
+  .chat-tools .mark-read .icon {
+    font-size: var(--font-icon);
+    vertical-align: middle;
+  }
+
+  /* "ir al final": un botón redondo en la esquina, sin texto */
+  .chat-pin {
+    left: auto;
+    right: var(--space-5);
+    transform: none;
+    display: grid;
+    place-items: center;
+    width: calc(var(--font-icon) + var(--space-9));
+    height: calc(var(--font-icon) + var(--space-9));
+    padding: 0;
+    font-size: var(--font-icon);
+  }
+
+  /* caja de escribir: adjuntar · emoji · texto a todo el ancho · enviar (ícono). Sin foto ni agrandar. */
+  .composer-row {
+    --avatar-md: calc(40px * var(--icon-scale));
+  }
+
+  .composer-row .writing-as,
+  .composer-row .expand-btn {
+    display: none;
+  }
+
+  .composer-row .send-btn {
+    flex-shrink: 0;
+    width: var(--avatar-md);
+    padding: 0;
+    font-size: calc(var(--avatar-md) * 0.6);
   }
 
   .msg {
     max-width: max(92%, var(--bubble-max-width));
+  }
+
+  /* la cabecera va abajo de todo, al alcance del pulgar: secciones · notificaciones · foto, en una sola
+     fila repartida, con iconos y foto más grandes. La barra de la vista queda arriba. */
+  .main {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-header {
+    --font-icon: calc(26px * var(--icon-scale));
+
+    order: 1;
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    border-top: var(--border-width) solid var(--border);
+    border-bottom: 0;
+  }
+
+  .header-start,
+  .header-tabs,
+  .header-actions {
+    display: contents;
+  }
+
+  /* se reparten el ancho: en teléfonos angostos se afinan, pero no pierden alto */
+  .app-header .btn.icon-btn {
+    display: inline-grid;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    height: calc(var(--font-icon) + var(--space-9));
+  }
+
+  /* el botón es más ancho que el ícono: el contador se pega al ícono, no a la esquina del botón */
+  .app-header .count-badge {
+    top: 0;
+    right: auto;
+    left: calc(50% + var(--space-2));
+  }
+
+  /* buscar y opciones pasan al menú de la cuenta, que se abre desde la foto (app.js) */
+  #open-search,
+  #open-options {
+    display: none;
+  }
+
+  /* la foto va última, del lado del pulgar */
+  .profile-btn,
+  .profile-btn.no-account {
+    order: 1;
+    display: inline-grid;
+    place-items: center;
+    align-self: center;
+    width: var(--avatar-lg);
+    height: var(--avatar-lg);
+    margin-inline: var(--space-3);
+    color: var(--muted);
+    font-size: var(--font-icon);
+  }
+
+  .profile-btn .avatar {
+    width: 100%;
+    height: 100%;
+    font-size: var(--font-md);
+  }
+
+  .menu-item {
+    padding-block: var(--space-5);
+  }
+
+  /* Barra de la vista: las etiquetas pasan a ser iconos (el texto queda para lectores de pantalla y en el
+     title) y los controles crecen para el dedo. Lo de la izquierda se achica si no entra todo. */
+  .view-toolbar {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .toolbar-zone.left {
+    flex: 0 1 auto;
+  }
+
+  .toolbar-zone.center {
+    flex: 1 1 auto;
+  }
+
+  .toolbar-zone.center:has(.segmented),
+  .toolbar-zone.right {
+    flex-shrink: 0;
+  }
+
+  :is(.view-toolbar, .chat-tools, .composer-row) .label-icon {
+    display: inline-block;
+  }
+
+  :is(.view-toolbar, .chat-tools, .composer-row, .chat-pin) .icon + .label-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .view-toolbar .icon {
+    font-size: var(--font-icon);
+    vertical-align: middle;
+  }
+
+  .view-toolbar .btn,
+  .view-toolbar .segmented button,
+  .view-toolbar .input {
+    min-height: calc(var(--font-icon) + var(--space-8));
+  }
+
+  .view-toolbar .btn,
+  .view-toolbar .segmented button {
+    padding: var(--space-2) var(--space-6);
+  }
+
+  .view-toolbar .btn.icon-btn {
+    width: calc(var(--font-icon) + var(--space-8));
+    padding: 0;
+  }
+
+  .view-toolbar .live-status {
+    display: inline-grid;
+  }
+
+  .profile-edit-name {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+/* ==========================================================================
+   Historias: grilla (views/storiesView.js), visor (ui/storyViewer.js) y editor (ui/storyEditor.js)
+   "Vista de cine": todo va sobre negro. Adentro se usan los tokens del tema oscuro, así los botones,
+   los campos y el selector de emojis se ven igual con cualquier tema.
+   ========================================================================== */
+.stories-view,
+.story-viewer,
+.story-editor {
+  --bg: #15171c;
+  --panel: #1e2128;
+  --text: #e6e8ee;
+  --muted: #9ba1b0;
+  --border: #2c3039;
+  --danger: #f06a6a;
+  --danger-bg: #3a1c1f;
+  --accent: #6f93ff;
+  --on-accent: #0b1020;
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+  --focus-ring: var(--accent);
+  color-scheme: dark;
+  background: var(--cinema);
+  color: var(--on-cinema);
+}
+
+/* --- Grilla --- */
+
+.stories-view {
+  padding: var(--space-8) var(--space-6);
+}
+
+.stories-view .empty {
+  color: var(--cinema-muted);
+}
+
+.story-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(132px * var(--font-scale)), 1fr));
+  gap: var(--space-6);
+  max-width: calc(1100px * var(--font-scale));
+  margin: 0 auto;
+}
+
+.story-card-slot {
+  position: relative;
+}
+
+.story-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--panel), var(--cinema));
+  color: var(--on-cinema);
+  font: inherit;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.story-card:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+.story-card-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* las que ya se vieron quedan apagadas */
+.story-card.seen .story-card-img {
+  filter: saturate(0.5) brightness(0.65);
+}
+
+.story-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--cinema-scrim), transparent 32%, transparent 55%, var(--cinema-scrim));
+}
+
+.story-card-ring {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 1;
+  display: grid;
+  padding: 2px;
+  border: 2px solid var(--cinema-border);
+  border-radius: var(--radius-round);
+}
+
+.story-card.unseen .story-card-ring {
+  border-color: var(--accent);
+}
+
+.story-card-name {
+  position: absolute;
+  inset: auto var(--space-4) var(--space-4);
+  z-index: 1;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: var(--font-sm);
+  font-weight: 600;
+  text-align: left;
+  text-shadow: 0 1px 3px var(--cinema);
+}
+
+.story-card.empty {
+  border: 2px dashed var(--cinema-border);
+  background: var(--cinema-panel);
+}
+
+.story-card.empty::after {
+  content: none;
+}
+
+.story-card-plus,
+.story-card-add {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-round);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.story-card-plus {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 2em;
+  height: 2em;
+  font-size: var(--font-icon);
+}
+
+.story-card-add {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 2;
+  width: calc(var(--font-icon) + var(--space-4));
+  height: calc(var(--font-icon) + var(--space-4));
+  padding: 0;
+  border: 0;
+  font-size: var(--font-lg);
+  cursor: pointer;
+}
+
+/* --- Visor --- */
+
+.story-viewer,
+.story-editor {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  /* en el teléfono, sin meterse debajo de la barra de estado ni de la de gestos */
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  border: 0;
+  overflow: hidden;
+}
+
+.story-viewer::backdrop,
+.story-editor::backdrop {
+  background: var(--cinema);
+}
+
+.story-viewer-layout {
+  height: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+/* La historia ocupa el 9:16 más grande que entre en el espacio libre */
+.story-frame-box,
+.story-editor-stage-box {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+
+.story-frame,
+.story-editor-stage {
+  position: relative;
+  width: min(100cqw, 100cqh * 9 / 16);
+  height: min(100cqh, 100cqw * 16 / 9);
+}
+
+.story-frame {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+
+.story-frame:focus {
+  outline: none;
+}
+
+.story-media {
+  position: absolute;
+  inset: 0;
+}
+
+.story-content {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  animation: story-in 0.2s ease;
+}
+
+@keyframes story-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Zonas de toque: izquierda vuelve, el resto avanza */
+.story-tap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.story-tap.prev {
+  left: 0;
+  width: 35%;
+}
+
+.story-tap.next {
+  right: 0;
+  width: 65%;
+}
+
+.story-top,
+.story-bottom {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none; /* los toques sobre el degradado pasan a las zonas de abajo */
+  transition: opacity 0.2s ease;
+}
+
+.story-top {
+  inset: 0 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-9);
+  background: linear-gradient(var(--cinema-scrim), transparent);
+}
+
+.story-bottom {
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-9) var(--space-5) var(--space-5);
+  background: linear-gradient(transparent, var(--cinema-scrim));
+}
+
+/* manteniendo apretado se ve sólo la historia */
+.story-viewer.paused .story-top,
+.story-viewer.paused .story-bottom {
+  opacity: 0;
+}
+
+.story-progress {
+  display: flex;
+  gap: 3px;
+  margin-bottom: var(--space-4);
+}
+
+.story-seg {
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--cinema-border);
+}
+
+.story-seg > span {
+  display: block;
+  height: 100%;
+  background: var(--on-cinema);
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.story-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.story-head .spacer {
+  flex: 1;
+}
+
+.story-head button,
+.story-reply {
+  pointer-events: auto;
+}
+
+.story-viewer .icon-btn {
+  color: var(--on-cinema);
+}
+
+.story-viewer .icon-btn:hover {
+  background: var(--cinema-panel);
+}
+
+.story-author {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.story-author-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.story-author .user-name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px var(--cinema);
+}
+
+.story-time,
+.story-views {
+  font-size: var(--font-xs);
+  color: var(--cinema-muted);
+}
+
+.story-views {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: var(--space-2);
+  white-space: nowrap;
+}
+
+.story-status {
+  margin: 0;
+  font-size: var(--font-sm);
+  text-align: center;
+  text-shadow: 0 1px 3px var(--cinema);
+}
+
+.story-status:empty {
+  display: none;
+}
+
+.story-reply {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--cinema-border);
+  border-radius: 999px;
+  background: var(--cinema-scrim);
+}
+
+.story-reply:focus-within {
+  border-color: var(--on-cinema);
+}
+
+.story-reply-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3) var(--space-2);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--on-cinema);
+  font: inherit;
+}
+
+.story-reply-input::placeholder {
+  color: var(--cinema-muted);
+}
+
+/* Flechas a los costados: cambian de persona */
+.story-side {
+  display: grid;
+  place-items: center;
+  width: calc(var(--font-icon) * 2);
+  height: calc(var(--font-icon) * 2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--cinema-panel);
+  color: var(--on-cinema);
+  font-size: var(--font-icon);
+  cursor: pointer;
+}
+
+.story-side:hover {
+  background: var(--cinema-border);
+}
+
+.story-side:disabled {
+  visibility: hidden;
+}
+
+/* --- Editor --- */
+
+.story-editor[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.story-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-6);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.story-editor-bar h2 {
+  margin: 0;
+  font-size: var(--font-xl);
+}
+
+.story-editor-bar .icon-btn {
+  color: var(--on-cinema);
+}
+
+.story-editor .spacer {
+  flex: 1;
+}
+
+.story-editor-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(calc(340px * var(--font-scale)), 44vw);
+}
+
+.story-editor-stage-box {
+  padding: var(--space-8);
+}
+
+.story-editor-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 0 0 var(--border-width) var(--cinema-border);
+  cursor: grab;
+  touch-action: none; /* arrastrar mueve el elemento, no la página */
+}
+
+/* Marco del elemento elegido: no se recorta, así la manija se alcanza aunque quede en el borde */
+.story-editor-frame {
+  position: absolute;
+  border: 2px dashed var(--on-cinema);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--cinema-scrim);
+  pointer-events: none;
+}
+
+.story-editor-handle {
+  position: absolute;
+  right: -15px;
+  bottom: -15px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid var(--cinema);
+  border-radius: var(--radius-round);
+  background: var(--accent);
+  cursor: nwse-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.story-editor-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  color: var(--cinema-muted);
+  text-align: center;
+}
+
+.story-editor-hint p {
+  margin: 0;
+}
+
+.story-editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  overflow-y: auto;
+  border-left: var(--border-width) solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.story-editor-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.story-editor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.story-editor-row.wrap {
+  flex-wrap: wrap;
+}
+
+.story-editor-text {
+  flex: 1;
+  resize: vertical;
+}
+
+.story-fonts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.story-font {
+  flex-shrink: 0;
+  padding: var(--space-2) var(--space-6);
+  border: var(--border-width) solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-lg);
+  cursor: pointer;
+}
+
+.story-font[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.story-editor-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-sm);
+  color: var(--muted);
+}
+
+.story-editor-field.slider {
+  display: flex;
+}
+
+.story-editor-field.slider input {
+  flex: 1;
+  min-width: 0;
+}
+
+.story-editor-field input[type='color'] {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+}
+
+.story-editor-help,
+.story-editor-status {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--muted);
+}
+
+.story-editor-status:empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .stories-view {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .story-grid {
+    grid-template-columns: repeat(auto-fill, minmax(calc(96px * var(--font-scale)), 1fr));
+    gap: var(--space-4);
+  }
+
+  /* el visor ocupa toda la pantalla: de persona se cambia al terminar sus historias */
+  .story-viewer-layout {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0;
+  }
+
+  .story-side {
+    display: none;
+  }
+
+  .story-frame {
+    border-radius: 0;
+  }
+
+  /* editor: la historia arriba y los controles abajo */
+  .story-editor-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .story-editor-stage-box {
+    padding: var(--space-5);
+  }
+
+  .story-editor-panel {
+    max-height: 46vh;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-top: var(--border-width) solid var(--border);
+    border-left: 0;
+  }
+
+  .story-editor-bar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .story-editor-bar h2 {
+    display: none;
+  }
+
+  /* las fuentes en una sola fila que se desliza */
+  .story-fonts {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
   }
 }

@@ -7,6 +7,8 @@ import { dayKey, formatDay, formatFull, formatTime } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
 import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
+import { confirmBlock } from '../ui/people.js';
+import { closePopover, openPopover } from '../ui/popover.js';
 import { createReactions } from '../ui/reactions.js';
 import { emojiOnlyCount, plainText, richText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
@@ -25,7 +27,12 @@ const fold = (text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, ''
 // Una conversación (mensajes + caja de redacción) para cualquier threadId:
 // chats con personas, de grupo y (más adelante) de eventos.
 // navigate: el del router; con él, los nombres y las fotos llevan al perfil.
-export function createConversation({ onSent, navigate } = {}) {
+// onUnreadChange(threadId, unread): el chat pasó a leído o volvió a tener mensajes sin leer.
+// Abrir un chat no lo marca como leído: se marca al hacer click en los mensajes, al escribir,
+// al enviar o con el botón de la barra (que sólo se ve mientras hay algo sin leer).
+// onBlocked(thread): se bloqueó a la persona del chat (botón de la barra, sólo en chats de a dos).
+// onBack(): se tocó la flecha de la barra, que sólo se ve en mobile (vuelve a la lista de chats).
+export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, navigate } = {}) {
   const messagesEl = h('div', { className: 'chat-messages scroll', attrs: { role: 'log', 'aria-label': 'Mensajes' } });
   const errorEl = h('div');
   const composer = createComposer({ onSend: send });
@@ -33,15 +40,76 @@ export function createConversation({ onSent, navigate } = {}) {
   // Barra del chat: con quién se habla + buscar en el chat + galería de imágenes
   const titleEl = h('div', { className: 'chat-tools-title' });
   const toolButton = (icon, label, kind) =>
-    h('button', { className: 'btn icon-btn', title: label, attrs: { 'aria-label': label, 'aria-pressed': 'false' }, onClick: () => togglePanel(kind) }, icon);
+    h('button', { className: 'btn icon-btn chat-panel-btn', title: label, attrs: { 'aria-label': label, 'aria-pressed': 'false' }, onClick: () => togglePanel(kind) }, icon);
   const panelButtons = {
     search: toolButton('🔍', 'Buscar en este chat', 'search'),
     gallery: toolButton('🖼', 'Imágenes de este chat', 'gallery'),
   };
-  const toolsEl = h('div', { className: 'chat-tools', hidden: true }, titleEl, panelButtons.search, panelButtons.gallery);
+  const readIcon = icon('check-check');
+  readIcon.classList.add('label-icon');
+  const readBtn = h(
+    'button',
+    { className: 'btn mark-read', title: 'Marcar como leído', hidden: true, onClick: () => markRead() },
+    readIcon,
+    h('span', { className: 'label-text' }, '✓ Marcar como leído'),
+  );
+  // En mobile buscar y galería van juntos en un menú (los dos botones sueltos se ocultan, ver styles.css)
+  const moreBtn = h(
+    'button',
+    {
+      className: 'btn icon-btn chat-more',
+      title: 'Buscar e imágenes',
+      attrs: { 'aria-label': 'Buscar e imágenes', 'aria-haspopup': 'menu' },
+      onClick: () => {
+        if (moreMenu?.el.isConnected) {
+          closePopover();
+          return;
+        }
+        const item = (name, label, kind) =>
+          h(
+            'button',
+            {
+              className: 'menu-item account-item',
+              attrs: { role: 'menuitem' },
+              onClick: () => {
+                closePopover();
+                togglePanel(kind);
+              },
+            },
+            h('span', { className: 'account-item-icon' }, icon(name)),
+            label,
+          );
+        const menu = h(
+          'div',
+          { className: 'menu', attrs: { role: 'menu' } },
+          item('search', 'Buscar en este chat', 'search'),
+          item('image', 'Imágenes de este chat', 'gallery'),
+        );
+        moreMenu = openPopover(moreBtn, menu, { className: 'menu-popover', label: 'Buscar e imágenes' });
+        menu.querySelector('button')?.focus();
+      },
+    },
+    icon('ellipsis-vertical'),
+  );
+  let moreMenu = null;
+  const backBtn = h(
+    'button',
+    { className: 'btn icon-btn chat-back', title: 'Volver a la lista de chats', attrs: { 'aria-label': 'Volver a la lista de chats' }, onClick: () => onBack?.() },
+    icon('arrow-left'),
+  );
+  const blockBtn = h(
+    'button',
+    { className: 'btn icon-btn danger', title: 'Bloquear a esta persona', attrs: { 'aria-label': 'Bloquear a esta persona' }, hidden: true, onClick: () => block() },
+    icon('ban'),
+  );
+  const toolsEl = h('div', { className: 'chat-tools', hidden: true }, backBtn, titleEl, readBtn, panelButtons.search, panelButtons.gallery, moreBtn, blockBtn);
   // Panel (búsqueda o galería) que tapa los mensajes mientras está abierto
   const panelEl = h('div', { className: 'chat-panel scroll', hidden: true });
-  const bodyEl = h('div', { className: 'chat-body' }, messagesEl, panelEl);
+  // Al subir a leer mensajes viejos aparece el botón para volver al final, sobre un degradado
+  // que da a entender que queda chat más abajo (ver renderPin)
+  const pinBtn = h('button', { className: 'chat-pin', hidden: true, onClick: () => scrollToBottom() });
+  const fadeEl = h('div', { className: 'chat-fade', attrs: { 'aria-hidden': 'true' } });
+  const bodyEl = h('div', { className: 'chat-body' }, messagesEl, fadeEl, pinBtn, panelEl);
   const el = h('section', { className: 'chat-conversation' }, toolsEl, bodyEl, errorEl, composer.el);
   composer.acceptDrop(el);
   panelEl.addEventListener('keydown', (event) => {
@@ -57,6 +125,55 @@ export function createConversation({ onSent, navigate } = {}) {
   let pollTimer = null;
   let pollMs = POLL_FAST_MS;
   let panel = null; // 'search' | 'gallery' | null
+  let unread = false; // el chat abierto tiene mensajes sin leer
+  let pinned = true; // anclado al final: lo nuevo se sigue solo. Se suelta al subir a leer mensajes viejos
+  let missed = false; // llegaron mensajes mientras no estaba anclado
+  const videoBoxes = new Map(); // "idMensaje:n" → nodo del video (ver renderVideo)
+
+  // --- Leído / sin leer ---
+
+  function setUnread(value) {
+    if (!thread || unread === value) return;
+    unread = value;
+    readBtn.hidden = !unread;
+    onUnreadChange?.(thread.id, unread);
+  }
+
+  async function markRead() {
+    if (!thread || !unread) return;
+    const gen = generation;
+    setUnread(false);
+    try {
+      await api.markChatRead(account.id, thread.id);
+    } catch (err) {
+      if (gen !== generation) return;
+      setUnread(true); // no se marcó: el botón vuelve para reintentar
+      showError(errorEl, err, 'MeWe chat');
+    }
+  }
+
+  // --- Bloquear (chats de a dos) ---
+
+  async function block() {
+    if (!thread?.userId) return;
+    const gen = generation;
+    const blocked = thread;
+    blockBtn.disabled = true;
+    clearError(errorEl);
+    try {
+      if ((await confirmBlock(account, { id: blocked.userId, name: blocked.name })) && gen === generation) onBlocked?.(blocked);
+    } catch (err) {
+      if (gen === generation) showError(errorEl, err, 'MeWe bloqueo');
+    } finally {
+      blockBtn.disabled = false;
+    }
+  }
+
+  // click en el fondo o en los mensajes, y click o tecla en la caja de texto
+  // (no el foco: al abrir un chat la caja se enfoca sola)
+  bodyEl.addEventListener('click', () => markRead());
+  composer.el.addEventListener('pointerdown', () => markRead());
+  composer.el.addEventListener('keydown', () => markRead());
 
   // --- Carga ---
 
@@ -68,10 +185,15 @@ export function createConversation({ onSent, navigate } = {}) {
       const page = await api.getMessages(account.id, thread.id);
       if (gen !== generation) return;
       if (!messages.length) hasOlder = page.length >= PAGE_SIZE;
-      const nearBottom = isNearBottom();
+      // un mensaje nuevo de otra persona (después de la carga inicial) deja el chat sin leer
+      const known = new Set(messages.map((m) => m.id));
+      const incoming = messages.length > 0 && page.some((m) => m.id && !m.mine && !known.has(m.id));
       const { added, changed } = merge(page);
+      if (incoming) setUnread(true);
+      if (added && !pinned && scroll !== 'bottom') missed = true;
       if (added || changed || !messagesEl.querySelector('.msg')) render();
-      if (scroll === 'bottom' || (added && nearBottom)) scrollToBottom();
+      if (scroll === 'bottom') scrollToBottom();
+      else renderPin();
     } catch (err) {
       if (gen === generation) showError(errorEl, err, 'MeWe chat');
     }
@@ -140,7 +262,12 @@ export function createConversation({ onSent, navigate } = {}) {
       nodes.push(renderMessage(m, { continues, names, allImages }));
       prev = m;
     }
+    const stick = pinned; // redibujar puede mover el scroll: si estaba anclado, sigue anclado
+    // sacar un <video> del documento lo pausa: los que estaban sonando siguen después de redibujar
+    const playing = [...messagesEl.querySelectorAll('video')].filter((player) => !player.paused && !player.ended);
     messagesEl.replaceChildren(...nodes);
+    for (const player of playing) if (player.isConnected) player.play().catch(() => {});
+    if (stick) scrollToBottom();
   }
 
   // Foto y nombre se muestran siempre, también en los chats de a dos
@@ -153,6 +280,7 @@ export function createConversation({ onSent, navigate } = {}) {
       'div',
       { className: 'bubble' },
       m.replyTo && renderQuote(m.replyTo, names),
+      m.story && renderStoryReply(m),
       m.deleted && h('p', { className: 'msg-text deleted' }, 'Mensaje eliminado'),
       m.text && h('p', { className: `msg-text${emojiClass}`, attrs: { dir: 'auto' } }, emojiCount ? m.text : richText(m.text, { accountId: account.id, navigate })),
       m.images.length > 0 && m.expiresIn && renderTimedImage(m),
@@ -175,6 +303,7 @@ export function createConversation({ onSent, navigate } = {}) {
             ),
           ),
         ),
+      m.videos.map((video, i) => (m.expiresIn ? renderTimedVideo(m, video, `${m.id}:${i}`) : renderVideo(video, `${m.id}:${i}`))),
       m.files.map((f) => h('p', { className: 'msg-file' }, `📎 ${f.name}`)),
       h(
         'span',
@@ -200,7 +329,7 @@ export function createConversation({ onSent, navigate } = {}) {
     });
 
     // Como en la web, sólo se editan los mensajes propios de puro texto
-    const canEdit = m.mine && !m.deleted && Boolean(m.text) && !m.images.length && !m.files.length && !m.expiresIn;
+    const canEdit = m.mine && !m.deleted && Boolean(m.text) && !m.images.length && !m.videos.length && !m.files.length && !m.expiresIn;
     const actions = h(
       'div',
       { className: 'msg-actions' },
@@ -250,7 +379,9 @@ export function createConversation({ onSent, navigate } = {}) {
       h(
         'div',
         { className: 'msg-body' },
-        others && !continues && profileLink(userName(m.author), m.authorId, { className: 'msg-author' }),
+        others &&
+          !continues &&
+          profileLink([userName(m.author), m.authorHandle && h('span', { className: 'msg-handle' }, `@${m.authorHandle}`)], m.authorId, { className: 'msg-author' }),
         h('div', { className: 'msg-line' }, bubble, actions),
         reactions.el,
       ),
@@ -295,6 +426,73 @@ export function createConversation({ onSent, navigate } = {}) {
     );
   }
 
+  // Video adjunto: se ve la miniatura con el botón de play y, al tocarla, se reproduce ahí mismo.
+  // Se prueban las URLs de `sources` en orden hasta que una reproduzca. onEnded: al terminar de verse.
+  // key identifica al video dentro del chat: su nodo se reutiliza al redibujar los mensajes (ver render).
+  function renderVideo(video, key, { autoplay = false, onEnded } = {}) {
+    if (videoBoxes.has(key)) return videoBoxes.get(key);
+    const accountId = account.id;
+    const box = h('div', { className: 'msg-video' });
+    videoBoxes.set(key, box);
+    const play = () => {
+      let index = 0;
+      const player = h('video', { controls: true, autoplay: true, preload: 'metadata', poster: imageUrl(accountId, video.poster) ?? '' });
+      player.addEventListener('error', () => {
+        console.warn('[video]', player.currentSrc, player.error?.code, player.error?.message);
+        index++;
+        if (index < video.sources.length) player.src = imageUrl(accountId, video.sources[index]);
+        else box.replaceChildren(h('p', { className: 'msg-file' }, `🎬 No se pudo reproducir el video${video.name ? ` (${video.name})` : ''}.`));
+      });
+      if (onEnded) player.addEventListener('ended', onEnded, { once: true });
+      player.src = imageUrl(accountId, video.sources[0]);
+      box.replaceChildren(player);
+    };
+    if (autoplay) {
+      play();
+      return box;
+    }
+    box.append(
+      h(
+        'button',
+        { className: 'msg-video-play', title: 'Reproducir video', attrs: { 'aria-label': 'Reproducir video' }, onClick: play },
+        video.poster && h('img', { src: imageUrl(accountId, video.poster), alt: '', loading: 'lazy' }),
+        h('span', { className: 'msg-video-icon' }, icon('play')),
+        video.duration && h('span', { className: 'gif-badge' }, formatDuration(video.duration)),
+      ),
+    );
+    return box;
+  }
+
+  // Video con temporizador: como las imágenes temporales, no se muestra hasta tocarlo. Uno ajeno se da por visto
+  // cuando termina de reproducirse (ahí MeWe lo borra).
+  function renderTimedVideo(m, video, key) {
+    if (videoBoxes.has(key)) return videoBoxes.get(key); // ya se abrió: sigue el reproductor
+    const label = m.mine ? 'Ver el video temporal que enviaste' : 'Ver video temporal (desaparece después de verlo)';
+    const button = h(
+      'button',
+      {
+        className: 'msg-timed',
+        title: label,
+        attrs: { 'aria-label': label },
+        onClick: () => {
+          const gen = generation;
+          const accountId = account.id;
+          const onEnded = () => {
+            if (m.mine) return;
+            api
+              .markMessageSeen(accountId, m.id)
+              .catch((err) => console.warn('[chat] marcar visto', err))
+              .finally(() => gen === generation && loadLatest());
+          };
+          button.replaceWith(renderVideo(video, key, { autoplay: true, onEnded }));
+        },
+      },
+      h('span', { className: 'msg-timed-icon', attrs: { 'aria-hidden': 'true' } }, '⏱'),
+      h('span', {}, 'Video temporal', h('span', { className: 'msg-timed-hint' }, 'Toca para ver')),
+    );
+    return button;
+  }
+
   // Envuelve un nombre o una foto en un botón que abre el perfil (si se conoce el usuario)
   function profileLink(child, userId, { className, label } = {}) {
     if (!userId || !navigate) return h('span', { className }, child);
@@ -316,6 +514,39 @@ export function createConversation({ onSent, navigate } = {}) {
       names.get(reply.authorId) && userName(names.get(reply.authorId), { className: 'msg-quote-author' }),
       h('span', { className: 'msg-quote-text', attrs: { dir: 'auto' } }, plainText(reply.text) || '📷 Imagen'),
     );
+  }
+
+  // El mensaje responde a una historia: va su miniatura (se abre en el visor) y de quién era.
+  // MeWe borra las historias al día: si la imagen ya no existe queda sólo el texto.
+  function renderStoryReply(m) {
+    const { story } = m;
+    const own = story.tellerId === account.userId;
+    const label = own ? (m.mine ? 'Tu historia' : 'Respondió a tu historia') : m.mine ? 'Respondiste a su historia' : 'Respuesta a una historia';
+    const text = h('span', { className: 'msg-story-text' }, h('span', { className: 'msg-quote-author' }, label));
+    if (!story.image) return h('div', { className: 'msg-story' }, text);
+    const img = h('img', { src: imageUrl(account.id, story.image.src), alt: '', loading: 'lazy' });
+    const box = h(
+      'button',
+      {
+        className: 'msg-story',
+        title: 'Ver la historia',
+        attrs: { 'aria-label': `${label}: ver la historia` },
+        onClick: () => openLightbox({ accountId: account.id, images: [story.image], index: 0, caption: label }),
+      },
+      h('span', { className: 'msg-story-thumb' }, img, story.isVideo && h('span', { className: 'msg-video-icon' }, icon('play'))),
+      text,
+    );
+    img.addEventListener(
+      'error',
+      () => {
+        box.disabled = true;
+        box.title = '';
+        img.parentElement.remove();
+        text.append(h('span', { className: 'msg-quote-text' }, 'La historia ya no está disponible.'));
+      },
+      { once: true },
+    );
+    return box;
   }
 
   // --- Barra del chat: título, portada de fondo, búsqueda y galería ---
@@ -495,6 +726,8 @@ export function createConversation({ onSent, navigate } = {}) {
       return;
     }
     const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    pinned = false; // se va a otro mensaje: nada debe devolver el scroll al final
+    renderPin();
     target.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'auto' });
     target.classList.remove('highlight');
     void target.offsetWidth; // reinicia la animación
@@ -543,6 +776,7 @@ export function createConversation({ onSent, navigate } = {}) {
         merge(sent.filter((m) => m?.id).map((m) => ({ ...m, mine: true })));
         render();
         scrollToBottom();
+        setUnread(false); // el envío va con setAsRead: MeWe ya lo marcó
         loadLatest();
         onSent?.();
       }
@@ -577,25 +811,62 @@ export function createConversation({ onSent, navigate } = {}) {
   }
 
   function scrollToBottom() {
+    pinned = true;
+    missed = false;
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    renderPin();
   }
 
-  // Al llegar arriba de todo carga los anteriores solo
+  // Anclado al final no se muestra nada: el botón (y el degradado detrás) sólo aparecen al subir
+  function renderPin() {
+    const away = Boolean(thread) && messages.length > 0 && !pinned;
+    pinBtn.hidden = !away;
+    bodyEl.classList.toggle('unpinned', away);
+    pinBtn.classList.toggle('missed', missed && away);
+    // en mobile queda sólo la flecha (ver styles.css)
+    pinBtn.replaceChildren(icon('arrow-down'), h('span', { className: 'label-text' }, missed ? ' Mensajes nuevos' : ' Ir al final'));
+    pinBtn.title = missed ? 'Mensajes nuevos: ir al final' : 'Ir al final y seguir los mensajes nuevos';
+  }
+
+  // Al llegar arriba de todo carga los anteriores solo. El anclaje sigue a la posición:
+  // al fondo se ancla, más arriba se suelta.
   messagesEl.addEventListener('scroll', () => {
     if (messagesEl.scrollTop < 40 && hasOlder && !loadingOlder) loadOlder();
+    const atBottom = isNearBottom();
+    if (atBottom === pinned) return;
+    pinned = atBottom;
+    if (pinned) missed = false;
+    renderPin();
   });
+
+  // Anclado, el fondo se mantiene aunque el contenido crezca después (imágenes que terminan de cargar)
+  // o cambie el alto disponible (la caja de texto, la ventana)
+  messagesEl.addEventListener('load', () => pinned && scrollToBottom(), true);
+  messagesEl.addEventListener('loadedmetadata', () => pinned && scrollToBottom(), true); // un video ya sabe su alto
+  new ResizeObserver(() => pinned && thread && scrollToBottom()).observe(messagesEl);
 
   return {
     el,
     get threadId() {
       return thread?.id ?? null;
     },
+    get unread() {
+      return unread;
+    },
     async open(newAccount, newThread) {
       generation++;
       account = newAccount;
       thread = newThread;
       messages = [];
+      videoBoxes.clear();
       hasOlder = false;
+      // sin el dato (chat abierto desde un grupo o una notificación) se asume sin leer
+      unread = thread.unread !== false;
+      readBtn.hidden = !unread;
+      blockBtn.hidden = !thread.userId; // sólo se bloquea desde un chat de a dos
+      pinned = true; // todo chat se abre en el final
+      missed = false;
+      pinBtn.hidden = true;
       clearError(errorEl);
       composer.clear();
       composer.setAccount(account);
@@ -613,6 +884,11 @@ export function createConversation({ onSent, navigate } = {}) {
       generation++;
       thread = null;
       messages = [];
+      videoBoxes.clear();
+      unread = false;
+      readBtn.hidden = true;
+      pinBtn.hidden = true;
+      bodyEl.classList.remove('unpinned');
       clearInterval(pollTimer);
       pollTimer = null;
       composer.el.hidden = true;
@@ -633,6 +909,12 @@ export function createConversation({ onSent, navigate } = {}) {
       if (thread) restartPolling();
     },
   };
+}
+
+// Duración de un video: 75 → "1:15"
+function formatDuration(seconds) {
+  const total = Math.round(seconds);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 function formatSeconds(s) {

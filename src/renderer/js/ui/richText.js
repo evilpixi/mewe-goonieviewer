@@ -10,11 +10,22 @@ const MENTIONS = new RegExp(MENTION.source, 'g');
 // Si MeWe no la entrega, avatar() muestra las iniciales.
 const mentionAvatarUrl = (userId) => `https://img.mewe.com/api/v2/photo/profile/150x150/${userId}`;
 
+// GIF de Giphy: MeWe lo manda como el link pelado dentro del texto (mismo patrón que usa la web).
+// El #h= / #w= del final es el tamaño que eligió quien lo envió, no parte de la dirección.
+const GIPHY = /https?:\/\/(?<gif>media[0-9]*\.giphy\.com\/media\/(?:v1\.[^/\s]+\/)?[0-9a-zA-Z]+\/[0-9a-zA-Z_]+\.(?:gif|mp4)(?:[?&][a-zA-Z_]+=[^\s#<]+)?)(?:\??#[wh]=[0-9]+)?/;
+const GIPHYS = new RegExp(GIPHY.source, 'g');
+
 // Formato de texto de MeWe (un subconjunto de Markdown):
-//   **negrita** · *itálica* o _itálica_ · ~~tachado~~ · `código` · menciones (ver MENTION)
+//   **negrita** · *itálica* o _itálica_ · ~~tachado~~ · `código` · menciones (ver MENTION) · GIFs de Giphy
 // Los marcadores tienen que estar pegados al texto; * y _ sueltos o dentro de una palabra (snake_case) no cuentan.
-const RULES =
-  /@\{\{u_(?<mentionId>[0-9a-f]+)\}(?<mentionName>[^{}\n]*)\}|\*\*\*(?=\S)(?<both>[\s\S]+?)(?<=\S)\*\*\*|\*\*(?=\S)(?<bold>[\s\S]+?)(?<=\S)\*\*|~~(?=\S)(?<strike>[\s\S]+?)(?<=\S)~~|`(?<code>[^`\n]+)`|(?<![\w*_])(?<mark>[*_])(?=\S)(?<italic>(?:(?!\k<mark>)[^\n])+?)(?<=\S)\k<mark>(?![\w*_])/g;
+// El GIF va primero: su dirección tiene _ que si no se tomarían por itálicas.
+const RULES = new RegExp(
+  `${GIPHY.source}|${
+    /@\{\{u_(?<mentionId>[0-9a-f]+)\}(?<mentionName>[^{}\n]*)\}|\*\*\*(?=\S)(?<both>[\s\S]+?)(?<=\S)\*\*\*|\*\*(?=\S)(?<bold>[\s\S]+?)(?<=\S)\*\*|~~(?=\S)(?<strike>[\s\S]+?)(?<=\S)~~|`(?<code>[^`\n]+)`|(?<![\w*_])(?<mark>[*_])(?=\S)(?<italic>(?:(?!\k<mark>)[^\n])+?)(?<=\S)\k<mark>(?![\w*_])/
+      .source
+  }`,
+  'g',
+);
 
 // Convierte el texto en nodos (strings y <strong>/<em>/<s>/<code>) para pasarle a h() como hijos.
 // Nunca usa innerHTML: lo que no es formato queda como texto plano.
@@ -25,8 +36,9 @@ export function richText(text, context = {}) {
   let last = 0;
   for (const match of source.matchAll(RULES)) {
     if (match.index > last) nodes.push(source.slice(last, match.index));
-    const { mentionId, mentionName, both, bold, strike, code, italic } = match.groups;
-    if (mentionId) nodes.push(mention(mentionId, mentionName, context));
+    const { gif, mentionId, mentionName, both, bold, strike, code, italic } = match.groups;
+    if (gif) nodes.push(giphy(gif, match[0]));
+    else if (mentionId) nodes.push(mention(mentionId, mentionName, context));
     else if (both) nodes.push(h('strong', {}, h('em', {}, richText(both, context))));
     else if (bold) nodes.push(h('strong', {}, richText(bold, context)));
     else if (strike) nodes.push(h('s', {}, richText(strike, context)));
@@ -36,6 +48,14 @@ export function richText(text, context = {}) {
   }
   if (last < source.length) nodes.push(source.slice(last));
   return nodes;
+}
+
+// El GIF animado en lugar de su link (la variante .mp4 de Giphy tiene su .gif al lado).
+// Se pide directo a Giphy (permitido en la CSP de index.html); si no carga, queda el link como texto.
+function giphy(path, original) {
+  const img = h('img', { className: 'gif-embed', src: `https://${path.replace(/\.mp4(?=$|[?&])/, '.gif')}`, alt: 'GIF', title: 'GIF de Giphy', loading: 'lazy' });
+  img.addEventListener('error', () => img.replaceWith(original), { once: true });
+  return img;
 }
 
 // Foto chiquita (del alto de la línea) + nombre; con `navigate` es un link al perfil
@@ -60,9 +80,9 @@ function mention(userId, name, { accountId, navigate }) {
 }
 
 // Para lugares de una sola línea sin formato (citas, vista previa del chat, notificaciones):
-// deja las menciones como "@Nombre"
+// deja las menciones como "@Nombre" y los GIFs de Giphy como "GIF"
 export function plainText(text) {
-  return String(text ?? '').replace(MENTIONS, '@$<mentionName>');
+  return String(text ?? '').replace(GIPHYS, 'GIF').replace(MENTIONS, '@$<mentionName>');
 }
 
 const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[#*0-9]️?⃣|[‍️\s])+$/u;

@@ -4,18 +4,19 @@
 
 # Goonie Mewe Viewer
 
-**Cliente de escritorio compacto y multi-cuenta para [MeWe](https://mewe.com).**
+**Cliente compacto y multi-cuenta para [MeWe](https://mewe.com), para escritorio y Android.**
 
 [![Última versión](https://img.shields.io/github/v/release/evilpixi/mewe-goonieviewer?label=versi%C3%B3n)](https://github.com/evilpixi/mewe-goonieviewer/releases/latest)
 [![Licencia MIT](https://img.shields.io/github/license/evilpixi/mewe-goonieviewer?label=licencia)](LICENSE)
-![Plataforma](https://img.shields.io/badge/plataforma-Windows-blue)
+![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20macOS%20%7C%20Android-blue)
 
-[**Descargar para Windows**](https://github.com/evilpixi/mewe-goonieviewer/releases/latest)
+[**Descargar para Windows, macOS o Android**](https://github.com/evilpixi/mewe-goonieviewer/releases/latest)
 
 </div>
 
-Goonie Mewe Viewer es una aplicación de escritorio hecha con Electron para usar MeWe con varias cuentas a la vez, en una
-interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto, espaciado e iconos.
+Goonie Mewe Viewer es una aplicación para usar MeWe con varias cuentas a la vez, en una interfaz compacta que se puede
+adaptar a gusto: temas, colores, tamaño de texto, espaciado e iconos. Incluye feed, chats, historias, perfiles, grupos
+y notificaciones. En escritorio está hecha con Electron; en Android es la misma interfaz, empaquetada con Capacitor.
 
 > [!IMPORTANT]
 > Proyecto **no oficial**: no está afiliado ni respaldado por MeWe. Usa la API interna de la web de MeWe, que no está
@@ -30,10 +31,11 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 - El login se hace en la ventana oficial de MeWe, captcha incluido. **La contraseña no se guarda.**
 
 ### Feed
-- Tres vistas: todo, grupos y perfiles.
+- Tres vistas: todo, personas y grupos.
+- Crear publicaciones con texto e imágenes, en tu feed o en un grupo, con borrador automático; editar el texto de las propias.
 - Reacciones con emojis, y quién reaccionó con cada uno.
 - Comentarios y respuestas a comentarios.
-- Galería con todas las imágenes de una publicación y visor a pantalla completa con zoom y descarga.
+- Galería con todas las imágenes de una publicación y visor a pantalla completa con zoom, guardar y copiar al portapapeles.
 
 ### Chats
 - Chats con personas, de grupos y de eventos, con filtro por tipo.
@@ -43,23 +45,65 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 - Edición de mensajes propios.
 - Envío de imágenes y GIFs con el botón 📎, pegando con `Ctrl+V` o arrastrándolas a la conversación.
 - Temporizador para las imágenes enviadas (de 5 segundos a 24 horas).
-- Visor de imágenes a pantalla completa y descarga.
+- Videos que se reproducen dentro de la conversación.
+- Las respuestas a una historia muestran una vista previa de esa historia.
+- Visor de imágenes a pantalla completa, con guardar y copiar.
+- Bloquear a una persona desde su chat.
+
+### Historias
+- Grilla, sobre fondo negro, con quienes tienen historias; las que todavía no viste quedan resaltadas.
+- Visor a pantalla completa para fotos y videos: pasan solas, se pausan manteniendo apretado y se adapta a pantallas angostas.
+- Desde el visor: guardar la historia, responderle a su autor (le llega como mensaje de chat) o ir a su perfil.
+- En las tuyas: cuántas personas las vieron, y borrarlas.
+- Editor para crear una: imagen de fondo (entera o recortada a 9:16) con textos y emojis encima. Cada uno se mueve, se
+  gira y se agranda; el texto tiene 10 fuentes, color y un fondo opcional para que se lea.
+- Se publica para tus seguidores, para todos o para tus amigos cercanos.
 
 ### Perfiles
-- Información del perfil, sus publicaciones y una pestaña con sus imágenes.
-- Seguir y dejar de seguir; aceptar o rechazar solicitudes de seguimiento.
+- Información del perfil, sus publicaciones y pestañas con sus imágenes y sus álbumes.
+- Al abrir una imagen del perfil, el visor muestra al lado su publicación, con el texto y los comentarios.
+- Foto de perfil y portada a pantalla completa al hacer click.
+- Seguir y dejar de seguir; aceptar o rechazar solicitudes de seguimiento, y seguir también a quien se acepta.
 - Manejo de cuentas privadas.
 - Búsqueda de personas y acceso directo para abrir un chat.
+- Bloquear y copiar el link de un perfil.
+- En tu perfil: editar la foto, la portada y tus datos, y las listas de solicitudes de seguimiento y de bloqueados.
 
-### Grupos
-- Lista de tus grupos e invitaciones pendientes.
+### Listas y grupos
+- Lista de tus grupos e invitaciones pendientes, y de las personas que seguís y que te siguen, con filtro por nombre.
+- Desde una persona: ver su perfil, enviarle un mensaje, copiar su link o bloquearla.
 - Publicaciones, miembros (con filtro de administradores), eventos próximos y pasados, y chat del grupo.
+- El chat de un grupo se abre desde la lista o desde el grupo, dentro de la sección Chats.
 - Unirse, salir e invitar contactos.
 
 ### Notificaciones
 - Contador de pendientes en la cabecera.
 - Las de grupos van en una pestaña aparte.
+- Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue (si todavía no lo seguís), desde la misma lista.
 - Al hacer click llevan al lugar correspondiente: perfil, publicación, comentario o mensaje.
+
+### Vista mobile y Android
+Con 640 px de ancho o menos, la interfaz pasa a un formato de teléfono. Es la que usa la app de Android, y en
+escritorio aparece al achicar la ventana. No hay versión para iOS.
+
+- La cabecera va abajo, al alcance del pulgar, con botones más grandes: Feed, Chats, Listas, Historias, Notificaciones
+  y tu foto.
+- Tu foto abre el menú de la cuenta: tu perfil, cambiar de cuenta, agregar una, buscar personas, ajustes, reconectar y
+  quitar la cuenta. Reemplaza a la columna de cuentas.
+- Los controles de cada sección se muestran como iconos en lugar de texto.
+- Chats en dos pantallas: la lista a todo el ancho o la conversación. Dentro de una conversación, un agarrador en el
+  borde izquierdo muestra u oculta la lista compacta (sólo fotos).
+- En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho; responder, reaccionar y editar están
+  siempre a la vista.
+- Las notificaciones y las pestañas de perfiles y grupos se acomodan a la pantalla vertical.
+
+En Android, además:
+
+- El botón o gesto **atrás** cierra lo que esté abierto (un menú, el visor, una conversación, un perfil); en la
+  pantalla principal manda la app al fondo.
+- Las imágenes y los videos se guardan en la galería, en la carpeta `Goonie Mewe` (requiere Android 10 o posterior).
+- El ajuste de zoom cambia el tamaño del texto, no el de toda la interfaz.
+- Los mensajes llegan en tiempo real sólo con la app abierta: no hay notificaciones del sistema.
 
 ### Interfaz y accesibilidad
 - 14 temas: automático, claro, oscuro, minimal, glass, retro, alto contraste, medianoche, nórdico, bosque, ámbar, sepia,
@@ -93,35 +137,94 @@ Get-FileHash .\Goonie-Mewe-Viewer-Setup-0.1.0.exe -Algorithm SHA256
 
 El hash que aparece tiene que coincidir con el de `SHA256SUMS.txt`.
 
+## Instalación (macOS)
+
+1. Entrá a la [última versión](https://github.com/evilpixi/mewe-goonieviewer/releases/latest).
+2. Descargá el `.dmg` que corresponda a tu Mac:
+   - `Goonie-Mewe-Viewer-x.y.z-mac-arm64.dmg`: Apple Silicon (M1 en adelante).
+   - `Goonie-Mewe-Viewer-x.y.z-mac-x64.dmg`: Intel.
+3. Abrí el `.dmg` y arrastrá la app a **Aplicaciones**.
+
+> [!NOTE]
+> La app **no está firmada ni notarizada por Apple**, así que la primera vez macOS se niega a abrirla.
+> Para continuar: **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente**.
+> Descargala siempre desde la página de Releases de este repositorio y, si querés, verificá su integridad:
+>
+> ```bash
+> shasum -a 256 Goonie-Mewe-Viewer-0.1.0-mac-arm64.dmg
+> ```
+
+## Instalación (Android)
+
+Requiere Android 7.0 o posterior.
+
+1. Desde el teléfono, entrá a la [última versión](https://github.com/evilpixi/mewe-goonieviewer/releases/latest).
+2. Descargá `Goonie-Mewe-Viewer-x.y.z.apk` y abrilo.
+3. Android va a pedir permiso para **instalar apps desconocidas** desde el navegador o el gestor de archivos que estés
+   usando: aceptalo y confirmá la instalación.
+
+> [!NOTE]
+> La app **no está en Google Play**: se instala desde el APK, así que no se actualiza sola. Para actualizarla,
+> instalá el APK de la versión nueva encima; las cuentas se conservan.
+> Descargala siempre desde la página de Releases de este repositorio y, si querés, verificá su integridad con el
+> hash de `SHA256SUMS.txt`.
+
 ## Cómo se usa
 
 1. **Agregar una cuenta:** click en el botón **+** de la columna izquierda. Escribí tu email o teléfono (la contraseña
    es opcional: sólo sirve para rellenar el formulario) y pulsá **Iniciar sesión**. Se abre la ventana de MeWe: resolvé
    el captcha ahí y la cuenta queda agregada.
 2. **Cambiar de cuenta:** click en su avatar en la columna izquierda.
-3. **Moverte por la app:** las pestañas **Feed**, **Chats** y **Grupos** de la cabecera. A la derecha están la búsqueda
-   de personas (🔍), las notificaciones (🔔), actualizar (⟳) y los ajustes (⚙).
-4. **Personalizar:** en ⚙ elegís el tema, los colores y los tamaños. Cada cambio se aplica y se guarda al instante.
-5. **Si la sesión vence:** el botón **Reconectar** vuelve a iniciarla. **Quitar** elimina la cuenta de la app.
+3. **Moverte por la app:** en el centro de la cabecera están los iconos de **Feed**, **Chats**, **Listas** (tus grupos y
+   personas) e **Historias**. A la izquierda, tu foto abre tu perfil. A la derecha están la búsqueda de personas, las
+   notificaciones y el menú de opciones (⋮). Debajo, un segundo panel tiene los controles de cada sección
+   (filtros, **Crear post**, **Actualizar**). No hay botón para volver: de un perfil, un grupo o una publicación se
+   vuelve con `Alt+←`, o se va a otra sección con sus iconos.
+4. **Historias:** cada tarjeta abre las historias de esa persona a pantalla completa. Pasan solas; tocá a la derecha o
+   a la izquierda para cambiar y mantené apretado para pausar. Desde ahí podés guardarla, responderle a su autor o ir
+   a su perfil. **Crear historia** abre el editor: elegís una imagen y le sumás textos (10 fuentes, color y fondo) y
+   emojis, que se mueven arrastrándolos y se giran y agrandan con la manija de su esquina.
+5. **Personalizar:** en ⋮ → **Ajustes de la interfaz** elegís el tema, los colores y los tamaños. Cada cambio se aplica
+   y se guarda al instante.
+6. **Si la sesión vence:** ⋮ → **Reconectar** vuelve a iniciarla. ⋮ → **Quitar cuenta** la elimina de la app.
+
+El menú de la ventana (File, Edit, View, Window) está oculto: aparece al pulsar `Alt`.
+
+### En la vista mobile
+
+Es la interfaz de la app de Android; en escritorio, achicá la ventana a 640 px de ancho o menos y cambia sola. Lo que
+se hace distinto:
+
+- **Cuentas y opciones:** tocá tu foto, abajo a la derecha. Ahí están tu perfil, las otras cuentas, **Agregar cuenta**,
+  **Buscar personas**, **Ajustes de la interfaz**, **Reconectar** y **Quitar cuenta**. Sin ninguna cuenta agregada, en
+  ese lugar hay un icono de personas que abre el mismo menú.
+- **Chats:** tocá un chat para abrirlo y la flecha de arriba a la izquierda para volver a la lista. El agarrador del
+  borde izquierdo muestra la lista compacta sin salir de la conversación. **Buscar en el chat** e **Imágenes** están en
+  el menú ⋮ de la barra del chat.
+- **Volver (Android):** con el botón o gesto atrás del teléfono.
 
 ### Atajos de teclado
 
 | Atajo | Acción |
 |---|---|
-| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` | Feed / Chats / Grupos |
-| `Alt+←` | Volver |
+| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` / `Ctrl+4` | Feed / Chats / Listas / Historias |
+| `Alt+←` | Volver a la vista anterior |
 | `F5` | Actualizar la vista |
 | `Enter` | Enviar mensaje o comentario (`Shift+Enter`: salto de línea) |
 | `Esc` | Cancelar la respuesta o la edición; cerrar paneles y el visor |
 | `←` / `→` | Imagen anterior / siguiente en el visor |
-| `Z` / `D` | Zoom / descargar en el visor |
+| `Z` / `G` / `C` | Zoom / guardar / copiar la imagen en el visor |
+| `Ctrl+Enter` | Publicar desde el diálogo de crear post |
+| `←` / `→` / `Espacio` / `G` | En una historia: anterior / siguiente / pausar / guardar |
+| Flechas / `Supr` | En el editor de historias, con la vista previa enfocada: mover / quitar el elemento elegido |
 
 ## Privacidad
 
 - La app habla únicamente con los servidores de MeWe (`mewe.com`, `img.mewe.com`, `ws.mewe.com`). No hay telemetría ni
   servidores propios.
 - Las contraseñas no se guardan. Las cookies de sesión quedan en tu equipo, dentro de la carpeta de datos de la app
-  (`%APPDATA%\meweviewer` en Windows).
+  (`%APPDATA%\meweviewer` en Windows). En Android quedan en el almacenamiento privado de la app y no entran en las
+  copias de seguridad del teléfono.
 - **Quitar** una cuenta borra su sesión de tu equipo.
 
 ## Desarrollo
@@ -140,24 +243,72 @@ npm start
 | `npm start` | Abre la app en modo desarrollo. |
 | `npm run debug` | Igual, pero guarda la última respuesta de cada endpoint en `mewe-debug/` (contiene datos personales: no la subas). |
 | `npm run dist:win` | Genera el instalador y el portable de Windows en `dist/`. |
+| `npm run dist:mac` | Genera `.dmg` y `.zip` para macOS (arm64 y x64), sin firmar. Hay que correrlo en una Mac. |
 | `npm run dist:linux` | Genera AppImage y `.tar.gz` para Linux (sin probar todavía). |
 | `npm run pack` | Empaqueta sin generar instalador, para probar rápido. |
 | `npm run emoji:update` | Regenera los shortcodes de emojis. |
 | `npm run icons:update` | Copia los íconos de Lucide que usa la app. |
 
+### Android
+
+Requisitos, además de lo anterior: Node.js 22 o superior, JDK 21 y [Android Studio](https://developer.android.com/studio)
+con el SDK de Android (plataforma API 36), con la variable `ANDROID_HOME` apuntando al SDK.
+
+| Comando | Qué hace |
+|---|---|
+| `npm run android:run` | Compila la versión de debug y la abre en un emulador o en un teléfono con depuración USB. |
+| `npm run android:sync` | Arma `www/` desde `src/` y la copia al proyecto de Android (para compilar desde Android Studio). |
+| `npm run android:apk` | Genera el APK de release en `dist/`. |
+| `npm run android:publish` | Sube ese APK a la versión de GitHub de `package.json` y agrega su hash a `SHA256SUMS.txt`. Necesita la [CLI de GitHub](https://cli.github.com/). |
+
+El número de versión de la app de Android sale de `package.json`.
+
+**Firma.** Para que `android:apk` genere un APK instalable hace falta una clave de firma, que no está en el
+repositorio. Se crea una sola vez:
+
+```bash
+cd android
+keytool -genkeypair -v -storetype PKCS12 -keystore meweviewer-release.jks -alias meweviewer -keyalg RSA -keysize 2048 -validity 10000
+```
+
+y se la declara en `android/keystore.properties`:
+
+```properties
+storeFile=meweviewer-release.jks
+storePassword=la contraseña elegida
+keyAlias=meweviewer
+keyPassword=la contraseña elegida
+```
+
+Los dos archivos están en `.gitignore`. Guardá una copia fuera del proyecto: Android sólo deja actualizar la app con
+un APK firmado con la misma clave.
+
 ### Estructura
 
 ```
 src/
-  main/      Proceso principal de Electron: cuentas, login, IPC, websocket, imágenes
   mewe/      Cliente de la API de MeWe y normalización de sus respuestas
-  preload/   Puente seguro entre el proceso principal y la interfaz
+  core/      Lógica común a escritorio y Android: cuentas, canales de la interfaz, tiempo real
+  main/      Escritorio: proceso principal de Electron (sesiones, login, IPC, imágenes)
+  preload/   Escritorio: puente seguro entre el proceso principal y la interfaz
+  android/   Android: el mismo puente, sobre el plugin nativo
   renderer/  Interfaz: HTML, CSS y JavaScript sin frameworks
+android/     Proyecto de Android (Capacitor) y el plugin nativo: HTTP con las cookies de cada cuenta,
+             login, imágenes y video, websocket
+scripts/     Tareas de build
 docs/
-  endpoints.md  Endpoints de MeWe que usa la app
+  endpoints.md     Endpoints de MeWe que usa la app
+  android-plan.md  Cómo se hizo la versión de Android
 ```
 
+La interfaz es la misma en las dos plataformas y sólo habla con `window.mewe`. En escritorio lo provee el preload y la
+lógica corre en el proceso principal; en Android lo provee `src/android/` y la lógica corre en el WebView, con un
+plugin nativo para lo que el WebView no puede hacer (las cookies de sesión nunca pasan por él).
+
 El renderer corre con `contextIsolation`, `sandbox` y una Content Security Policy estricta.
+
+La vista mobile se prueba achicando la ventana: el corte está en 640 px, tanto en los bloques
+`@media (max-width: 640px)` de `styles.css` como en `src/renderer/js/ui/mobile.js`.
 
 ### Ramas
 

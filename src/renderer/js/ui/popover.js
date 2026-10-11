@@ -7,7 +7,8 @@ let current = null;
 export function openPopover(anchor, content, { className = '', label } = {}) {
   current?.close();
   const el = h('div', { className: `popover ${className}`.trim(), attrs: { role: 'dialog', 'aria-label': label } }, content);
-  document.body.append(el);
+  // dentro de un diálogo modal (el visor de imágenes) va adentro: afuera quedaría tapado e inerte
+  (anchor.closest('dialog[open]') ?? document.body).append(el);
   place(el, anchor);
 
   const onPointer = (event) => {
@@ -16,6 +17,7 @@ export function openPopover(anchor, content, { className = '', label } = {}) {
   const onKey = (event) => {
     if (event.key === 'Escape') {
       event.stopPropagation();
+      event.preventDefault(); // que Esc no cierre también el diálogo modal que lo contiene
       close();
       anchor.focus?.();
     }
@@ -42,8 +44,11 @@ export function openPopover(anchor, content, { className = '', label } = {}) {
   return current;
 }
 
+// Devuelve si había uno abierto
 export function closePopover() {
+  const open = Boolean(current);
   current?.close();
+  return open;
 }
 
 // Debajo del ancla si entra; si no, arriba. Siempre dentro de la ventana.

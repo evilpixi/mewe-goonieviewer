@@ -7,7 +7,7 @@ export class ApiError extends Error {
   }
 }
 
-// Invoca cualquier canal de src/main/ipc.js
+// Invoca cualquier canal de src/core/channels.js o, los 'ui:*', de src/main/ipc.js
 export async function invoke(channel, ...args) {
   const result = await window.mewe.invoke(channel, ...args);
   if (!result.ok) throw new ApiError(result.error);
@@ -37,6 +37,12 @@ export const api = {
   addReply: (id, commentId, text) => invoke('post:reply', id, commentId, text),
   reactComment: (id, commentId, emoji, on) => invoke('post:commentReact', id, commentId, emoji, on),
   getCommentReactors: (id, commentId) => invoke('post:commentReactors', id, commentId),
+  // file: { name, type, data: Uint8Array } → id de la foto, para imageIds
+  uploadPostImage: (id, file) => invoke('post:upload', id, file),
+  // post: { text, imageIds, groupId?, everyone? } → el post creado (o null si MeWe no lo devuelve)
+  createPost: (id, post) => invoke('post:create', id, post),
+  // changes: { text, mediaIds } (mediaIds: las fotos del post, que se conservan)
+  editPost: (id, post, changes) => invoke('post:edit', id, post.id, post.groupId, changes),
 
   // filter: 'users' | 'groups' | 'all'
   getChatThreads: (id, filter) => invoke('chat:threads', id, filter),
@@ -48,6 +54,7 @@ export const api = {
   reactMessage: (id, threadId, messageId, emoji, on) => invoke('chat:react', id, threadId, messageId, emoji, on),
   getMessageReactors: (id, threadId, messageId) => invoke('chat:reactors', id, threadId, messageId),
   openChatWith: (id, userId) => invoke('chat:open', id, userId),
+  markChatRead: (id, threadId) => invoke('chat:read', id, threadId),
   markMessageSeen: (id, messageId) => invoke('chat:seen', id, messageId),
   startRealtime: (id) => invoke('chat:realtime', id),
   onChatEvent: (callback) => on('chat:event', callback),
@@ -55,10 +62,22 @@ export const api = {
 
   getProfile: (id, userId) => invoke('profile:get', id, userId),
   getUserFeed: (id, userId, nextPage) => invoke('profile:feed', id, userId, nextPage),
-  getUserMedia: (id, userId, nextPage) => invoke('profile:media', id, userId, nextPage),
+  // album: nombre del álbum (sin él, todas las imágenes)
+  getUserMedia: (id, userId, nextPage, album) => invoke('profile:media', id, userId, nextPage, album),
+  getUserAlbums: (id, userId, nextPage) => invoke('profile:albums', id, userId, nextPage),
+  // → { following, requestSent }
   setFollow: (id, userId, on) => invoke('profile:follow', id, userId, on),
   getFollowRequests: (id) => invoke('profile:requests', id),
   answerFollowRequest: (id, requestId, accept) => invoke('profile:answerRequest', id, requestId, accept),
+  // kind: 'followers' | 'following' | 'blocked' → { users, nextPage }
+  getPeople: (id, kind, nextPage) => invoke('profile:people', id, kind, nextPage),
+  blockUser: (id, userId) => invoke('profile:block', id, userId),
+  unblockUser: (id, userId) => invoke('profile:unblock', id, userId),
+  // Perfil propio. changes: { firstName, lastName, fields: { text, currentCity, … } }
+  updateProfile: (id, changes) => invoke('profile:update', id, changes),
+  // file: { name, type, data } · crop: { x, y, width, height } en píxeles de la imagen
+  setAvatar: (id, file, crop) => invoke('profile:setAvatar', id, file, crop),
+  setCover: (id, file, crop) => invoke('profile:setCover', id, file, crop),
 
   searchUsers: (id, query) => invoke('profile:search', id, query),
   getGroups: (id) => invoke('group:list', id),
@@ -68,10 +87,22 @@ export const api = {
   getGroupMembers: (id, groupId, options) => invoke('group:members', id, groupId, options),
   // when: 'upcoming' | 'past'
   getGroupEvents: (id, groupId, when) => invoke('group:events', id, groupId, when),
-  joinGroup: (id, groupId) => invoke('group:join', id, groupId),
+  // answers: [{ question, answer }] si el grupo hace preguntas antes de entrar
+  joinGroup: (id, groupId, answers) => invoke('group:join', id, groupId, answers),
   leaveGroup: (id, groupId) => invoke('group:leave', id, groupId),
-  searchGroupContacts: (id, groupId, query) => invoke('group:contacts', id, groupId, query),
+  // → { contacts: [{ …, inGroup, invited }], hasMore }
+  searchGroupContacts: (id, groupId, query, offset) => invoke('group:contacts', id, groupId, query, offset),
   inviteToGroup: (id, groupId, userIds) => invoke('group:invite', id, groupId, userIds),
+
+  // Historias. → [{ id, type, isPage, name, avatar, handle, hasNew, isMine, stories }]
+  getStorytellers: (id) => invoke('story:tellers', id),
+  getStories: (id, tellerId, isPage) => invoke('story:list', id, tellerId, isPage),
+  // views: [{ storyId, tellerId, tellerType, viewedAt }]
+  markStoriesSeen: (id, views) => invoke('story:seen', id, views),
+  replyToStory: (id, tellerId, storyId, text) => invoke('story:reply', id, tellerId, storyId, text),
+  // file: { name, type, data } · scope: 'followers' | 'public' | 'favorites'
+  createStory: (id, file, scope) => invoke('story:create', id, file, scope),
+  deleteStory: (id, storyId, scope) => invoke('story:delete', id, storyId, scope),
 
   getNotifications: (id, nextPage) => invoke('notif:list', id, nextPage),
   getUnseenNotifications: (id) => invoke('notif:unseen', id),
@@ -82,13 +113,20 @@ export const api = {
 
   setZoom: (factor) => invoke('ui:zoom', factor),
   downloadImage: (id, url, name) => invoke('ui:download', id, url, name),
+  // → { copied }: false si el formato no se pudo decodificar (ver copyImageAt)
+  copyImage: (id, url) => invoke('ui:copyImage', id, url),
+  // copia la imagen que se ve en ese punto de la ventana (px de CSS)
+  copyImageAt: (x, y) => invoke('ui:copyImageAt', x, y),
+  copyText: (text) => invoke('ui:copyText', text),
   getAvatarColor: (id, url) => invoke('ui:avatarColor', id, url),
 
   onLoginError: (callback) => on('login:error', callback),
   onLoginStatus: (callback) => on('login:status', callback),
 };
 
-// URL del protocolo propio que sirve imágenes con las cookies de la cuenta
+// URL que sirve una imagen de MeWe con las cookies de la cuenta: el protocolo propio de Electron,
+// o la que dé la plataforma (Android: src/android/bridge.js)
 export function imageUrl(accountId, url) {
-  return url ? `mewe-img://${accountId}/?u=${encodeURIComponent(url)}` : null;
+  if (!url) return null;
+  return window.mewe.imageUrl?.(accountId, url) ?? `mewe-img://${accountId}/?u=${encodeURIComponent(url)}`;
 }

@@ -1,7 +1,8 @@
 // Configuración central. Los endpoints salen del bundle web de mewe.com
 // (API interna, no oficial): pueden cambiar sin aviso.
 export const config = {
-  debug: process.env.MEWE_DEBUG === '1' || process.argv.includes('--mewe-debug'),
+  // process sólo existe en Electron: en Android (WebView) este módulo se carga sin él
+  debug: typeof process !== 'undefined' && (process.env.MEWE_DEBUG === '1' || process.argv.includes('--mewe-debug')),
 
   mewe: {
     host: 'https://mewe.com',
@@ -30,6 +31,7 @@ export const config = {
       send: (threadId) => `/api/v2/chat/thread/${threadId}/message`, // POST { message, setAsRead, replyTo, attachments }
       edit: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}`, // PUT { text }
       create: '/api/v2/chat/thread', // POST { receivers: [userId] } → el chat (nuevo o el que ya había)
+      markRead: (threadId) => `/api/v2/messages/thread/${threadId}/unread`, // DELETE: marca el chat como leído
       seen: (messageId) => `/api/v2/messages/message/${messageId}/seen`, // POST: marca visto un mensaje temporal
       disappearingImageSize: '400x400', // tamaño con el que la web pide las imágenes temporales
       // POST ["😀"] agrega · DELETE ?emojis= quita · GET lista quién reaccionó
@@ -44,6 +46,13 @@ export const config = {
     // Sobre la base: '' (detalle), /comments, /emojis, /multipost/medias
     post: (postId, groupId) =>
       groupId ? `/api/v3/group/${groupId}/post/${postId}` : `/api/v2/home/post/${postId}`,
+    // Crear y editar posts. Las fotos se suben antes (multipart, campo `file` → { id }) y van en imageIds.
+    posts: {
+      create: (groupId) => (groupId ? `/api/v3/group/${groupId}/post` : '/api/v2/home/post'), // POST { text, imageIds, everyone? }
+      // editar: PUT {base del post}/edit { text, mediaIds, existingFileIds, stickers } (mediaIds = fotos que se conservan)
+      upload: '/api/v2/photo/pt',
+      maxImages: 20,
+    },
     comments: {
       replies: (commentId) => `/api/v2/comments/${commentId}/replies`, // GET
       reply: (commentId) => `/api/v2/comments/${commentId}/reply`, // POST { text }
@@ -56,11 +65,28 @@ export const config = {
       details: (userId) => `/api/v2/following/${userId}`, // GET ?details=true
       feed: (userId) => `/api/v2/home/user/${userId}/postsfeed`, // GET, paginado
       media: (userId) => `/api/v2/home/user/${userId}/mediastream`, // GET, paginado
+      albums: (userId) => `/api/v2/home/user/${userId}/albums`, // GET, paginado → { feed: [{ name, count, image }] }
+      albumMedia: (userId, album) => `/api/v2/home/user/${userId}/album/${encodeURIComponent(album)}/mediastream`, // GET, paginado
       follow: (userId) => `/api/v2/following/${userId}/follow`, // POST sigue · DELETE deja de seguir
       requestsReceived: '/api/v2/following/requests/received', // GET
       search: '/api/v3/desktop/search/users', // GET ?query=&limit=&offset=&nm=1 → { results: [{ user }], hasMoreResults }
       acceptRequest: (requestId) => `/api/v2/following/request/${requestId}/accept`, // POST
       removeRequest: (requestId) => `/api/v2/following/request/${requestId}/remove`, // DELETE (rechazar o cancelar)
+      // Listas de personas, paginadas: { list: [{ user, following, follower }], _links.nextPage }
+      followers: '/api/v2/following/followers', // GET ?maxResults=
+      followed: '/api/v2/following/followed', // GET ?maxResults=
+      blocked: '/api/v2/following/blocked', // GET
+      block: '/api/v2/mycontacts/contact/block/user', // POST ?userId=
+      unblock: '/api/v2/mycontacts/contact/unblock', // POST ?userId=
+      listPageSize: 50,
+      // Perfil propio. Las fotos se suben antes (multipart, campo `file` → { id }) y se recortan en el servidor
+      // con croppX / croppY / croppW / croppH (sic), en píxeles de la imagen original.
+      uploadAvatar: '/api/v2/photo/up',
+      uploadCover: '/api/v2/photo/uc',
+      avatar: '/api/v2/profile', // PUT { picture: { id, croppX, croppY, croppW, croppH } }
+      cover: '/api/v2/profile/cover', // PUT { id, croppX, croppY, croppW, croppH }
+      publicProfile: '/api/v2/profile/public', // PUT { text, currentCity, job, …, status } (van todos los campos)
+      account: '/api/v2/account', // POST { firstName, lastName }
     },
 
     groups: {
@@ -71,11 +97,29 @@ export const config = {
       member: (groupId, userId) => `/api/v2/group/${groupId}/member/${userId}/remove`, // DELETE (con mi id: salir)
       apply: (publicUrlId) => `/api/v2/group/public/${encodeURIComponent(publicUrlId)}/apply`, // POST {}
       confirmInvite: (groupId) => `/api/v2/group/${groupId}/invite/confirm`, // POST {}
-      contacts: (groupId) => `/api/v2/group/${groupId}/contacts/search`, // GET ?searchStr=
+      // GET ?search=&maxResults=&offset=&markGroupMembersOf={groupId} → { list: [{ user, inGroup, invited }] }
+      // (el buscador del diálogo de invitar de la web; sin search lista todos los contactos)
+      toInvite: '/api/v2/following/followers/to-invite',
+      invitePageSize: 20,
       // when: 'upcoming' | 'past'
       events: (groupId, when) => `/api/v2/events2/group/${groupId}/${when}`, // GET ?v=2&maxResults=
       membersPageSize: 30,
       eventsPageSize: 20,
+    },
+
+    // Historias (API v3). Sacado del bundle web; MeWe llama "storyteller" a quien publica.
+    stories: {
+      feed: '/api/v3/stories/feed', // GET → { storytellersInOrder: [{ storytellerId, storytellerType, userStoryteller, stories, hasNewStories }] }
+      // GET → { stories: [{ storyId, scope, media, isNew, createdAt, totalUniqueViews }] }
+      byTeller: (tellerId, isPage) => (isPage ? `/api/v3/page/${tellerId}/stories` : `/api/v3/stories/${tellerId}`),
+      markSeen: '/api/v3/stories/mark-seen', // POST { views: [{ storyId, storytellerId, storytellerType, viewedAt }] }
+      reply: (tellerId, storyId) => `/api/v3/stories/${tellerId}/${storyId}/reply`, // POST { message }: llega como mensaje de chat
+      upload: '/api/v2/photo/st', // multipart, campo `files` → { id }
+      create: (scope) => `/api/v3/story/${scope}`, // POST { userMediaId, location }
+      remove: (scope, storyId) => `/api/v3/story/${scope}/${storyId}`, // DELETE (scope en minúsculas)
+      scopes: ['followers', 'public', 'favorites'], // quién la ve: seguidores, todos, amigos cercanos
+      imageSize: '1200x1200', // el que pide la web
+      videoResolutions: ['original', '720p', '480p'], // se prueban en orden
     },
 
     notifications: {

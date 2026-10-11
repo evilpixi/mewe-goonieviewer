@@ -1,6 +1,7 @@
 import { avatar } from '../ui/avatar.js';
 import { h } from '../ui/dom.js';
 import { openEmojiPicker } from '../ui/emojiPicker.js';
+import { takeFiles } from '../ui/files.js';
 import { icon } from '../ui/icon.js';
 import { plainText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
@@ -45,10 +46,14 @@ export function createComposer({ onSend }) {
   );
   const expandBtn = h(
     'button',
-    { type: 'button', className: 'btn icon-btn', title: 'Agrandar la caja de texto', attrs: { 'aria-label': 'Agrandar la caja de texto', 'aria-pressed': 'false' } },
+    { type: 'button', className: 'btn icon-btn expand-btn', title: 'Agrandar la caja de texto', attrs: { 'aria-label': 'Agrandar la caja de texto', 'aria-pressed': 'false' } },
     icon('maximize-2'),
   );
-  const sendBtn = h('button', { type: 'submit', className: 'btn primary' }, 'Enviar');
+  // en mobile se ve sólo el ícono (ver styles.css)
+  const sendIcon = icon('send');
+  sendIcon.classList.add('label-icon');
+  const sendLabel = h('span', { className: 'label-text' }, 'Enviar');
+  const sendBtn = h('button', { type: 'submit', className: 'btn primary send-btn', title: 'Enviar' }, sendIcon, sendLabel);
   // Foto de la cuenta que va a escribir (ver setAccount)
   const meEl = h('span', { className: 'writing-as', attrs: { role: 'img' }, hidden: true });
   const fileInput = h('input', {
@@ -138,7 +143,7 @@ export function createComposer({ onSend }) {
     editing = message;
     editBar.hidden = !message;
     attachBtn.disabled = Boolean(message);
-    sendBtn.textContent = message ? 'Guardar' : 'Enviar';
+    sendBtn.title = sendLabel.textContent = message ? 'Guardar' : 'Enviar';
     if (!message) return;
     editText.textContent = plainText(message.text);
     textarea.value = message.text;
@@ -286,9 +291,8 @@ export function createComposer({ onSend }) {
   attachBtn.addEventListener('click', () => fileInput.click());
   emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, insertText, { forText: true }));
   expandBtn.addEventListener('click', () => setExpanded(!expanded));
-  fileInput.addEventListener('change', () => {
-    addFiles(fileInput.files);
-    fileInput.value = '';
+  fileInput.addEventListener('change', async () => {
+    addFiles(await takeFiles(fileInput));
   });
 
   return {

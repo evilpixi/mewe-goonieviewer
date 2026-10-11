@@ -1,12 +1,16 @@
-// Navegación entre vistas con historial (botón Volver).
+// Navegación entre vistas con historial (se vuelve con Alt+←; no hay botón).
 //
 // Una vista se registra con registerView(name, factory). factory({ navigate, back }) se llama una sola vez
 // (la primera vez que se navega a ella) y devuelve:
-//   { el, toolbar?, show(account, params), hide?(), reload?() }
+//   { el, toolbar?, show(account, params), hide?(), reload?(), back?() }
 // - el: raíz de la vista; el router la agrega a `host` y la oculta/muestra
-// - toolbar: controles propios que se colocan en la cabecera mientras la vista está activa
+// - toolbar: controles propios que van en el segundo panel mientras la vista está activa. Un nodo (va al centro)
+//   o { left, center, right } para repartirlos en las tres zonas.
 // - show: se llama cada vez que la vista pasa a estar activa (o cambia la cuenta/los params)
-export function createRouter({ host, toolbarSlot, onChange }) {
+// - back: "atrás" del sistema dentro de la vista; devuelve true si tenía algo que cerrar
+// toolbarSlots: { left, center, right }, los contenedores de cada zona.
+// onChange({ view, params, canGoBack, hasToolbar, canReload }) avisa de cada cambio de vista.
+export function createRouter({ host, toolbarSlots, onChange }) {
   const factories = new Map();
   const instances = new Map();
   let account = null;
@@ -23,6 +27,13 @@ export function createRouter({ host, toolbarSlot, onChange }) {
     return instances.get(name);
   }
 
+  // Reparte los controles de la vista en las zonas. Devuelve si puso alguno.
+  function mountToolbar(toolbar) {
+    const zones = toolbar instanceof Node ? { center: toolbar } : (toolbar ?? {});
+    for (const [zone, slot] of Object.entries(toolbarSlots)) slot.replaceChildren(...(zones[zone] ? [zones[zone]] : []));
+    return Object.keys(toolbarSlots).some((zone) => zones[zone]);
+  }
+
   // focus: al navegar con teclado, el foco pasa a la vista nueva (si no, queda en un botón que ya no existe)
   function activate({ focus = false } = {}) {
     const entry = stack.at(-1);
@@ -31,9 +42,9 @@ export function createRouter({ host, toolbarSlot, onChange }) {
     if (active && active !== next) active.el.hidden = true;
     active = next;
     next.el.hidden = false;
-    toolbarSlot.replaceChildren(...(next.toolbar ? [next.toolbar] : []));
+    const hasToolbar = mountToolbar(next.toolbar);
     next.show(account, entry.params);
-    onChange?.({ ...entry, canGoBack: stack.length > 1 });
+    onChange?.({ ...entry, canGoBack: stack.length > 1, hasToolbar, canReload: Boolean(next.reload) });
     if (focus) {
       next.el.tabIndex = -1;
       next.el.focus({ preventScroll: true });
@@ -56,17 +67,31 @@ export function createRouter({ host, toolbarSlot, onChange }) {
     activate({ focus: true });
   }
 
+  // "Atrás" del sistema (Android): primero lo atiende la vista activa (ej. el chat vuelve a la lista),
+  // después el historial. Devuelve si había adónde volver.
+  function goBack() {
+    if (active?.back?.()) return true;
+    if (stack.length < 2) return false;
+    back();
+    return true;
+  }
+
   return {
     registerView(name, factory) {
       factories.set(name, factory);
     },
     navigate,
     back,
+    goBack,
     // Cambiar de cuenta reinicia el historial en la vista raíz indicada
     setAccount(newAccount, rootView) {
       account = newAccount;
       stack = [{ view: rootView, params: {} }];
       activate();
+    },
+    // La misma cuenta con datos nuevos (cambió su nombre o su foto): se queda en la vista en la que está
+    updateAccount(newAccount) {
+      account = newAccount;
     },
     // Cambia de pestaña raíz (Feed/Chats) descartando el historial
     setRoot(rootView) {

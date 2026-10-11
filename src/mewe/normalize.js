@@ -29,6 +29,42 @@ function image(href, size, animated = false, fixedSize = null) {
   };
 }
 
+// Video adjunto de un mensaje: { sources, poster, name, duration }. `sources` son URLs mp4 a probar en orden
+// (la web arma lo mismo: linkTemplate con cada resolución disponible, los links fijos y, en el chat, self).
+// HLS queda afuera: <video> no lo reproduce sin una librería.
+function video(attachment) {
+  const media = attachment.video ?? attachment;
+  const links = { ...attachment._links, ...media._links };
+  const url = (href, resolution = 'original') =>
+    href ? resolveImageUrl(href.replace('{resolution}', resolution), undefined, config.mewe.host) : null;
+  const resolutions = (media.availableResolutions ?? [])
+    .filter((r) => r !== 'original' && !/hls/i.test(r))
+    .sort((a, b) => (parseInt(b, 10) || 0) - (parseInt(a, 10) || 0)); // primero la de más calidad
+  const sources = [
+    ...resolutions.map((r) => url(links.linkTemplate?.href, r)),
+    url(links.res720pMp4?.href),
+    url(links.res480pMp4?.href),
+    url(links.self?.href),
+    url(links.original?.href),
+    url(links.linkTemplate?.href, '480p'),
+  ].filter(Boolean);
+  if (!sources.length) return null;
+  return {
+    sources: [...new Set(sources)],
+    poster: resolveImageUrl(links.thumbnail?.href ?? links.img?.href ?? links.poster?.href),
+    name: attachment.fileName ?? media.name ?? '',
+    duration: Number(media.duration ?? attachment.duration) || null,
+  };
+}
+
+// Un video mandado como archivo llega con aType 'doc' (así salen los que se adjuntan desde el celular)
+const VIDEO_FILE = /\.(mp4|m4v|webm|mov|ogv)$/i;
+function isVideo(attachment) {
+  if (attachment.aType === 'video') return true;
+  if (!attachment.aType || attachment.aType === 'photo') return false;
+  return /^video\//i.test(attachment.mime ?? '') || VIDEO_FILE.test(attachment.fileName ?? '');
+}
+
 function uniqueImages(list) {
   const seen = new Set();
   return list.filter((img) => img && !seen.has(img.src) && seen.add(img.src));
@@ -106,6 +142,13 @@ function normalizePost(post, users, groups) {
     images,
     // el feed trae solo las primeras fotos de un multipost: imagesCount dice cuántas hay en total
     imagesCount: Math.max(images.length, post.photosCount ?? post.mediasCount ?? 0),
+    // Para editar el texto: las fotos que se conservan van por id. Sólo se editan los posts de texto y fotos
+    // que llegaron enteros (editar otra cosa le quitaría el link, la encuesta, los archivos o las fotos que faltan).
+    mediaIds: (post.medias ?? []).map((media) => media.mediaId).filter(Boolean),
+    editable:
+      !(post.link || post.poll || post.files?.length || post.sticker || post.stickers?.length || post.audio || post.refPost) &&
+      (post.medias ?? []).every((media) => media.mediaId && media.photo && !media.video) &&
+      (post.mediasCount ?? post.photosCount ?? 0) <= (post.medias ?? []).length,
     emojis: normalizeEmojis(post),
     canReact: post.permissions?.canEmojify ?? post.permissions?.canAddEmoji ?? true,
     canComment: (post.permissions?.comment ?? true) && !post.commentsDisabled,
@@ -177,7 +220,9 @@ export function normalizeThreads(data, myUserId) {
       participantsCount: others.length,
       // con quién se habla en un chat de a dos (para su perfil y su portada)
       userId: !isGroup && others.length === 1 ? (others[0].id ?? others[0].userId ?? null) : null,
-      lastMessage: emojify(last.message ?? last.text) || (last.attachments?.length ? '📷 Imagen' : ''),
+      lastMessage:
+        emojify(last.message ?? last.text) ||
+        (last.attachments?.length ? (last.attachments.some(isVideo) ? '🎬 Video' : '📷 Imagen') : ''),
       updatedAt: toMillis(last.createdAt ?? last.date ?? thread.updatedAt ?? thread.lastActivity),
       unread: Boolean(thread.unread ?? thread.unreadCount ?? thread.unreadMessages),
     };
@@ -207,8 +252,10 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
     image(m.photo?._links?.img?.href, m.photo?.size),
     ...(m.stickers ?? []).map((s) => image(s._links?.img?.href ?? s._links?.self?.href)),
   ]);
+  // los videos que no traen una URL reproducible quedan como archivo, con su nombre
+  const videos = new Map((m.attachments ?? []).filter(isVideo).map((a) => [a, video(a)]));
   const files = (m.attachments ?? [])
-    .filter((a) => a.aType && a.aType !== 'photo')
+    .filter((a) => a.aType && a.aType !== 'photo' && !videos.get(a))
     .map((a) => ({ name: a.fileName || a.aType, type: a.aType }));
   return {
     id: m.id ?? m._id,
@@ -219,13 +266,17 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
     mine: Boolean(myUserId) && authorId === myUserId,
     authorId: authorId ?? null,
     author: displayName(author),
+    authorHandle: author.publicLinkId ?? null,
     authorAvatar: avatarOf(author),
     images,
+    videos: [...videos.values()].filter(Boolean),
     files,
     emojis: normalizeEmojis(m),
     replyTo: m.replyTo
       ? { id: m.replyTo.id, text: emojify(m.replyTo.text ?? m.replyTo.originalText), authorId: m.replyTo.authorId ?? null }
       : null,
+    // respuesta a una historia: { id, tellerId, image: { src, full }, isVideo } (en las de video, image es la miniatura)
+    story: m.story?.storyId ? storyReply(m.story) : null,
     expiresIn: m.expiresIn ? Number(m.expiresIn) : null,
     edited: Boolean(m.editedAt),
     deleted: Boolean(m.deleted),
@@ -256,12 +307,20 @@ export function normalizeUserProfile(data, myUserId) {
   const isMe = Boolean(id) && id === myUserId;
   const following = Boolean(user.following ?? user.isFollowing);
   const isPublic = (user.public ?? user.isPublic ?? profile.public) !== false;
+  const coverHref = user._links?.cover?.href ?? user._links?.coverPhoto?.href;
   return {
     ...normalizeUser(user),
     handle: user.publicLinkId ?? null,
-    cover: resolveImageUrl(user._links?.cover?.href ?? user._links?.coverPhoto?.href),
+    cover: resolveImageUrl(coverHref),
+    // foto de perfil y portada para el visor: { src, full }
+    avatarImage: image(avatarHref(user)),
+    coverImage: image(coverHref),
     bio: profile.text ?? profile.description ?? user.description ?? '',
     info: PROFILE_FIELDS.map(([label, key]) => [label, profile[key] ?? user[key]]).filter(([, value]) => value),
+    // lo mismo, sin filtrar, para el formulario de "Editar perfil": [{ key, label, value }]
+    firstName: user.firstName ?? '',
+    lastName: user.lastName ?? '',
+    fields: PROFILE_FIELDS.map(([label, key]) => ({ key, label, value: String(profile[key] ?? user[key] ?? '') })),
     counters: {
       followers: counters.followers ?? null,
       following: counters.following ?? counters.followed ?? null,
@@ -278,28 +337,130 @@ export function normalizeUserProfile(data, myUserId) {
   };
 }
 
-// Solicitudes de seguimiento recibidas: [{ requestId, user }]
+// Solicitudes de seguimiento recibidas: { list: [{ user, followRequestId }] } → [{ requestId, user }]
+// (a veces el usuario viene plano, con followRequestId al lado de su id: por eso nunca se usa item.id)
 export function normalizeFollowRequests(data) {
-  const list = data?.requests ?? data?.feed ?? data?.users ?? data?.list ?? (Array.isArray(data) ? data : []);
+  const list = data?.list ?? data?.requests ?? data?.feed ?? data?.users ?? (Array.isArray(data) ? data : []);
   return list.map((item) => {
     const user = item.user ?? item.follower ?? item.requester ?? item;
     return {
-      requestId: item.requestId ?? user.followRequestReceived ?? item.id ?? null,
-      user: { ...normalizeUser(user), handle: user.publicLinkId ?? null },
+      requestId:
+        item.followRequestId ?? user.followRequestId ?? item.requestId ?? item.followRequestReceived ?? user.followRequestReceived ?? null,
+      user: {
+        ...normalizeUser(user),
+        handle: user.publicLinkId ?? null,
+        isPublic: user.public !== false,
+        following: Boolean(item.following ?? user.following),
+      },
     };
   });
 }
 
-// Fotos de un perfil o grupo (…/mediastream): { images, nextPage }
+// Fotos de un perfil, grupo o álbum (…/mediastream): { images, nextPage }
+// Cada imagen lleva el postId de su publicación (para mostrarla con sus comentarios en el visor)
 export function normalizeMediaStream(data) {
-  const list = data?.feed ?? data?.medias ?? data?.items ?? (Array.isArray(data) ? data : []);
+  const list = data?.feed ?? data?.medias ?? data?.media ?? data?.items ?? (Array.isArray(data) ? data : []);
   const images = list.flatMap((item) => {
-    const found = extractImages(item);
-    if (found.length) return found;
     const media = item.media ?? item;
-    return [image(media._links?.img?.href ?? media._links?.self?.href, media.size)];
+    const found = extractImages(item);
+    if (!found.length) found.push(image(media._links?.img?.href ?? media._links?.self?.href, media.size));
+    return found.filter(Boolean).map((img) => ({ ...img, postId: item.postItemId ?? null }));
   });
   return { images: uniqueImages(images), nextPage: data?._links?.nextPage?.href ?? null };
+}
+
+// Álbumes de un perfil (…/albums): { feed: [{ name, count, image }] } → { albums: [{ name, count, cover }], nextPage }
+export function normalizeAlbums(data) {
+  const list = data?.feed ?? data?.albums ?? (Array.isArray(data) ? data : []);
+  return {
+    albums: list
+      .filter((a) => a?.name && a.count !== 0)
+      .map((a) => ({
+        name: String(a.name),
+        count: a.count ?? null,
+        cover: resolveImageUrl(a.image?._links?.img?.href ?? a.photo?._links?.img?.href ?? a._links?.img?.href),
+      })),
+    nextPage: data?._links?.nextPage?.href ?? null,
+  };
+}
+
+// --- Historias ---
+
+// Los href de las historias ya traen su prefijo de API: la web los pega tal cual al host
+function storyUrl(href, base) {
+  if (!href) return null;
+  const path = href.replace('{static}', '0').replace(/\{[^}]+\}/g, '');
+  if (/^https?:\/\//.test(path)) return path;
+  return base + (path.startsWith('/api/') ? path : `/api/v2${path.startsWith('/') ? '' : '/'}${path}`);
+}
+
+// Una historia: { id, scope, createdAt, isNew, views, image: { src, full }, video: { sources, poster } | null }
+// En las de video, `image` es su miniatura.
+function normalizeStory(story) {
+  const media = story.media ?? {};
+  const links = media._links ?? {};
+  const { imageSize, videoResolutions } = config.mewe.stories;
+  const isVideo = /video/i.test(media.mediaType ?? '');
+  const photo = (href) => {
+    if (!href) return null;
+    return {
+      src: storyUrl(href.replace('{imageSize}', config.mewe.imageSize), config.mewe.imgHost),
+      full: storyUrl(href.replace('{imageSize}', imageSize), config.mewe.imgHost),
+    };
+  };
+  const sources = isVideo
+    ? videoResolutions.map((r) => storyUrl(links.media?.href?.replace('{resolution}', r), config.mewe.host)).filter(Boolean)
+    : [];
+  const image = photo(isVideo ? links.thumbnail?.href : (links.media?.href ?? links.img?.href));
+  return {
+    id: story.storyId ?? story.id ?? null,
+    scope: story.scope ?? null,
+    createdAt: toMillis(story.createdAt),
+    isNew: Boolean(story.isNew),
+    views: story.totalUniqueViews ?? null,
+    image,
+    video: sources.length ? { sources: [...new Set(sources)], poster: image?.full ?? null } : null,
+  };
+}
+
+// La historia a la que responde un mensaje de chat: { storyId, storytellerId, storytellerType, media, isLive }
+function storyReply(story) {
+  const { image, video } = normalizeStory(story);
+  return { id: story.storyId, tellerId: story.storytellerId ?? null, image, isVideo: Boolean(video) };
+}
+
+export function normalizeStories(data) {
+  const list = data?.stories ?? data?.journalEntries ?? (Array.isArray(data) ? data : []);
+  return list
+    .map(normalizeStory)
+    .filter((story) => story.id && (story.image || story.video))
+    .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+}
+
+// Quienes tienen historias (GET /stories/feed): [{ id, type, isPage, name, avatar, handle, hasNew, isMine, stories }]
+// `stories` puede venir incompleta: el visor pide todas las de cada persona al abrirla.
+export function normalizeStorytellers(data, myUserId) {
+  const list = data?.storytellersInOrder ?? data?.storytellers ?? data?.tellers ?? [];
+  return list
+    .map((teller) => {
+      const type = teller.storytellerType ?? 'User';
+      const isPage = type === 'Page';
+      const who = (isPage ? teller.pageStoryteller : teller.userStoryteller) ?? {};
+      const id = teller.storytellerId ?? teller.id ?? who.id ?? null;
+      const pageAvatar = who._links?.avatar?.href ?? (typeof who.avatar === 'string' ? who.avatar : null);
+      return {
+        id,
+        type,
+        isPage,
+        name: (isPage ? who.name : displayName(who)) || 'Desconocido',
+        avatar: isPage ? resolveImageUrl(pageAvatar, config.mewe.avatarSize) : avatarOf(who),
+        handle: isPage ? null : (who.publicLinkId ?? null),
+        hasNew: Boolean(teller.hasNewStories),
+        isMine: Boolean(id) && id === myUserId,
+        stories: normalizeStories(teller),
+      };
+    })
+    .filter((teller) => teller.id && teller.type !== 'Ad');
 }
 
 // --- Grupos ---
@@ -318,11 +479,15 @@ export function normalizeGroup(data) {
   const g = data?.group ?? data ?? {};
   const isMember = Boolean(g.isMember ?? g.isConfirmed ?? g.role);
   const isInvited = !isMember && Boolean(g.isInvited ?? g.invitedBy ?? g._links?.inviteConfirm);
+  const coverHref = g._links?.coverPhoto?.href ?? g._links?.cover?.href;
   return {
     id: g.id ?? g._id ?? null,
     name: g.name ?? 'Grupo',
     avatar: groupAvatar(g),
-    cover: resolveImageUrl(g._links?.coverPhoto?.href ?? g._links?.cover?.href),
+    cover: resolveImageUrl(coverHref),
+    // foto y portada para el visor: { src, full }
+    avatarImage: image(groupAvatarHref(g)),
+    coverImage: image(coverHref),
     description: g.descriptionPlain || g.description || '',
     membersCount: g.membersCount ?? null,
     isPublic: Boolean(g.isPublic),
@@ -333,6 +498,9 @@ export function normalizeGroup(data) {
     isMember,
     isInvited,
     alreadyApplied: Boolean(g.alreadyApplied),
+    // preguntas que el grupo hace antes de entrar (y si es obligatorio responderlas)
+    questions: (g.applyQuestions ?? []).map((q) => (typeof q === 'string' ? q : q?.question)).filter(Boolean),
+    mandatoryQuestions: Boolean(g.mandatoryQuestions),
     newPosts: g.newPosts ?? 0,
   };
 }
@@ -353,12 +521,20 @@ export function normalizeMembers(data) {
   });
 }
 
-// Contactos que se pueden invitar a un grupo: { members: [{ user, online }] }
+// Listas de personas: resultados de búsqueda ({ results: [{ user }] }) y contactos para invitar a un grupo
+// ({ list: [{ user, inGroup, invited }] }: inGroup = ya es miembro, invited = ya tiene una invitación)
 export function normalizeContacts(data) {
-  const list = data?.members ?? data?.contacts ?? data?.results ?? data?.users ?? (Array.isArray(data) ? data : []);
+  const list =
+    data?.list ?? data?.members ?? data?.contacts ?? data?.results ?? data?.users ?? data?.blocked ?? (Array.isArray(data) ? data : []);
   return list.map((item) => {
     const user = item.user ?? item;
-    return { ...normalizeUser(user), handle: user.publicLinkId ?? null };
+    return {
+      ...normalizeUser(user),
+      handle: user.publicLinkId ?? null,
+      isPublic: user.public !== false,
+      inGroup: Boolean(item.inGroup ?? item.isGroupMember),
+      invited: Boolean(item.invited),
+    };
   });
 }
 
@@ -406,7 +582,7 @@ function normalizeNotification(n) {
     system: n.system ?? null,
     unread: n.visited === false,
     createdAt: toMillis(n.updatedAt ?? n.createdAt ?? n.occuredAt ?? n.date),
-    users: (n.actingUsers ?? []).map((u) => ({ ...normalizeUser(u), handle: u.publicLinkId ?? null })),
+    users: (n.actingUsers ?? []).map((u) => ({ ...normalizeUser(u), handle: u.publicLinkId ?? null, isPublic: u.public !== false })),
     usersCount: n.actingUsersCount ?? n.actingUsers?.length ?? 0,
     inGroup,
     group: n.group ? { id: n.group.id, name: n.group.name ?? 'Grupo' } : null,
@@ -444,17 +620,24 @@ function displayName(user) {
 
 // Avatar desde _links o, si falta, con el patrón que usa la web: /photo/profile/{size}/{userId}?f={fprint}
 function avatarOf(user) {
+  return resolveImageUrl(avatarHref(user), config.mewe.avatarSize);
+}
+
+function avatarHref(user) {
   if (!user) return null;
   const href = user._links?.avatar?.href;
-  if (href) return resolveImageUrl(href, config.mewe.avatarSize);
+  if (href) return href;
   const id = user.id ?? user.userId;
   const fprint = user.fprint ?? user.fingerprint;
-  return id && fprint ? resolveImageUrl(`/api/v2/photo/profile/{imageSize}/${id}?f=${fprint}`, config.mewe.avatarSize) : null;
+  return id && fprint ? `/api/v2/photo/profile/{imageSize}/${id}?f=${fprint}` : null;
+}
+
+function groupAvatarHref(group) {
+  return group?._links?.groupAvatar?.href ?? group?._links?.avatar?.href ?? null;
 }
 
 function groupAvatar(group) {
-  const href = group?._links?.groupAvatar?.href ?? group?._links?.avatar?.href;
-  return href ? resolveImageUrl(href, config.mewe.avatarSize) : null;
+  return resolveImageUrl(groupAvatarHref(group), config.mewe.avatarSize);
 }
 
 function extractImages(post) {

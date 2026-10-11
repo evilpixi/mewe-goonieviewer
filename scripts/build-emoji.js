@@ -1,11 +1,12 @@
-// Genera src/mewe/emojiShortcodes.json ({ "grin": "😁", … }) a partir de emojibase-data.
+// Genera src/mewe/emojiShortcodes.js (export default { "grin": "😁", … }) a partir de emojibase-data.
+// Es un módulo y no un .json: importar JSON no funciona en los WebView viejos de Android.
 // MeWe manda los emojis como :codigo: (nombres de JoyPixels en su mayoría); la app los convierte al emoji real.
 // Sólo hace falta volver a correrlo (npm run emoji:update) al actualizar emojibase-data.
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const OUTPUT = new URL('../src/mewe/emojiShortcodes.json', import.meta.url);
+const OUTPUT = new URL('../src/mewe/emojiShortcodes.js', import.meta.url);
 // Si dos fuentes usan el mismo código para emojis distintos, gana la primera
 const SOURCES = ['joypixels', 'iamcal', 'github', 'emojibase', 'emojibase-legacy'];
 
@@ -29,5 +30,5 @@ for (const source of SOURCES) {
 }
 
 const sorted = Object.fromEntries(Object.entries(shortcodes).sort(([a], [b]) => a.localeCompare(b)));
-await fs.writeFile(OUTPUT, `${JSON.stringify(sorted, null, 0)}\n`);
+await fs.writeFile(OUTPUT, `// Generado por scripts/build-emoji.js: no editar a mano\nexport default ${JSON.stringify(sorted, null, 0)};\n`);
 console.log(`${Object.keys(sorted).length} códigos de emoji → ${OUTPUT.pathname}`);

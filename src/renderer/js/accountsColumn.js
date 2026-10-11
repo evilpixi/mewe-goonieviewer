@@ -2,6 +2,7 @@ import { avatar } from './ui/avatar.js';
 import { h } from './ui/dom.js';
 
 // Columna vertical de cuentas. Llama a onSelect(account) y onAdd().
+// En mobile no se ve: la reemplaza el menú de cuentas de la cabecera (app.js).
 export function createAccountsColumn({ listEl, addButton, onSelect, onAdd }) {
   let accounts = [];
   let activeId = null;
@@ -24,6 +25,8 @@ export function createAccountsColumn({ listEl, addButton, onSelect, onAdd }) {
         return h('li', {}, btn);
       }),
     );
+    // la cuenta activa siempre a la vista, aunque la lista no entre entera
+    listEl.querySelector('.account-btn.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   return {

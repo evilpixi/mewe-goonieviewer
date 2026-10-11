@@ -20,12 +20,15 @@ const IDLE_TIMEOUT_MS = 90000; // sin mensajes ni pings en este tiempo: se recon
 
 // Una conexión websocket por cuenta (wss://ws.mewe.com/indexWS?userId=…), autenticada con las cookies
 // de su sesión. Reenvía a la UI los eventos de chat como 'chat:event' y el estado como 'chat:status'.
+//   connect(url, headers, accountId) → un WebSocket abierto con esas cabeceras (el del navegador no las
+//   acepta: lo pone la plataforma)
 export class Realtime {
   #connections = new Map();
 
-  constructor({ accountManager, send }) {
+  constructor({ accountManager, send, connect }) {
     this.accountManager = accountManager;
     this.send = send;
+    this.connect = connect;
   }
 
   // Idempotente: la UI lo llama al mostrar los chats de una cuenta
@@ -65,8 +68,8 @@ export class Realtime {
       url.searchParams.set('userId', userId);
       // Las cookies de sesión pueden ser sólo de mewe.com (sin dominio): se usan las de mewe.com
       const { cookie, 'user-agent': userAgent, origin } = await client.headers(new URL(config.mewe.host));
-      // El WebSocket de Node (undici) acepta cabeceras extra: las cookies autentican la conexión
-      const ws = new WebSocket(url, { headers: { cookie, 'user-agent': userAgent, origin } });
+      // las cookies autentican la conexión
+      const ws = this.connect(url, { cookie, 'user-agent': userAgent, origin }, conn.accountId);
       conn.ws = ws;
 
       ws.addEventListener('open', () => {

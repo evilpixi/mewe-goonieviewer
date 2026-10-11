@@ -4,15 +4,40 @@ import { createComments } from './comments.js';
 import { formatDateTime, formatFull } from './dates.js';
 import { h } from './dom.js';
 import { renderGallery } from './gallery.js';
+import { icon } from './icon.js';
+import { openPostComposer } from './postComposer.js';
 import { createReactions } from './reactions.js';
 import { richText } from './richText.js';
 import { userName } from './userName.js';
 
 // Un post (feed, perfil, grupo o vista individual): cabecera, texto, fotos, reacciones y comentarios.
 // expanded: muestra los comentarios abiertos (vista de post individual)
-export function renderPost(post, { account, navigate, expanded = false }) {
+// gallery: false omite las fotos (el visor de imágenes ya las está mostrando)
+// Los posts propios de texto y fotos llevan un lápiz para editar el texto (ver ui/postComposer.js).
+export function renderPost(post, options) {
+  const { account, navigate, expanded = false, gallery = true } = options;
   const accountId = account.id;
   const ref = { id: post.id, groupId: post.groupId };
+  const canEdit = post.editable && Boolean(post.author.id) && post.author.id === account.userId;
+
+  // Al guardar se vuelve a pedir el post y se redibuja en su lugar
+  function edit() {
+    openPostComposer({
+      account,
+      post,
+      onDone: async (saved) => {
+        let fresh = saved;
+        try {
+          fresh = await api.getPost(accountId, post.id, post.groupId);
+        } catch (err) {
+          console.warn('[post] recargar después de editar', err); // queda lo que devolvió la edición
+        }
+        if (!fresh) return;
+        const updated = { ...fresh, groupId: fresh.groupId ?? post.groupId, group: fresh.group ?? post.group };
+        article.replaceWith(renderPost(updated, options).el);
+      },
+    });
+  }
 
   const head = h(
     'div',
@@ -32,6 +57,8 @@ export function renderPost(post, { account, navigate, expanded = false }) {
         !expanded && (() => navigate('post', { postId: post.id, groupId: post.groupId })),
         'post-date-link',
       ),
+    canEdit &&
+      h('button', { className: 'icon-btn post-edit', title: 'Editar publicación', attrs: { 'aria-label': 'Editar publicación' }, onClick: edit }, icon('pencil')),
   );
 
   const reactions = createReactions({
@@ -69,12 +96,13 @@ export function renderPost(post, { account, navigate, expanded = false }) {
     { className: 'post', dataset: { postId: post.id ?? '' } },
     head,
     post.text && h('p', { className: 'post-text', attrs: { dir: 'auto' } }, richText(post.text, { accountId, navigate })),
-    renderGallery({
-      accountId,
-      images: post.images,
-      total: post.imagesCount,
-      loadAll: () => api.getPostImages(accountId, ref),
-    }),
+    gallery &&
+      renderGallery({
+        accountId,
+        images: post.images,
+        total: post.imagesCount,
+        loadAll: () => api.getPostImages(accountId, ref),
+      }),
     h('div', { className: 'post-footer' }, reactions.el, (post.commentsCount > 0 || post.canComment) && commentsBtn),
     commentsSlot,
   );
