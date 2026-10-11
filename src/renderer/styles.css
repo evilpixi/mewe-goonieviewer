@@ -1001,6 +1001,17 @@ button.mention:hover {
   margin-left: auto;
 }
 
+/* Post compartido: el original, citado dentro del que lo comparte */
+.post-shared {
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+
+.post-text + .post-shared {
+  margin-top: var(--space-4);
+}
+
 /* Lápiz para editar un post propio */
 .post-edit {
   flex-shrink: 0;

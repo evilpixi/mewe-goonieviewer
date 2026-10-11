@@ -103,12 +103,49 @@ export function renderPost(post, options) {
         total: post.imagesCount,
         loadAll: () => api.getPostImages(accountId, ref),
       }),
+    post.shared && renderShared(post.shared, { accountId, navigate, gallery }),
     h('div', { className: 'post-footer' }, reactions.el, (post.commentsCount > 0 || post.canComment) && commentsBtn),
     commentsSlot,
   );
 
   if (expanded) toggleComments(true);
   return { el: article, comments: () => comments };
+}
+
+// El post original de uno compartido, citado dentro del que lo comparte: la fecha lleva al original
+function renderShared(shared, { accountId, navigate, gallery }) {
+  const ref = { id: shared.id, groupId: shared.groupId };
+  return h(
+    'div',
+    { className: 'post-shared' },
+    h(
+      'div',
+      { className: 'post-head' },
+      avatar(accountId, shared.author.avatar, { name: shared.author.name, size: 'sm' }),
+      link(userName(shared.author.name, { className: 'post-author' }), shared.author.id && (() => navigate('profile', { userId: shared.author.id }))),
+      shared.group &&
+        h(
+          'span',
+          { className: 'post-group' },
+          '› ',
+          link(userName(shared.group, { fallback: '' }), shared.groupId && (() => navigate('group', { groupId: shared.groupId }))),
+        ),
+      shared.createdAt &&
+        link(
+          h('time', { className: 'post-date', dateTime: new Date(shared.createdAt).toISOString(), title: formatFull(shared.createdAt) }, formatDateTime(shared.createdAt)),
+          shared.id && (() => navigate('post', { postId: shared.id, groupId: shared.groupId })),
+          'post-date-link',
+        ),
+    ),
+    shared.text && h('p', { className: 'post-text', attrs: { dir: 'auto' } }, richText(shared.text, { accountId, navigate })),
+    gallery &&
+      renderGallery({
+        accountId,
+        images: shared.images,
+        total: shared.imagesCount,
+        loadAll: () => api.getPostImages(accountId, ref),
+      }),
+  );
 }
 
 // Envuelve un nodo en un botón-enlace si hay acción; si no, lo deja como está
