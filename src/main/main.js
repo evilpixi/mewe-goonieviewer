@@ -3,11 +3,12 @@ import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow } from 'electron';
 import { config } from '../config.js';
 import { serializeError } from '../mewe/errors.js';
-import { AccountManager } from './accountManager.js';
-import { AccountStore } from './accountStore.js';
+import { AccountManager } from '../core/accountManager.js';
+import { AccountStore } from '../core/accountStore.js';
+import { Realtime } from '../core/realtime.js';
 import { handleImageProtocol, registerImageScheme } from './imageProtocol.js';
 import { registerIpc } from './ipc.js';
-import { Realtime } from './realtime.js';
+import { connectWebSocket, electronPlatform, fileStorage } from './platform.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 let mainWindow = null;
@@ -45,12 +46,12 @@ function createMainWindow() {
 }
 
 app.whenReady().then(async () => {
-  const store = new AccountStore(app.getPath('userData'));
+  const store = new AccountStore(fileStorage(path.join(app.getPath('userData'), 'accounts.json')));
   await store.load();
 
   const accountManager = new AccountManager({
     store,
-    getParentWindow: () => mainWindow,
+    platform: electronPlatform({ getParentWindow: () => mainWindow }),
     onLoginError: (accountId, err) => {
       const error = serializeError(err);
       console.error('[login]', error);
@@ -65,6 +66,7 @@ app.whenReady().then(async () => {
   const realtime = new Realtime({
     accountManager,
     send: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+    connect: connectWebSocket,
   });
   app.on('before-quit', () => realtime.stopAll());
 

@@ -7,7 +7,7 @@ export class ApiError extends Error {
   }
 }
 
-// Invoca cualquier canal de src/main/ipc.js
+// Invoca cualquier canal de src/core/channels.js o, los 'ui:*', de src/main/ipc.js
 export async function invoke(channel, ...args) {
   const result = await window.mewe.invoke(channel, ...args);
   if (!result.ok) throw new ApiError(result.error);

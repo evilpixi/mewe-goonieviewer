@@ -1,5 +1,6 @@
 // Adaptador sobre el cookie store de una sesión (partition) de Electron.
 // Cada cuenta tiene su propia sesión, así que las cookies nunca se mezclan.
+// Es la interfaz de cookies que usa MeweClient: header, get y storeFromResponse.
 const SAME_SITE = { lax: 'lax', strict: 'strict', none: 'no_restriction' };
 
 export class SessionCookies {

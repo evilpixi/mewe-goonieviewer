@@ -18,7 +18,7 @@ export async function avatarColor(client, url) {
 // Agrupa los píxeles en 512 tonos y devuelve el promedio del grupo con más peso.
 // Los colores vivos pesan más que grises, blancos y negros: si no, casi todas las fotos darían un gris.
 function dominantColor(buffer) {
-  const img = nativeImage.createFromBuffer(buffer);
+  const img = nativeImage.createFromBuffer(Buffer.from(buffer)); // llega como Uint8Array
   if (img.isEmpty()) return null;
   const pixels = img.resize({ width: SAMPLE, height: SAMPLE }).toBitmap(); // BGRA
   const buckets = new Map();
