@@ -1,6 +1,7 @@
 import { avatar } from '../ui/avatar.js';
 import { h } from '../ui/dom.js';
 import { openEmojiPicker } from '../ui/emojiPicker.js';
+import { takeFiles } from '../ui/files.js';
 import { icon } from '../ui/icon.js';
 import { plainText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
@@ -290,9 +291,8 @@ export function createComposer({ onSend }) {
   attachBtn.addEventListener('click', () => fileInput.click());
   emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, insertText, { forText: true }));
   expandBtn.addEventListener('click', () => setExpanded(!expanded));
-  fileInput.addEventListener('change', () => {
-    addFiles(fileInput.files);
-    fileInput.value = '';
+  fileInput.addEventListener('change', async () => {
+    addFiles(await takeFiles(fileInput));
   });
 
   return {

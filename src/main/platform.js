@@ -12,7 +12,7 @@ export function electronPlatform({ getParentWindow }) {
   return {
     newAccount: (id) => ({ id, partition: `persist:mewe-${id}` }),
     cookiesFor: (account) => new SessionCookies(sessionOf(account)),
-    clientOptions: { dump: dumpResponse },
+    clientOptionsFor: () => ({ dump: dumpResponse }),
     login: ({ account, ...options }) => openLoginWindow({ ses: sessionOf(account), parent: getParentWindow(), ...options }),
     clearSession: (account) => sessionOf(account).clearStorageData(),
   };

@@ -4,7 +4,7 @@ import { MeweClient } from '../mewe/client.js';
 // Lo que depende de dónde corre la app lo pone `platform` (Electron: src/main/platform.js):
 //   newAccount(id) → los datos de una cuenta nueva que se guardan: { id, … }
 //   cookiesFor(account) → adaptador de cookies de la sesión de esa cuenta
-//   clientOptions → opciones de MeweClient (fetch, dump)
+//   clientOptionsFor(account) → opciones de su MeweClient (fetch, dump)
 //   login({ account, email, password, verify, onApiError, onStatus }) → el perfil, cuando el usuario se loguea
 //   clearSession(account) → borra las cookies de la cuenta
 export class AccountManager {
@@ -73,7 +73,7 @@ export class AccountManager {
   }
 
   #newClient(account) {
-    return new MeweClient(this.platform.cookiesFor(account), this.platform.clientOptions);
+    return new MeweClient(this.platform.cookiesFor(account), this.platform.clientOptionsFor(account));
   }
 
   #login({ account, client, email, password }) {

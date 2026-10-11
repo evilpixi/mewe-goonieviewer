@@ -1,6 +1,7 @@
 import { api, imageUrl } from '../api.js';
 import { clearError, showError } from '../errorView.js';
 import { h } from './dom.js';
+import { takeFiles } from './files.js';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 // Proporción (alto / ancho) con la que MeWe recorta cada foto: las mismas que usa el recortador de la web
@@ -36,9 +37,8 @@ export function openProfileEditor({ account, profile, onSaved }) {
     preview.hidden = !currentUrl;
     const input = h('input', { type: 'file', accept: IMAGE_TYPES.join(','), hidden: true, attrs: { 'aria-hidden': 'true', tabindex: '-1' } });
     const button = h('button', { type: 'button', className: 'btn', onClick: () => input.click() }, `Cambiar ${label}`);
-    input.addEventListener('change', () => {
-      const file = input.files[0];
-      input.value = '';
+    input.addEventListener('change', async () => {
+      const [file] = await takeFiles(input);
       if (!file || !IMAGE_TYPES.includes(file.type)) return;
       if (picked[kind]) URL.revokeObjectURL(picked[kind].url);
       picked[kind] = { file, url: URL.createObjectURL(file) };

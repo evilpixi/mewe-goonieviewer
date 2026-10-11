@@ -20,8 +20,8 @@ const IDLE_TIMEOUT_MS = 90000; // sin mensajes ni pings en este tiempo: se recon
 
 // Una conexión websocket por cuenta (wss://ws.mewe.com/indexWS?userId=…), autenticada con las cookies
 // de su sesión. Reenvía a la UI los eventos de chat como 'chat:event' y el estado como 'chat:status'.
-//   connect(url, headers) → un WebSocket abierto con esas cabeceras (el del navegador no las acepta:
-//   lo pone la plataforma)
+//   connect(url, headers, accountId) → un WebSocket abierto con esas cabeceras (el del navegador no las
+//   acepta: lo pone la plataforma)
 export class Realtime {
   #connections = new Map();
 
@@ -69,7 +69,7 @@ export class Realtime {
       // Las cookies de sesión pueden ser sólo de mewe.com (sin dominio): se usan las de mewe.com
       const { cookie, 'user-agent': userAgent, origin } = await client.headers(new URL(config.mewe.host));
       // las cookies autentican la conexión
-      const ws = this.connect(url, { cookie, 'user-agent': userAgent, origin });
+      const ws = this.connect(url, { cookie, 'user-agent': userAgent, origin }, conn.accountId);
       conn.ws = ws;
 
       ws.addEventListener('open', () => {

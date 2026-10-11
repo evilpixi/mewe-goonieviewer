@@ -124,7 +124,9 @@ export const api = {
   onLoginStatus: (callback) => on('login:status', callback),
 };
 
-// URL del protocolo propio que sirve imágenes con las cookies de la cuenta
+// URL que sirve una imagen de MeWe con las cookies de la cuenta: el protocolo propio de Electron,
+// o la que dé la plataforma (Android: src/android/bridge.js)
 export function imageUrl(accountId, url) {
-  return url ? `mewe-img://${accountId}/?u=${encodeURIComponent(url)}` : null;
+  if (!url) return null;
+  return window.mewe.imageUrl?.(accountId, url) ?? `mewe-img://${accountId}/?u=${encodeURIComponent(url)}`;
 }

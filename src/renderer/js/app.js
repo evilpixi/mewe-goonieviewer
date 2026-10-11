@@ -240,6 +240,23 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+// "Atrás" del sistema (Android: lo avisa src/android/bridge.js con el evento mewe:back). Cierra lo que esté
+// más arriba: un menú, un diálogo, la conversación abierta o la vista actual. Si no hay nada que cerrar no
+// se cancela el evento, y la app se va al fondo.
+window.addEventListener('mewe:back', (event) => {
+  if (closePopover() || closeTopDialog() || router.goBack()) event.preventDefault();
+});
+
+function closeTopDialog() {
+  const open = [...document.querySelectorAll('dialog[open]')];
+  // con uno abierto sobre otro (una confirmación), el de arriba es el que tiene el foco
+  const dialog = open.find((el) => el.contains(document.activeElement)) ?? open.at(-1);
+  if (!dialog) return false;
+  // como Esc: los diálogos que piden confirmación antes de cerrarse cancelan este evento
+  if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+  return true;
+}
+
 // --- Contador de notificaciones sin ver (campana) ---
 
 function setUnseen(count) {

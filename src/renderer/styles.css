@@ -1605,6 +1605,8 @@ button.mention:hover {
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
+  /* en el teléfono el visor llega hasta arriba de todo: los botones van debajo de la barra de estado */
+  padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
   background: linear-gradient(rgb(0 0 0 / 60%), transparent);
 }
 
@@ -3929,7 +3931,8 @@ button.msg-story:not(:disabled) {
   max-width: none;
   max-height: none;
   margin: 0;
-  padding: 0;
+  /* en el teléfono, sin meterse debajo de la barra de estado ni de la de gestos */
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
   border: 0;
   overflow: hidden;
 }

@@ -15,6 +15,16 @@ release/
 *.blockmap
 latest*.yml
 
+# Carpeta web de Android: la arma scripts/build-android.js a partir de src/
+www/
+
+# Firma de la app de Android: la clave y sus contraseñas no van al repo
+android/keystore.properties
+*.jks
+*.keystore
+*.apk
+*.aab
+
 # Respuestas crudas de la API (npm run debug): contienen chats y datos personales
 mewe-debug/
 
