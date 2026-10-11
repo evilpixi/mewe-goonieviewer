@@ -96,5 +96,10 @@
     "electron-builder": "^26.15.3",
     "emojibase-data": "^17.0.0",
     "lucide-static": "^1.52.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3"
   }
 }

@@ -30,6 +30,11 @@ Forma de un mensaje:
 
   La app prueba esas URLs en orden hasta que una reproduce. La miniatura sale de `_links.thumbnail` (o `img`), con `{imageSize}`.
   Se sirven por el protocolo `mewe-img:` reenviando el header `Range` (hace falta para adelantar).
+- Archivos en `attachments[]`, con `aType: 'doc'`, `type` (la extensión), `fileName`, `fileSize` y `_links.self.href`
+  (`/api/v2/doc/chat/UserChat/{messageId}/{fileObjectId}/{fileName}`, sobre `https://mewe.com`; por `img.mewe.com` da 401).
+  Un video mandado como archivo llega así: la app lo reconoce por la extensión (o `mime`) y lo reproduce igual.
+  Ese endpoint ignora el header `Range` (contesta 200 con el archivo entero), así que el protocolo `mewe-img:` lo baja
+  una vez a memoria y arma él las respuestas parciales.
 - Respuestas en `replyTo: { id, text, authorId }`.
 - Respuestas a una historia en `story: { storyId, storytellerId, storytellerType, media, isLive }`, con `media` igual que en **Historias**
   (visto: `_links.media.href` = `/api/v2/photo/story/user/{userId}/{storyId}/{imageSize}`).

@@ -57,6 +57,14 @@ function video(attachment) {
   };
 }
 
+// Un video mandado como archivo llega con aType 'doc' (así salen los que se adjuntan desde el celular)
+const VIDEO_FILE = /\.(mp4|m4v|webm|mov|ogv)$/i;
+function isVideo(attachment) {
+  if (attachment.aType === 'video') return true;
+  if (!attachment.aType || attachment.aType === 'photo') return false;
+  return /^video\//i.test(attachment.mime ?? '') || VIDEO_FILE.test(attachment.fileName ?? '');
+}
+
 function uniqueImages(list) {
   const seen = new Set();
   return list.filter((img) => img && !seen.has(img.src) && seen.add(img.src));
@@ -214,7 +222,7 @@ export function normalizeThreads(data, myUserId) {
       userId: !isGroup && others.length === 1 ? (others[0].id ?? others[0].userId ?? null) : null,
       lastMessage:
         emojify(last.message ?? last.text) ||
-        (last.attachments?.length ? (last.attachments.some((a) => a.aType === 'video') ? '🎬 Video' : '📷 Imagen') : ''),
+        (last.attachments?.length ? (last.attachments.some(isVideo) ? '🎬 Video' : '📷 Imagen') : ''),
       updatedAt: toMillis(last.createdAt ?? last.date ?? thread.updatedAt ?? thread.lastActivity),
       unread: Boolean(thread.unread ?? thread.unreadCount ?? thread.unreadMessages),
     };
@@ -245,7 +253,7 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
     ...(m.stickers ?? []).map((s) => image(s._links?.img?.href ?? s._links?.self?.href)),
   ]);
   // los videos que no traen una URL reproducible quedan como archivo, con su nombre
-  const videos = new Map((m.attachments ?? []).filter((a) => a.aType === 'video').map((a) => [a, video(a)]));
+  const videos = new Map((m.attachments ?? []).filter(isVideo).map((a) => [a, video(a)]));
   const files = (m.attachments ?? [])
     .filter((a) => a.aType && a.aType !== 'photo' && !videos.get(a))
     .map((a) => ({ name: a.fileName || a.aType, type: a.aType }));

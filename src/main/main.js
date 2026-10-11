@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow } from 'electron';
+import { config } from '../config.js';
 import { serializeError } from '../mewe/errors.js';
 import { AccountManager } from './accountManager.js';
 import { AccountStore } from './accountStore.js';
@@ -31,6 +32,12 @@ function createMainWindow() {
     },
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  if (config.debug) {
+    // lo que la interfaz avisa por consola (ej. los errores de video) también sale en la terminal
+    mainWindow.webContents.on('console-message', (event) => {
+      if (event.level === 'warning' || event.level === 'error') console.log('[ui]', event.message);
+    });
+  }
   mainWindow.loadFile(path.join(dirname, '../renderer/index.html'));
   mainWindow.on('closed', () => {
     mainWindow = null;

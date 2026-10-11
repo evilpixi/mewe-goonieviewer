@@ -438,6 +438,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       let index = 0;
       const player = h('video', { controls: true, autoplay: true, preload: 'metadata', poster: imageUrl(accountId, video.poster) ?? '' });
       player.addEventListener('error', () => {
+        console.warn('[video]', player.currentSrc, player.error?.code, player.error?.message);
         index++;
         if (index < video.sources.length) player.src = imageUrl(accountId, video.sources[index]);
         else box.replaceChildren(h('p', { className: 'msg-file' }, `🎬 No se pudo reproducir el video${video.name ? ` (${video.name})` : ''}.`));
