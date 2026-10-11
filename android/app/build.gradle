@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 // La versión sale de package.json, la misma de la app de escritorio. "1.2.3" → versionCode 10203
-def appVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json')).version
+def appVersion = (rootProject.file('../package.json').text =~ /"version"\s*:\s*"([^"]+)"/)[0][1]
 def (major, minor, patch) = appVersion.tokenize('.-').take(3).collect { it as int }
 
 // Firma de release: android/keystore.properties (no va al repo) con storeFile, storePassword, keyAlias y keyPassword.
