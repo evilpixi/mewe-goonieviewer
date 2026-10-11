@@ -10,7 +10,12 @@ import { userName } from '../ui/userName.js';
 // Pestaña raíz "Historias": una grilla con quienes tienen historias (la propia primero), sobre fondo negro.
 // Cada tarjeta abre el visor a pantalla completa (ui/storyViewer.js); "Crear historia" abre el editor (ui/storyEditor.js).
 export function createStoriesView({ navigate }) {
-  const createBtn = h('button', { className: 'btn primary', hidden: true, onClick: create }, icon('plus'), ' Crear historia');
+  const createBtn = h(
+    'button',
+    { className: 'btn primary', title: 'Crear historia', hidden: true, onClick: create },
+    icon('plus'),
+    h('span', { className: 'label-text' }, ' Crear historia'),
+  );
   const errorEl = h('div');
   const gridEl = h('div', { className: 'story-grid', attrs: { role: 'list' } });
   const noteEl = h('div');

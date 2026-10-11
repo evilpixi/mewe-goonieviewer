@@ -9,6 +9,8 @@ import { applySettings, setSettingsAccount } from './settings.js';
 import { avatar } from './ui/avatar.js';
 import { confirmDialog } from './ui/confirm.js';
 import { h } from './ui/dom.js';
+import { icon } from './ui/icon.js';
+import { isMobile } from './ui/mobile.js';
 import { closePopover, openPopover } from './ui/popover.js';
 import { createGroupView } from './views/groupView.js';
 import { createListsView } from './views/listsView.js';
@@ -42,6 +44,7 @@ let accounts = [];
 let active = null;
 let rootView = savedView();
 let optionsMenu = null; // popover del menú Opciones mientras está abierto
+let accountMenu = null; // ídem, el menú de la cuenta (mobile)
 
 applySettings();
 
@@ -119,20 +122,79 @@ function openView(view, params) {
   else router.navigate(view, params);
 }
 
-profileBtn.addEventListener('click', () => {
+function openMyProfile() {
   if (active?.userId && router.current()?.params?.userId !== active.userId) router.navigate('profile', { userId: active.userId });
-});
+}
+
+// En mobile la foto abre el menú de la cuenta; en escritorio, el perfil
+profileBtn.addEventListener('click', () => (isMobile() ? openAccountMenu() : openMyProfile()));
 notifBtn.addEventListener('click', () => openView('notifications'));
 searchBtn.addEventListener('click', () => openView('search'));
 
 // Foto de la cuenta activa en la cabecera (sin el nombre, que queda en el title)
+// Sin cuenta sólo se ve en mobile (clase no-account), con un ícono: es la única entrada al menú de la cuenta.
 function renderProfileButton() {
-  profileBtn.hidden = !active;
-  if (!active) return;
-  profileBtn.disabled = !active.userId;
-  profileBtn.title = `${active.name} — ver mi perfil`;
+  profileBtn.hidden = false;
+  profileBtn.classList.toggle('no-account', !active);
+  profileBtn.title = active ? `${active.name} — mi perfil y cuentas` : 'Cuentas y ajustes';
   profileBtn.setAttribute('aria-label', profileBtn.title);
-  profileBtn.replaceChildren(avatar(active.id, active.avatar, { name: active.name }));
+  profileBtn.replaceChildren(active ? avatar(active.id, active.avatar, { name: active.name }) : icon('users'));
+}
+
+// --- Menú de la cuenta (mobile): se abre desde la foto. Junta las cuentas (no hay columna) con lo que en
+// escritorio está repartido por la cabecera: mi perfil, buscar y las opciones. ---
+
+function openAccountMenu() {
+  if (accountMenu?.el.isConnected) {
+    closePopover();
+    return;
+  }
+  const item = (run, { current = false, className = '' } = {}, ...content) =>
+    h(
+      'button',
+      {
+        className: `menu-item account-item${current ? ' active' : ''} ${className}`.trim(),
+        attrs: { role: 'menuitem', 'aria-current': current ? 'true' : null },
+        onClick: () => {
+          closePopover();
+          run();
+        },
+      },
+      content,
+    );
+  const action = (name, label, run, className) => item(run, { className }, h('span', { className: 'account-item-icon' }, icon(name)), label);
+  const menu = h(
+    'div',
+    { className: 'menu', attrs: { role: 'menu' } },
+    // arriba, la cuenta activa: tocarla abre su perfil
+    active &&
+      item(
+        openMyProfile,
+        { className: 'account-current' },
+        avatar(active.id, active.avatar, { name: active.name, size: 'lg' }),
+        h(
+          'span',
+          { className: 'account-current-info' },
+          h('span', { className: 'user-name' }, active.name),
+          h('span', { className: 'account-current-hint' }, 'Ver mi perfil'),
+        ),
+      ),
+    active && h('hr', { className: 'menu-sep' }),
+    h('div', { className: 'menu-label' }, icon('users'), accounts.length > 1 ? ' Cambiar de cuenta' : ' Cuentas'),
+    accounts
+      .filter((account) => account.id !== active?.id)
+      .map((account) =>
+        item(() => selectAccount(account), {}, avatar(account.id, account.avatar, { name: account.name }), h('span', { className: 'user-name' }, account.name)),
+      ),
+    action('plus', 'Agregar cuenta', () => loginModal.open()),
+    h('hr', { className: 'menu-sep' }),
+    active && action('search', 'Buscar personas', () => openView('search')),
+    action('settings', 'Ajustes de la interfaz', () => openView('settings')),
+    active && action('refresh-cw', 'Reconectar', relogin),
+    active && action('trash-2', 'Quitar cuenta', removeAccount, 'danger'),
+  );
+  accountMenu = openPopover(profileBtn, menu, { className: 'menu-popover', label: 'Cuenta' });
+  menu.querySelector('button')?.focus();
 }
 
 // --- Menú Opciones: ajustes, reconectar y quitar la cuenta ---

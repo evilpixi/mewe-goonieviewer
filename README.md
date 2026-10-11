@@ -82,6 +82,21 @@ chats, historias, perfiles, grupos y notificaciones.
 - Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue (si todavía no lo seguís), desde la misma lista.
 - Al hacer click llevan al lugar correspondiente: perfil, publicación, comentario o mensaje.
 
+### Vista mobile (en desarrollo)
+Con la ventana a 640 px de ancho o menos, la interfaz pasa a un formato de teléfono. Por ahora es sólo el formato de
+pantalla: la app sigue siendo de escritorio y todavía no hay versión para Android ni iOS.
+
+- La cabecera va abajo, al alcance del pulgar, con botones más grandes: Feed, Chats, Listas, Historias, Notificaciones
+  y tu foto.
+- Tu foto abre el menú de la cuenta: tu perfil, cambiar de cuenta, agregar una, buscar personas, ajustes, reconectar y
+  quitar la cuenta. Reemplaza a la columna de cuentas.
+- Los controles de cada sección se muestran como iconos en lugar de texto.
+- Chats en dos pantallas: la lista a todo el ancho o la conversación. Dentro de una conversación, un agarrador en el
+  borde izquierdo muestra u oculta la lista compacta (sólo fotos).
+- En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho; responder, reaccionar y editar están
+  siempre a la vista.
+- Las notificaciones y las pestañas de perfiles y grupos se acomodan a la pantalla vertical.
+
 ### Interfaz y accesibilidad
 - 14 temas: automático, claro, oscuro, minimal, glass, retro, alto contraste, medianoche, nórdico, bosque, ámbar, sepia,
   océano y rosa.
@@ -150,6 +165,19 @@ El hash que aparece tiene que coincidir con el de `SHA256SUMS.txt`.
    y se guarda al instante.
 6. **Si la sesión vence:** ⋮ → **Reconectar** vuelve a iniciarla. ⋮ → **Quitar cuenta** la elimina de la app.
 
+El menú de la ventana (File, Edit, View, Window) está oculto: aparece al pulsar `Alt`.
+
+### En la vista mobile
+
+Achicá la ventana a 640 px de ancho o menos y la interfaz cambia sola. Lo que se hace distinto:
+
+- **Cuentas y opciones:** tocá tu foto, abajo a la derecha. Ahí están tu perfil, las otras cuentas, **Agregar cuenta**,
+  **Buscar personas**, **Ajustes de la interfaz**, **Reconectar** y **Quitar cuenta**. Sin ninguna cuenta agregada, en
+  ese lugar hay un icono de personas que abre el mismo menú.
+- **Chats:** tocá un chat para abrirlo y la flecha de arriba a la izquierda para volver a la lista. El agarrador del
+  borde izquierdo muestra la lista compacta sin salir de la conversación. **Buscar en el chat** e **Imágenes** están en
+  el menú ⋮ de la barra del chat.
+
 ### Atajos de teclado
 
 | Atajo | Acción |
@@ -208,6 +236,9 @@ docs/
 ```
 
 El renderer corre con `contextIsolation`, `sandbox` y una Content Security Policy estricta.
+
+La vista mobile se prueba achicando la ventana: el corte está en 640 px, tanto en los bloques
+`@media (max-width: 640px)` de `styles.css` como en `src/renderer/js/ui/mobile.js`.
 
 ### Ramas
 

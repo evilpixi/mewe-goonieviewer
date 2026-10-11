@@ -45,10 +45,14 @@ export function createComposer({ onSend }) {
   );
   const expandBtn = h(
     'button',
-    { type: 'button', className: 'btn icon-btn', title: 'Agrandar la caja de texto', attrs: { 'aria-label': 'Agrandar la caja de texto', 'aria-pressed': 'false' } },
+    { type: 'button', className: 'btn icon-btn expand-btn', title: 'Agrandar la caja de texto', attrs: { 'aria-label': 'Agrandar la caja de texto', 'aria-pressed': 'false' } },
     icon('maximize-2'),
   );
-  const sendBtn = h('button', { type: 'submit', className: 'btn primary' }, 'Enviar');
+  // en mobile se ve sólo el ícono (ver styles.css)
+  const sendIcon = icon('send');
+  sendIcon.classList.add('label-icon');
+  const sendLabel = h('span', { className: 'label-text' }, 'Enviar');
+  const sendBtn = h('button', { type: 'submit', className: 'btn primary send-btn', title: 'Enviar' }, sendIcon, sendLabel);
   // Foto de la cuenta que va a escribir (ver setAccount)
   const meEl = h('span', { className: 'writing-as', attrs: { role: 'img' }, hidden: true });
   const fileInput = h('input', {
@@ -138,7 +142,7 @@ export function createComposer({ onSend }) {
     editing = message;
     editBar.hidden = !message;
     attachBtn.disabled = Boolean(message);
-    sendBtn.textContent = message ? 'Guardar' : 'Enviar';
+    sendBtn.title = sendLabel.textContent = message ? 'Guardar' : 'Enviar';
     if (!message) return;
     editText.textContent = plainText(message.text);
     textarea.value = message.text;

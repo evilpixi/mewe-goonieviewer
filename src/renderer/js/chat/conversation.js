@@ -8,6 +8,7 @@ import { emptyState, h } from '../ui/dom.js';
 import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
 import { confirmBlock } from '../ui/people.js';
+import { closePopover, openPopover } from '../ui/popover.js';
 import { createReactions } from '../ui/reactions.js';
 import { emojiOnlyCount, plainText, richText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
@@ -30,7 +31,8 @@ const fold = (text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, ''
 // Abrir un chat no lo marca como leído: se marca al hacer click en los mensajes, al escribir,
 // al enviar o con el botón de la barra (que sólo se ve mientras hay algo sin leer).
 // onBlocked(thread): se bloqueó a la persona del chat (botón de la barra, sólo en chats de a dos).
-export function createConversation({ onSent, onUnreadChange, onBlocked, navigate } = {}) {
+// onBack(): se tocó la flecha de la barra, que sólo se ve en mobile (vuelve a la lista de chats).
+export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, navigate } = {}) {
   const messagesEl = h('div', { className: 'chat-messages scroll', attrs: { role: 'log', 'aria-label': 'Mensajes' } });
   const errorEl = h('div');
   const composer = createComposer({ onSend: send });
@@ -38,18 +40,69 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, navigate
   // Barra del chat: con quién se habla + buscar en el chat + galería de imágenes
   const titleEl = h('div', { className: 'chat-tools-title' });
   const toolButton = (icon, label, kind) =>
-    h('button', { className: 'btn icon-btn', title: label, attrs: { 'aria-label': label, 'aria-pressed': 'false' }, onClick: () => togglePanel(kind) }, icon);
+    h('button', { className: 'btn icon-btn chat-panel-btn', title: label, attrs: { 'aria-label': label, 'aria-pressed': 'false' }, onClick: () => togglePanel(kind) }, icon);
   const panelButtons = {
     search: toolButton('🔍', 'Buscar en este chat', 'search'),
     gallery: toolButton('🖼', 'Imágenes de este chat', 'gallery'),
   };
-  const readBtn = h('button', { className: 'btn mark-read', hidden: true, onClick: () => markRead() }, '✓ Marcar como leído');
+  const readIcon = icon('check-check');
+  readIcon.classList.add('label-icon');
+  const readBtn = h(
+    'button',
+    { className: 'btn mark-read', title: 'Marcar como leído', hidden: true, onClick: () => markRead() },
+    readIcon,
+    h('span', { className: 'label-text' }, '✓ Marcar como leído'),
+  );
+  // En mobile buscar y galería van juntos en un menú (los dos botones sueltos se ocultan, ver styles.css)
+  const moreBtn = h(
+    'button',
+    {
+      className: 'btn icon-btn chat-more',
+      title: 'Buscar e imágenes',
+      attrs: { 'aria-label': 'Buscar e imágenes', 'aria-haspopup': 'menu' },
+      onClick: () => {
+        if (moreMenu?.el.isConnected) {
+          closePopover();
+          return;
+        }
+        const item = (name, label, kind) =>
+          h(
+            'button',
+            {
+              className: 'menu-item account-item',
+              attrs: { role: 'menuitem' },
+              onClick: () => {
+                closePopover();
+                togglePanel(kind);
+              },
+            },
+            h('span', { className: 'account-item-icon' }, icon(name)),
+            label,
+          );
+        const menu = h(
+          'div',
+          { className: 'menu', attrs: { role: 'menu' } },
+          item('search', 'Buscar en este chat', 'search'),
+          item('image', 'Imágenes de este chat', 'gallery'),
+        );
+        moreMenu = openPopover(moreBtn, menu, { className: 'menu-popover', label: 'Buscar e imágenes' });
+        menu.querySelector('button')?.focus();
+      },
+    },
+    icon('ellipsis-vertical'),
+  );
+  let moreMenu = null;
+  const backBtn = h(
+    'button',
+    { className: 'btn icon-btn chat-back', title: 'Volver a la lista de chats', attrs: { 'aria-label': 'Volver a la lista de chats' }, onClick: () => onBack?.() },
+    icon('arrow-left'),
+  );
   const blockBtn = h(
     'button',
     { className: 'btn icon-btn danger', title: 'Bloquear a esta persona', attrs: { 'aria-label': 'Bloquear a esta persona' }, hidden: true, onClick: () => block() },
     icon('ban'),
   );
-  const toolsEl = h('div', { className: 'chat-tools', hidden: true }, titleEl, readBtn, panelButtons.search, panelButtons.gallery, blockBtn);
+  const toolsEl = h('div', { className: 'chat-tools', hidden: true }, backBtn, titleEl, readBtn, panelButtons.search, panelButtons.gallery, moreBtn, blockBtn);
   // Panel (búsqueda o galería) que tapa los mensajes mientras está abierto
   const panelEl = h('div', { className: 'chat-panel scroll', hidden: true });
   // Al subir a leer mensajes viejos aparece el botón para volver al final, sobre un degradado
@@ -769,8 +822,9 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, navigate
     pinBtn.hidden = !away;
     bodyEl.classList.toggle('unpinned', away);
     pinBtn.classList.toggle('missed', missed && away);
-    pinBtn.textContent = missed ? '↓ Mensajes nuevos' : '↓ Ir al final';
-    pinBtn.title = 'Ir al final y seguir los mensajes nuevos';
+    // en mobile queda sólo la flecha (ver styles.css)
+    pinBtn.replaceChildren(icon('arrow-down'), h('span', { className: 'label-text' }, missed ? ' Mensajes nuevos' : ' Ir al final'));
+    pinBtn.title = missed ? 'Mensajes nuevos: ir al final' : 'Ir al final y seguir los mensajes nuevos';
   }
 
   // Al llegar arriba de todo carga los anteriores solo. El anclaje sigue a la posición:

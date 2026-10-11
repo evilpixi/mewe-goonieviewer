@@ -68,6 +68,7 @@ export function createGroupView({ navigate }) {
     'button',
     {
       className: 'btn primary',
+      title: 'Crear post',
       hidden: true,
       onClick: () =>
         openPostComposer({
@@ -78,7 +79,7 @@ export function createGroupView({ navigate }) {
         }),
     },
     icon('plus'),
-    ' Crear post',
+    h('span', { className: 'label-text' }, ' Crear post'),
   );
   const contentEl = h('div', { hidden: true }, h('div', { className: 'tabs-bar' }, tabs.el), posts.el, membersEl, eventsEl);
   const el = h('div', { className: 'view scroll page' }, errorEl, headerEl, noticeEl, contentEl);

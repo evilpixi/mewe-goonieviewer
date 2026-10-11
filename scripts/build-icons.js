@@ -6,7 +6,9 @@ import fs from 'node:fs/promises';
 const ICONS = [
   'reply', 'smile', 'smile-plus', 'pencil', 'paperclip', 'maximize-2', 'minimize-2', 'x',
   // cabecera y segundo panel
-  'arrow-left', 'newspaper', 'message-circle', 'users', 'circle-dashed', 'search', 'bell', 'ellipsis-vertical', 'plus', 'refresh-cw',
+  'arrow-left', 'arrow-down', 'newspaper', 'message-circle', 'list', 'users', 'circle-dashed', 'search', 'bell', 'ellipsis-vertical', 'plus', 'refresh-cw',
+  // barra de la vista en mobile: reemplazan a las etiquetas
+  'layout-grid', 'user', 'users-round', 'user-check', 'heart', 'bell', 'check-check', 'radio', 'settings',
   // acciones
   'ban', 'download', 'copy', 'link', 'check', 'play',
   // historias

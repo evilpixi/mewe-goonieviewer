@@ -8,9 +8,9 @@ import { createTabs } from './ui/tabs.js';
 
 const FEED_TYPE_KEY = 'feedType';
 const FEED_TYPES = [
-  ['following', 'Todo'],
-  ['contacts', 'Personas'],
-  ['groups', 'Grupos'],
+  ['following', 'Todo', 'layout-grid'],
+  ['contacts', 'Personas', 'user'],
+  ['groups', 'Grupos', 'users-round'],
 ];
 
 function savedFeedType() {
@@ -28,9 +28,9 @@ export function createFeedView({ navigate }) {
   const filterEl = filter.el;
   const createBtn = h(
     'button',
-    { className: 'btn primary', hidden: true, onClick: () => openPostComposer({ account, onDone: () => load() }) },
+    { className: 'btn primary', title: 'Crear post', hidden: true, onClick: () => openPostComposer({ account, onDone: () => load() }) },
     icon('plus'),
-    ' Crear post',
+    h('span', { className: 'label-text' }, ' Crear post'),
   );
   const errorEl = h('div');
   const feedEl = h('section', { className: 'feed' });

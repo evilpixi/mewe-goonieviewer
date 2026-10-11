@@ -3,6 +3,7 @@ import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
 import { formatDateTime, formatFull } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
+import { icon } from '../ui/icon.js';
 import { followButton } from '../ui/followRequests.js';
 import { plainText } from '../ui/richText.js';
 import { createTabs } from '../ui/tabs.js';
@@ -146,12 +147,19 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
   const tabs = createTabs({
     label: 'Tipo de notificación',
     tabs: [
-      ['general', 'Generales'],
-      ['groups', 'Grupos'],
+      ['general', 'Generales', 'bell'],
+      ['groups', 'Grupos', 'users-round'],
     ],
     onChange: () => render(),
   });
-  const markAllBtn = h('button', { className: 'btn', onClick: markAll }, 'Marcar todas como leídas');
+  const markAllIcon = icon('check-check');
+  markAllIcon.classList.add('label-icon');
+  const markAllBtn = h(
+    'button',
+    { className: 'btn', title: 'Marcar todas como leídas', onClick: markAll },
+    markAllIcon,
+    h('span', { className: 'label-text' }, 'Marcar todas como leídas'),
+  );
   const errorEl = h('div');
   const listEl = h('ul', { className: 'notif-list card', attrs: { 'aria-label': 'Notificaciones' } });
   const moreBtn = h('button', { className: 'btn load-more', hidden: true, onClick: () => load(true) }, 'Cargar más');
@@ -219,8 +227,8 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
     const inGroups = tabs.value === 'groups';
     const shown = items.filter((n) => n.inGroup === inGroups);
     const unread = (group) => items.filter((n) => n.inGroup === group && n.unread).length;
-    tabs.setLabel('general', unread(false) ? `Generales (${unread(false)})` : 'Generales');
-    tabs.setLabel('groups', unread(true) ? `Grupos (${unread(true)})` : 'Grupos');
+    tabs.setCount('general', unread(false));
+    tabs.setCount('groups', unread(true));
     markAllBtn.disabled = !items.some((n) => n.unread);
     moreBtn.hidden = !nextPage;
     waiting = new Map(); // las filas se dibujan de nuevo

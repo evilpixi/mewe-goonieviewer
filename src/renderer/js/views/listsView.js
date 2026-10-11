@@ -9,9 +9,9 @@ import { userName } from '../ui/userName.js';
 
 const LIST_KEY = 'listsTab';
 const LISTS = [
-  ['groups', 'Grupos'],
-  ['following', 'Siguiendo'],
-  ['followers', 'Seguidores'],
+  ['groups', 'Grupos', 'users-round'],
+  ['following', 'Siguiendo', 'user-check'],
+  ['followers', 'Seguidores', 'heart'],
 ];
 const MAX_PAGES_PER_SEARCH = 40; // tope de páginas que se traen solas al filtrar una lista de personas
 

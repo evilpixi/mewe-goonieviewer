@@ -20,8 +20,9 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
     height: 800,
-    minWidth: 420,
+    minWidth: 320,
     title: 'Goonie Mewe Viewer',
+    autoHideMenuBar: true, // el menú File / Edit… sólo aparece con Alt
     webPreferences: {
       preload: path.join(dirname, '../preload/preload.cjs'),
       contextIsolation: true,

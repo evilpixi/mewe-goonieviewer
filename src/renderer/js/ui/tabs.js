@@ -1,10 +1,22 @@
 import { h } from './dom.js';
+import { icon } from './icon.js';
 
 // Pestañas accesibles (role=tablist): ← → Inicio Fin mueven la selección; sólo la activa está en el orden de tabulación.
-//   tabs: [[id, etiqueta]] · onChange(id) se llama cuando el usuario cambia de pestaña
-// Devuelve { el, value, select(id), setLabel(id, texto), setHidden(id, oculta) } (select no dispara onChange).
+//   tabs: [[id, etiqueta, ícono?]] · onChange(id) se llama cuando el usuario cambia de pestaña
+//   El ícono sólo se ve en la barra de la vista en mobile, donde reemplaza a la etiqueta (ver styles.css).
+// Devuelve { el, value, select(id), setLabel(id, texto), setCount(id, n), setHidden(id, oculta) } (select no dispara onChange).
 export function createTabs({ tabs, label, onChange, className = '' }) {
-  const buttons = tabs.map(([id, text]) => h('button', { type: 'button', dataset: { tab: id }, attrs: { role: 'tab' } }, text));
+  const buttons = tabs.map(([id, text, iconName]) => {
+    const iconEl = iconName ? icon(iconName) : null;
+    iconEl?.classList.add('label-icon');
+    return h(
+      'button',
+      { type: 'button', title: iconName ? text : null, dataset: { tab: id }, attrs: { role: 'tab' } },
+      iconEl,
+      h('span', { className: 'label-text' }, text),
+      h('span', { className: 'tab-count' }),
+    );
+  });
   const el = h('div', { className: `segmented ${className}`.trim(), attrs: { role: 'tablist', 'aria-label': label } }, buttons);
   let value = tabs[0]?.[0] ?? null;
 
@@ -45,10 +57,15 @@ export function createTabs({ tabs, label, onChange, className = '' }) {
       if (tabs.some(([tab]) => tab === id)) value = id;
       render();
     },
-    // Cambia la etiqueta de una pestaña (ej. para agregar un contador)
+    // Cambia la etiqueta de una pestaña
     setLabel(id, text) {
       const btn = buttons.find((b) => b.dataset.tab === id);
-      if (btn) btn.textContent = text;
+      if (btn) btn.querySelector('.label-text').textContent = text;
+    },
+    // Contador junto a la etiqueta: "Generales (3)". Sigue a la vista cuando la etiqueta es sólo un ícono.
+    setCount(id, count) {
+      const btn = buttons.find((b) => b.dataset.tab === id);
+      if (btn) btn.querySelector('.tab-count').textContent = count ? ` (${count})` : '';
     },
     // Oculta o muestra una pestaña (ej. las que sólo existen en el perfil propio)
     setHidden(id, hidden) {

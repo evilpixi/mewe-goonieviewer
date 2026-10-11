@@ -3,6 +3,8 @@ import { createConversation } from './chat/conversation.js';
 import { clearError, showError } from './errorView.js';
 import { avatar } from './ui/avatar.js';
 import { emptyState, h } from './ui/dom.js';
+import { icon } from './ui/icon.js';
+import { isMobile } from './ui/mobile.js';
 import { plainText } from './ui/richText.js';
 import { createTabs } from './ui/tabs.js';
 import { userName } from './ui/userName.js';
@@ -11,9 +13,9 @@ const THREADS_POLL_MS = 30000;
 const THREADS_REFRESH_DEBOUNCE_MS = 800;
 const FILTER_KEY = 'chatFilter';
 const FILTERS = [
-  ['all', 'Todos'],
-  ['users', 'Personas'],
-  ['groups', 'Grupos'],
+  ['all', 'Todos', 'layout-grid'],
+  ['users', 'Personas', 'user'],
+  ['groups', 'Grupos', 'users-round'],
 ];
 
 // Ancho de la lista de chats, elegido arrastrando su borde: { width: px | null, compact: bool }
@@ -45,7 +47,10 @@ function savedFilter() {
 export function createChatView({ navigate } = {}) {
   const filterTabs = createTabs({ label: 'Tipo de chat', tabs: FILTERS, onChange: changeFilter });
   const filterEl = filterTabs.el;
-  const liveEl = h('span', { className: 'live-status', attrs: { 'aria-live': 'polite' } });
+  const liveIcon = icon('radio');
+  liveIcon.classList.add('label-icon');
+  const liveText = h('span', { className: 'label-text' });
+  const liveEl = h('span', { className: 'live-status', attrs: { 'aria-live': 'polite' } }, liveIcon, liveText);
   const threadsEl = h('ul', { className: 'chat-threads scroll', attrs: { 'aria-label': 'Conversaciones' } });
   const errorEl = h('div');
   const conversation = createConversation({
@@ -53,11 +58,14 @@ export function createChatView({ navigate } = {}) {
     onSent: () => scheduleThreadsRefresh(),
     // se bloqueó a la persona del chat abierto: el chat se cierra y la lista se vuelve a pedir
     onBlocked: () => {
-      activeId = null;
-      lastThread = null;
       extraThread = null;
-      conversation.close();
+      closeThread();
       loadThreads();
+    },
+    // mobile: la flecha de la barra del chat vuelve a la lista
+    onBack: () => {
+      closeThread();
+      renderThreads();
     },
     // el chat abierto sabe si quedó leído (click, escribir, botón) o si le llegó algo nuevo
     onUnreadChange: (threadId, unread) => {
@@ -74,7 +82,14 @@ export function createChatView({ navigate } = {}) {
     title: 'Arrastra para cambiar el ancho de la lista de chats (doble click: ancho original)',
     attrs: { role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': 'Ancho de la lista de chats' },
   });
-  const el = h('div', { className: 'view chat' }, sidebarEl, resizerEl, conversation.el);
+  // Agarrador (mobile): con una conversación abierta, muestra u oculta la lista compacta (sólo fotos) a su izquierda
+  const grabberEl = h('button', {
+    className: 'chat-grabber',
+    title: 'Mostrar u ocultar la lista de chats',
+    attrs: { 'aria-label': 'Lista de chats', 'aria-expanded': 'false' },
+    onClick: () => grabberEl.setAttribute('aria-expanded', String(el.classList.toggle('threads-shown'))),
+  });
+  const el = h('div', { className: 'view chat' }, sidebarEl, grabberEl, resizerEl, conversation.el);
 
   // --- Ancho de la lista (arrastrando el borde, o con ← → teniendo el foco en él) ---
 
@@ -166,7 +181,7 @@ export function createChatView({ navigate } = {}) {
 
   function renderLive() {
     const connected = realtime.get(account?.id) ?? false;
-    liveEl.textContent = connected ? '● En vivo' : '○ Cada 5 s';
+    liveText.textContent = connected ? '● En vivo' : '○ Cada 5 s';
     liveEl.title = connected
       ? 'Conectado al tiempo real de MeWe'
       : 'Sin conexión en tiempo real: se buscan mensajes nuevos cada 5 segundos';
@@ -208,7 +223,8 @@ export function createChatView({ navigate } = {}) {
       if (open) open.unread = conversation.unread;
       clearError(errorEl);
       // al entrar a una cuenta se abre el chat más reciente, sin tener que elegirlo
-      if (!activeId && threads.length) openThread(threads[0]);
+      // (en mobile no: ahí se ve la lista o la conversación, y se empieza por la lista)
+      if (!activeId && threads.length && !isMobile()) openThread(threads[0]);
       else renderThreads();
     } catch (err) {
       if (gen === generation) showError(errorEl, err, 'MeWe chat');
@@ -255,11 +271,23 @@ export function createChatView({ navigate } = {}) {
     );
   }
 
+  // En mobile la clase thread-open cambia la lista por la conversación (ver styles.css)
+  function setActive(id) {
+    activeId = id;
+    el.classList.toggle('thread-open', Boolean(id));
+  }
+
   function openThread(t) {
-    activeId = t.id;
+    setActive(t.id);
     lastThread = t;
     renderThreads(); // abrirlo no lo marca como leído: eso lo decide la conversación
     conversation.open(account, t);
+  }
+
+  function closeThread() {
+    setActive(null);
+    lastThread = null;
+    conversation.close();
   }
 
   function stop() {
@@ -288,7 +316,7 @@ export function createChatView({ navigate } = {}) {
       }
       // el chat pedido tiene que entrar en el filtro activo
       if (wanted && filter !== 'all' && (filter === 'groups') !== Boolean(wanted.isGroup)) filter = wanted.isGroup ? 'groups' : 'users';
-      activeId = null;
+      setActive(null);
       clearError(errorEl);
       renderFilter();
       conversation.close();

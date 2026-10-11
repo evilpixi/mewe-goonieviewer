@@ -2,6 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img: https://*.giphy.com; media-src mewe-img:; font-src 'self'"
@@ -18,7 +19,7 @@
     <main class="main">
       <header class="app-header">
         <div class="header-start">
-          <!-- foto de la cuenta activa: abre su perfil (app.js pone la foto y el nombre en el title) -->
+          <!-- foto de la cuenta activa: abre su perfil; en mobile, el menú de la cuenta (app.js) -->
           <button id="app-title" class="profile-btn" title="Ver mi perfil" aria-label="Ver mi perfil" hidden></button>
         </div>
         <nav id="view-tabs" class="header-tabs" aria-label="Sección" hidden>
@@ -29,7 +30,7 @@
             <span class="icon icon-message-circle" aria-hidden="true"></span>
           </button>
           <button data-view="lists" class="btn icon-btn" title="Listas: grupos y personas (Ctrl+3)" aria-label="Listas">
-            <span class="icon icon-users" aria-hidden="true"></span>
+            <span class="icon icon-list" aria-hidden="true"></span>
           </button>
           <button data-view="stories" class="btn icon-btn" title="Historias (Ctrl+4)" aria-label="Historias">
             <span class="icon icon-circle-dashed" aria-hidden="true"></span>

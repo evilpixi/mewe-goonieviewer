@@ -633,6 +633,17 @@ button.mention:hover {
   border: 2px dashed var(--sidebar-item-border);
 }
 
+/* Versión mobile: no hay columna de cuentas; se cambia de cuenta desde el menú de la cabecera */
+@media (max-width: 640px) {
+  body {
+    height: 100dvh;
+  }
+
+  .accounts {
+    display: none;
+  }
+}
+
 /* ==========================================================================
    Estructura principal y cabecera
    ========================================================================== */
@@ -720,6 +731,11 @@ button.mention:hover {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
+/* sin cuenta activa no hay foto: sólo se ve en mobile, donde abre el menú de la cuenta */
+.profile-btn.no-account {
+  display: none;
+}
+
 /* Segundo panel: controles de la vista activa repartidos en izquierda / centro / derecha */
 .view-toolbar {
   display: grid;
@@ -779,6 +795,58 @@ button.mention:hover {
 
 .menu-item.danger {
   color: var(--danger);
+}
+
+/* Menú de la cuenta (mobile, se abre desde la foto): foto + nombre; la cuenta activa va resaltada */
+
+.account-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* la cuenta activa, arriba de todo: abre su perfil */
+.account-current {
+  font-weight: 600;
+}
+
+.account-current .avatar {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.account-current-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-current-hint {
+  color: var(--muted);
+  font-size: var(--font-sm);
+  font-weight: 400;
+}
+
+/* ícono de una acción del menú: ocupa lo mismo que una foto, así los textos quedan alineados */
+.account-item-icon {
+  display: inline-grid;
+  place-items: center;
+  width: var(--avatar-md);
+  height: var(--avatar-md);
+  font-size: var(--font-icon);
+}
+
+.menu-label {
+  padding: var(--space-2) var(--space-5);
+  color: var(--muted);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.menu-sep {
+  width: 100%;
+  margin: var(--space-2) 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--border);
 }
 
 /* Botón con contador encima (campana de notificaciones) */
@@ -1228,6 +1296,51 @@ button.mention:hover {
 
 .icon-message-circle {
   mask-image: url('icons/message-circle.svg');
+}
+
+.icon-list {
+  mask-image: url('icons/list.svg');
+}
+
+.icon-layout-grid {
+  mask-image: url('icons/layout-grid.svg');
+}
+
+.icon-user {
+  mask-image: url('icons/user.svg');
+}
+
+.icon-users-round {
+  mask-image: url('icons/users-round.svg');
+}
+
+.icon-user-check {
+  mask-image: url('icons/user-check.svg');
+}
+
+.icon-heart {
+  mask-image: url('icons/heart.svg');
+}
+
+.icon-check-check {
+  mask-image: url('icons/check-check.svg');
+}
+
+.icon-radio {
+  mask-image: url('icons/radio.svg');
+}
+
+.icon-settings {
+  mask-image: url('icons/settings.svg');
+}
+
+.icon-arrow-down {
+  mask-image: url('icons/arrow-down.svg');
+}
+
+/* Ícono que reemplaza a una etiqueta en la barra de la vista en mobile; en escritorio se ve el texto */
+.label-icon {
+  display: none;
 }
 
 .icon-users {
@@ -1973,6 +2086,14 @@ button.mention:hover {
 .chat-tools .mark-read {
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* Sólo en mobile: volver a la lista de chats, el menú que junta buscar y galería, y el agarrador
+   que muestra la lista compacta al lado de la conversación (ver chatView.js) */
+.chat-tools .chat-back,
+.chat-tools .chat-more,
+.chat-grabber {
+  display: none;
 }
 
 .chat-tools .btn[aria-pressed='true'] {
@@ -3269,39 +3390,372 @@ button.msg-story:not(:disabled) {
 }
 
 @media (max-width: 640px) {
-  .chat-sidebar {
+  /* Chats en dos pantallas: la lista a todo el ancho, o la conversación (clase thread-open, ver chatView.js).
+     La lista nunca es compacta acá, diga lo que diga el ajuste o el ancho guardado. */
+  .view.chat .chat-sidebar {
+    width: 100%;
+    max-width: none;
+    border-right: 0;
+  }
+
+  .view.chat .chat-thread-info {
+    display: block;
+  }
+
+  .chat-resizer,
+  .chat-conversation,
+  .chat.thread-open .chat-sidebar {
+    display: none;
+  }
+
+  .chat.thread-open .chat-conversation {
+    display: flex;
+  }
+
+  .chat-thread-item {
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .chat-thread-item .avatar {
+    width: var(--avatar-lg);
+    height: var(--avatar-lg);
+  }
+
+  /* Con una conversación abierta, el agarrador de su borde izquierdo muestra la lista compacta: sólo
+     fotos, sin barra de desplazamiento y con el punto de "sin leer" sobre la esquina de la foto */
+  .chat.thread-open .chat-grabber {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: var(--space-7);
+    padding: 0;
+    border: 0;
+    border-right: var(--border-width) solid var(--border);
+    background: var(--panel);
+    cursor: pointer;
+  }
+
+  .chat-grabber::before {
+    content: '';
+    width: var(--space-2);
+    height: var(--space-9);
+    border-radius: 999px;
+    background: var(--muted);
+  }
+
+  .chat.thread-open.threads-shown .chat-sidebar {
+    display: flex;
     width: auto;
   }
 
-  .chat-thread-info,
-  .chat-resizer {
+  .chat.thread-open .chat-thread-info {
     display: none;
+  }
+
+  .chat.thread-open .chat-threads::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat.thread-open .chat-thread-item {
+    position: relative;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .chat.thread-open .chat-thread-item .avatar {
+    width: var(--avatar-md);
+    height: var(--avatar-md);
+  }
+
+  .chat.thread-open .unread-dot {
+    position: absolute;
+    right: var(--space-2);
+    bottom: var(--space-1);
+    width: calc(11px * var(--font-scale));
+    height: calc(11px * var(--font-scale));
+    box-shadow: 0 0 0 2px var(--panel);
+  }
+
+  /* Mensajes: la foto va arriba con el nombre al lado, así el globo usa todo el ancho. Sin foto propia.
+     Responder / reaccionar / editar van en columna y siempre a la vista (no hay hover). */
+  .chat-messages {
+    padding: var(--space-3);
+  }
+
+  .msg {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    width: 100%;
+    max-width: none;
+  }
+
+  .msg.mine {
+    justify-content: flex-end;
+  }
+
+  .msg-body {
+    display: contents;
+  }
+
+  .msg-avatar-space,
+  .msg.mine .msg-avatar {
+    display: none;
+  }
+
+  .msg-author {
+    flex: 1;
+    align-self: center;
+    min-width: 0;
+    margin: 0;
+    text-align: left;
+  }
+
+  .msg-line {
+    flex: 0 0 100%;
+  }
+
+  .msg-actions {
+    flex-direction: column;
+    align-self: flex-start;
+    margin-block: 0;
+    opacity: 1;
+  }
+
+  .msg-actions .icon-btn {
+    width: calc(var(--font-icon) + var(--space-2));
+    height: calc(var(--font-icon) + var(--space-2));
+    font-size: calc(var(--font-icon) * 0.8);
+  }
+
+  /* lo que en escritorio aparece con el mouse encima, acá está siempre */
+  .msg .reactions.compact .reaction.who,
+  .comment .reactions.compact .reaction.add,
+  .comment .reactions.compact .reaction.who {
+    display: inline-flex;
+  }
+
+  /* barra del chat: buscar y galería se juntan en un menú */
+  .chat-tools .chat-panel-btn {
+    display: none;
+  }
+
+  .chat-tools .chat-more {
+    display: inline-grid;
+  }
+
+  /* Notificaciones: aceptar / rechazar / seguir van debajo del texto, no al costado */
+  .notif-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .notif-actions {
+    justify-content: flex-start;
+    padding: 0 var(--space-5) var(--space-4) calc(var(--avatar-md) + var(--space-5) + var(--space-4));
+  }
+
+  /* Pestañas dentro de una página (perfil, grupo): si no entran, se deslizan */
+  .tabs-bar .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tabs-bar .segmented button {
+    flex: 1 0 auto;
+    padding: var(--space-3) var(--space-4);
+    white-space: nowrap;
+  }
+
+  /* dentro de una conversación la barra de la vista (filtros de la lista) no hace falta: se gana alto */
+  .main:has(.chat.thread-open:not([hidden])) .view-toolbar {
+    display: none;
+  }
+
+  /* barra del chat: flecha para volver y botones para el dedo */
+  .chat-tools {
+    --font-lg: var(--font-icon);
+
+    padding: var(--space-3);
+  }
+
+  .chat-tools .chat-back {
+    display: inline-grid;
+  }
+
+  .chat-tools .btn {
+    flex-shrink: 0;
+    min-width: calc(var(--font-icon) + var(--space-8));
+    height: calc(var(--font-icon) + var(--space-8));
+  }
+
+  .chat-tools .mark-read .icon {
+    font-size: var(--font-icon);
+    vertical-align: middle;
+  }
+
+  /* "ir al final": un botón redondo en la esquina, sin texto */
+  .chat-pin {
+    left: auto;
+    right: var(--space-5);
+    transform: none;
+    display: grid;
+    place-items: center;
+    width: calc(var(--font-icon) + var(--space-9));
+    height: calc(var(--font-icon) + var(--space-9));
+    padding: 0;
+    font-size: var(--font-icon);
+  }
+
+  /* caja de escribir: adjuntar · emoji · texto a todo el ancho · enviar (ícono). Sin foto ni agrandar. */
+  .composer-row {
+    --avatar-md: calc(40px * var(--icon-scale));
+  }
+
+  .composer-row .writing-as,
+  .composer-row .expand-btn {
+    display: none;
+  }
+
+  .composer-row .send-btn {
+    flex-shrink: 0;
+    width: var(--avatar-md);
+    padding: 0;
+    font-size: calc(var(--avatar-md) * 0.6);
   }
 
   .msg {
     max-width: max(92%, var(--bubble-max-width));
   }
 
-  /* cabecera y segundo panel más apretados: tienen que entrar todos los iconos */
-  .app-header,
-  .view-toolbar {
-    gap: var(--space-2);
-    padding-inline: var(--space-3);
+  /* la cabecera va abajo de todo, al alcance del pulgar: secciones · notificaciones · foto, en una sola
+     fila repartida, con iconos y foto más grandes. La barra de la vista queda arriba. */
+  .main {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .app-header {
+    --font-icon: calc(26px * var(--icon-scale));
+
+    order: 1;
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-1);
+    padding: var(--space-3);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    border-top: var(--border-width) solid var(--border);
+    border-bottom: 0;
   }
 
   .header-start,
   .header-tabs,
   .header-actions {
-    gap: var(--space-1);
+    display: contents;
   }
 
+  /* se reparten el ancho: en teléfonos angostos se afinan, pero no pierden alto */
   .app-header .btn.icon-btn {
-    width: calc(var(--font-icon) + var(--space-4));
-    height: calc(var(--font-icon) + var(--space-4));
+    display: inline-grid;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    height: calc(var(--font-icon) + var(--space-9));
   }
 
+  /* el botón es más ancho que el ícono: el contador se pega al ícono, no a la esquina del botón */
+  .app-header .count-badge {
+    top: 0;
+    right: auto;
+    left: calc(50% + var(--space-2));
+  }
+
+  /* buscar y opciones pasan al menú de la cuenta, que se abre desde la foto (app.js) */
+  #open-search,
+  #open-options {
+    display: none;
+  }
+
+  /* la foto va última, del lado del pulgar */
+  .profile-btn,
+  .profile-btn.no-account {
+    order: 1;
+    display: inline-grid;
+    place-items: center;
+    align-self: center;
+    width: var(--avatar-lg);
+    height: var(--avatar-lg);
+    margin-inline: var(--space-3);
+    color: var(--muted);
+    font-size: var(--font-icon);
+  }
+
+  .profile-btn .avatar {
+    width: 100%;
+    height: 100%;
+    font-size: var(--font-md);
+  }
+
+  .menu-item {
+    padding-block: var(--space-5);
+  }
+
+  /* Barra de la vista: las etiquetas pasan a ser iconos (el texto queda para lectores de pantalla y en el
+     title) y los controles crecen para el dedo. Lo de la izquierda se achica si no entra todo. */
   .view-toolbar {
-    grid-template-columns: auto 1fr auto;
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .toolbar-zone.left {
+    flex: 0 1 auto;
+  }
+
+  .toolbar-zone.center {
+    flex: 1 1 auto;
+  }
+
+  .toolbar-zone.center:has(.segmented),
+  .toolbar-zone.right {
+    flex-shrink: 0;
+  }
+
+  :is(.view-toolbar, .chat-tools, .composer-row) .label-icon {
+    display: inline-block;
+  }
+
+  :is(.view-toolbar, .chat-tools, .composer-row, .chat-pin) .icon + .label-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .view-toolbar .icon {
+    font-size: var(--font-icon);
+    vertical-align: middle;
+  }
+
+  .view-toolbar .btn,
+  .view-toolbar .segmented button,
+  .view-toolbar .input {
+    min-height: calc(var(--font-icon) + var(--space-8));
+  }
+
+  .view-toolbar .btn,
+  .view-toolbar .segmented button {
+    padding: var(--space-2) var(--space-6);
+  }
+
+  .view-toolbar .btn.icon-btn {
+    width: calc(var(--font-icon) + var(--space-8));
+    padding: 0;
+  }
+
+  .view-toolbar .live-status {
+    display: inline-grid;
   }
 
   .profile-edit-name {
