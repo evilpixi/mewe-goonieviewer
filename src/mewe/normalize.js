@@ -154,6 +154,24 @@ function normalizePost(post, users, groups) {
     canComment: (post.permissions?.comment ?? true) && !post.commentsDisabled,
     commentsCount: post.commentsCount ?? post.comments?.total ?? 0,
     comments: (post.comments?.feed ?? []).map((c) => normalizeComment(c, users)),
+    shared: post.refPost ? normalizeShared(post.refPost, users, groups) : null,
+  };
+}
+
+// Post compartido: el que se ve en el feed es un envoltorio (casi siempre sin texto) y el original viene en refPost
+function normalizeShared(post, users, groups) {
+  const author = users.get(post.userId) ?? post.user ?? post.owner ?? { id: post.userId };
+  const groupId = post.groupId ?? post.group?.id ?? null;
+  const images = extractImages(post);
+  return {
+    id: post.postItemId ?? post.id ?? post._id ?? null,
+    text: emojify(post.text ?? post.textPlain),
+    createdAt: toMillis(post.createdAt ?? post.created ?? post.updatedAt),
+    author: normalizeUser(author),
+    groupId,
+    group: groups.get(groupId)?.name ?? post.group?.name ?? null,
+    images,
+    imagesCount: Math.max(images.length, post.photosCount ?? post.mediasCount ?? 0),
   };
 }
 
