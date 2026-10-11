@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img: https://*.giphy.com; font-src 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img: https://*.giphy.com; media-src mewe-img:; font-src 'self'"
     />
     <title>Goonie Mewe Viewer</title>
     <link rel="stylesheet" href="styles.css" />
@@ -17,26 +17,47 @@
 
     <main class="main">
       <header class="app-header">
-        <button id="nav-back" class="btn" title="Volver (Alt+←)" aria-label="Volver" hidden>←</button>
-        <h1><button id="app-title" class="link-btn user-name" title="Ver mi perfil" disabled>Sin cuenta seleccionada</button></h1>
-        <nav id="view-tabs" class="segmented" aria-label="Sección" hidden>
-          <button data-view="feed" title="Feed (Ctrl+1)">Feed</button>
-          <button data-view="chat" title="Chats (Ctrl+2)">Chats</button>
-          <button data-view="groups" title="Grupos (Ctrl+3)">Grupos</button>
-        </nav>
-        <!-- controles propios de la vista activa (ej. filtro del feed) -->
-        <div id="view-toolbar" class="view-toolbar"></div>
-        <div class="header-actions">
-          <button id="open-search" class="btn icon-btn" title="Buscar personas" aria-label="Buscar personas" hidden>🔍</button>
-          <button id="open-notifications" class="btn icon-btn has-badge" title="Notificaciones" aria-label="Notificaciones" hidden>
-            <span aria-hidden="true">🔔</span><span id="notif-badge" class="count-badge" hidden></span>
+        <div class="header-start">
+          <!-- foto de la cuenta activa: abre su perfil (app.js pone la foto y el nombre en el title) -->
+          <button id="app-title" class="profile-btn" title="Ver mi perfil" aria-label="Ver mi perfil" hidden></button>
+        </div>
+        <nav id="view-tabs" class="header-tabs" aria-label="Sección" hidden>
+          <button data-view="feed" class="btn icon-btn" title="Feed (Ctrl+1)" aria-label="Feed">
+            <span class="icon icon-newspaper" aria-hidden="true"></span>
           </button>
-          <button id="refresh-view" class="btn icon-btn" title="Actualizar (F5)" aria-label="Actualizar" hidden>⟳</button>
-          <button id="open-settings" class="btn icon-btn" title="Ajustes de la interfaz" aria-label="Ajustes de la interfaz">⚙</button>
-          <button id="relogin-account" class="btn" hidden>Reconectar</button>
-          <button id="remove-account" class="btn danger" hidden>Quitar</button>
+          <button data-view="chat" class="btn icon-btn" title="Chats (Ctrl+2)" aria-label="Chats">
+            <span class="icon icon-message-circle" aria-hidden="true"></span>
+          </button>
+          <button data-view="lists" class="btn icon-btn" title="Listas: grupos y personas (Ctrl+3)" aria-label="Listas">
+            <span class="icon icon-users" aria-hidden="true"></span>
+          </button>
+          <button data-view="stories" class="btn icon-btn" title="Historias (Ctrl+4)" aria-label="Historias">
+            <span class="icon icon-circle-dashed" aria-hidden="true"></span>
+          </button>
+        </nav>
+        <div class="header-actions">
+          <button id="open-search" class="btn icon-btn" title="Buscar personas" aria-label="Buscar personas" hidden>
+            <span class="icon icon-search" aria-hidden="true"></span>
+          </button>
+          <button id="open-notifications" class="btn icon-btn has-badge" title="Notificaciones" aria-label="Notificaciones" hidden>
+            <span class="icon icon-bell" aria-hidden="true"></span><span id="notif-badge" class="count-badge" hidden></span>
+          </button>
+          <button id="open-options" class="btn icon-btn" title="Opciones" aria-label="Opciones" aria-haspopup="menu">
+            <span class="icon icon-ellipsis-vertical" aria-hidden="true"></span>
+          </button>
         </div>
       </header>
+      <!-- segundo panel: controles propios de la vista activa (izquierda / centro / derecha) y Actualizar -->
+      <div id="view-toolbar" class="view-toolbar" hidden>
+        <div id="toolbar-left" class="toolbar-zone left"></div>
+        <div id="toolbar-center" class="toolbar-zone center"></div>
+        <div class="toolbar-zone right">
+          <div id="toolbar-right" class="toolbar-slot"></div>
+          <button id="refresh-view" class="btn icon-btn" title="Actualizar (F5)" aria-label="Actualizar" hidden>
+            <span class="icon icon-refresh-cw" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
       <div id="app-error" role="alert"></div>
 
       <!-- las vistas (feed, chats, …) crean su DOM acá: ver router.js -->

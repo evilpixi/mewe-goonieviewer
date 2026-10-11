@@ -15,7 +15,8 @@
 </div>
 
 Goonie Mewe Viewer es una aplicación de escritorio hecha con Electron para usar MeWe con varias cuentas a la vez, en una
-interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto, espaciado e iconos.
+interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto, espaciado e iconos. Incluye feed,
+chats, historias, perfiles, grupos y notificaciones.
 
 > [!IMPORTANT]
 > Proyecto **no oficial**: no está afiliado ni respaldado por MeWe. Usa la API interna de la web de MeWe, que no está
@@ -30,10 +31,11 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 - El login se hace en la ventana oficial de MeWe, captcha incluido. **La contraseña no se guarda.**
 
 ### Feed
-- Tres vistas: todo, grupos y perfiles.
+- Tres vistas: todo, personas y grupos.
+- Crear publicaciones con texto e imágenes, en tu feed o en un grupo, con borrador automático; editar el texto de las propias.
 - Reacciones con emojis, y quién reaccionó con cada uno.
 - Comentarios y respuestas a comentarios.
-- Galería con todas las imágenes de una publicación y visor a pantalla completa con zoom y descarga.
+- Galería con todas las imágenes de una publicación y visor a pantalla completa con zoom, guardar y copiar al portapapeles.
 
 ### Chats
 - Chats con personas, de grupos y de eventos, con filtro por tipo.
@@ -43,7 +45,19 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 - Edición de mensajes propios.
 - Envío de imágenes y GIFs con el botón 📎, pegando con `Ctrl+V` o arrastrándolas a la conversación.
 - Temporizador para las imágenes enviadas (de 5 segundos a 24 horas).
-- Visor de imágenes a pantalla completa y descarga.
+- Videos que se reproducen dentro de la conversación.
+- Las respuestas a una historia muestran una vista previa de esa historia.
+- Visor de imágenes a pantalla completa, con guardar y copiar.
+- Bloquear a una persona desde su chat.
+
+### Historias
+- Grilla, sobre fondo negro, con quienes tienen historias; las que todavía no viste quedan resaltadas.
+- Visor a pantalla completa para fotos y videos: pasan solas, se pausan manteniendo apretado y se adapta a pantallas angostas.
+- Desde el visor: guardar la historia, responderle a su autor (le llega como mensaje de chat) o ir a su perfil.
+- En las tuyas: cuántas personas las vieron, y borrarlas.
+- Editor para crear una: imagen de fondo (entera o recortada a 9:16) con textos y emojis encima. Cada uno se mueve, se
+  gira y se agranda; el texto tiene 10 fuentes, color y un fondo opcional para que se lea.
+- Se publica para tus seguidores, para todos o para tus amigos cercanos.
 
 ### Perfiles
 - Información del perfil, sus publicaciones y pestañas con sus imágenes y sus álbumes.
@@ -52,16 +66,20 @@ interfaz compacta que se puede adaptar a gusto: temas, colores, tamaño de texto
 - Seguir y dejar de seguir; aceptar o rechazar solicitudes de seguimiento, y seguir también a quien se acepta.
 - Manejo de cuentas privadas.
 - Búsqueda de personas y acceso directo para abrir un chat.
+- Bloquear y copiar el link de un perfil.
+- En tu perfil: editar la foto, la portada y tus datos, y las listas de solicitudes de seguimiento y de bloqueados.
 
-### Grupos
-- Lista de tus grupos e invitaciones pendientes.
+### Listas y grupos
+- Lista de tus grupos e invitaciones pendientes, y de las personas que seguís y que te siguen, con filtro por nombre.
+- Desde una persona: ver su perfil, enviarle un mensaje, copiar su link o bloquearla.
 - Publicaciones, miembros (con filtro de administradores), eventos próximos y pasados, y chat del grupo.
+- El chat de un grupo se abre desde la lista o desde el grupo, dentro de la sección Chats.
 - Unirse, salir e invitar contactos.
 
 ### Notificaciones
 - Contador de pendientes en la cabecera.
 - Las de grupos van en una pestaña aparte.
-- Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue, desde la misma lista.
+- Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue (si todavía no lo seguís), desde la misma lista.
 - Al hacer click llevan al lugar correspondiente: perfil, publicación, comentario o mensaje.
 
 ### Interfaz y accesibilidad
@@ -119,22 +137,33 @@ El hash que aparece tiene que coincidir con el de `SHA256SUMS.txt`.
    es opcional: sólo sirve para rellenar el formulario) y pulsá **Iniciar sesión**. Se abre la ventana de MeWe: resolvé
    el captcha ahí y la cuenta queda agregada.
 2. **Cambiar de cuenta:** click en su avatar en la columna izquierda.
-3. **Moverte por la app:** las pestañas **Feed**, **Chats** y **Grupos** de la cabecera. A la derecha están la búsqueda
-   de personas (🔍), las notificaciones (🔔), actualizar (⟳) y los ajustes (⚙).
-4. **Personalizar:** en ⚙ elegís el tema, los colores y los tamaños. Cada cambio se aplica y se guarda al instante.
-5. **Si la sesión vence:** el botón **Reconectar** vuelve a iniciarla. **Quitar** elimina la cuenta de la app.
+3. **Moverte por la app:** en el centro de la cabecera están los iconos de **Feed**, **Chats**, **Listas** (tus grupos y
+   personas) e **Historias**. A la izquierda, tu foto abre tu perfil. A la derecha están la búsqueda de personas, las
+   notificaciones y el menú de opciones (⋮). Debajo, un segundo panel tiene los controles de cada sección
+   (filtros, **Crear post**, **Actualizar**). No hay botón para volver: de un perfil, un grupo o una publicación se
+   vuelve con `Alt+←`, o se va a otra sección con sus iconos.
+4. **Historias:** cada tarjeta abre las historias de esa persona a pantalla completa. Pasan solas; tocá a la derecha o
+   a la izquierda para cambiar y mantené apretado para pausar. Desde ahí podés guardarla, responderle a su autor o ir
+   a su perfil. **Crear historia** abre el editor: elegís una imagen y le sumás textos (10 fuentes, color y fondo) y
+   emojis, que se mueven arrastrándolos y se giran y agrandan con la manija de su esquina.
+5. **Personalizar:** en ⋮ → **Ajustes de la interfaz** elegís el tema, los colores y los tamaños. Cada cambio se aplica
+   y se guarda al instante.
+6. **Si la sesión vence:** ⋮ → **Reconectar** vuelve a iniciarla. ⋮ → **Quitar cuenta** la elimina de la app.
 
 ### Atajos de teclado
 
 | Atajo | Acción |
 |---|---|
-| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` | Feed / Chats / Grupos |
-| `Alt+←` | Volver |
+| `Ctrl+1` / `Ctrl+2` / `Ctrl+3` / `Ctrl+4` | Feed / Chats / Listas / Historias |
+| `Alt+←` | Volver a la vista anterior |
 | `F5` | Actualizar la vista |
 | `Enter` | Enviar mensaje o comentario (`Shift+Enter`: salto de línea) |
 | `Esc` | Cancelar la respuesta o la edición; cerrar paneles y el visor |
 | `←` / `→` | Imagen anterior / siguiente en el visor |
-| `Z` / `D` | Zoom / descargar en el visor |
+| `Z` / `G` / `C` | Zoom / guardar / copiar la imagen en el visor |
+| `Ctrl+Enter` | Publicar desde el diálogo de crear post |
+| `←` / `→` / `Espacio` / `G` | En una historia: anterior / siguiente / pausar / guardar |
+| Flechas / `Supr` | En el editor de historias, con la vista previa enfocada: mover / quitar el elemento elegido |
 
 ## Privacidad
 

@@ -2,9 +2,12 @@ import { api, imageUrl } from '../api.js';
 import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
 import { formatDateTime, formatDay, formatFull } from '../ui/dates.js';
+import { confirmDialog } from '../ui/confirm.js';
 import { emptyState, h } from '../ui/dom.js';
+import { icon } from '../ui/icon.js';
 import { openLightbox } from '../ui/lightbox.js';
 import { closePopover, openPopover } from '../ui/popover.js';
+import { openPostComposer } from '../ui/postComposer.js';
 import { createPostList } from '../ui/postList.js';
 import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
@@ -60,6 +63,23 @@ export function createGroupView({ navigate }) {
   const eventsError = h('div');
   const eventsEl = h('div', { hidden: true }, h('div', { className: 'tabs-bar' }, eventFilter.el), eventsError, eventsList);
 
+  // "Crear post" va en el segundo panel, como en el feed: publica en este grupo (sólo para sus miembros)
+  const createBtn = h(
+    'button',
+    {
+      className: 'btn primary',
+      hidden: true,
+      onClick: () =>
+        openPostComposer({
+          account,
+          groupId: group.id,
+          groupName: group.name,
+          onDone: () => loaded.has('posts') && posts.load(account),
+        }),
+    },
+    icon('plus'),
+    ' Crear post',
+  );
   const contentEl = h('div', { hidden: true }, h('div', { className: 'tabs-bar' }, tabs.el), posts.el, membersEl, eventsEl);
   const el = h('div', { className: 'view scroll page' }, errorEl, headerEl, noticeEl, contentEl);
 
@@ -80,6 +100,7 @@ export function createGroupView({ navigate }) {
     closePopover();
     clearError(errorEl);
     posts.reset();
+    createBtn.hidden = true;
     noticeEl.hidden = true;
     contentEl.hidden = true;
     headerEl.replaceChildren(emptyState('Cargando…'));
@@ -91,6 +112,7 @@ export function createGroupView({ navigate }) {
       const data = await api.getGroup(account.id, params.groupId);
       if (gen !== generation) return;
       group = { ...data, id: data.id ?? params.groupId };
+      createBtn.hidden = !group.isMember;
       renderHeader();
       contentEl.hidden = false;
       tabs.select(params.tab ?? 'posts');
@@ -120,7 +142,7 @@ export function createGroupView({ navigate }) {
     const actions = [];
     if (g.isMember) {
       actions.push(
-        h('button', { className: 'btn', onClick: () => navigate('thread', { thread: { id: g.id, name: g.name, isGroup: true } }) }, '💬 Chat'),
+        h('button', { className: 'btn', onClick: () => navigate('chat', { thread: { id: g.id, name: g.name, avatar: g.avatar, isGroup: true } }) }, '💬 Chat'),
         h('button', { className: 'btn', attrs: { 'aria-haspopup': 'dialog' }, onClick: (event) => openInvite(event.currentTarget) }, 'Invitar'),
         h('button', { className: 'btn danger', onClick: (event) => leave(event.currentTarget) }, 'Salir'),
       );
@@ -216,9 +238,10 @@ export function createGroupView({ navigate }) {
     fields[0]?.focus();
   }
 
-  function leave(button) {
-    if (!confirm(`¿Salir del grupo ${group.name}?`)) return;
-    membership(button, () => api.leaveGroup(account.id, group.id));
+  async function leave(button) {
+    const gen = generation;
+    const confirmed = await confirmDialog({ title: `¿Salir del grupo ${group.name}?`, confirmLabel: 'Salir', danger: true });
+    if (confirmed && gen === generation) membership(button, () => api.leaveGroup(account.id, group.id));
   }
 
   // Ejecuta unirse / salir y recarga el grupo para reflejar el estado real
@@ -443,7 +466,7 @@ export function createGroupView({ navigate }) {
         event.hasChat &&
           h(
             'button',
-            { className: 'btn', onClick: () => navigate('thread', { thread: { id: event.id, name: event.name, isGroup: true, chatType: 'EventChat' } }) },
+            { className: 'btn', onClick: () => navigate('chat', { thread: { id: event.id, name: event.name, isGroup: true, chatType: 'EventChat' } }) },
             '💬 Chat del evento',
           ),
       ),
@@ -452,6 +475,7 @@ export function createGroupView({ navigate }) {
 
   return {
     el,
+    toolbar: { left: createBtn },
     show,
     hide() {
       generation++;

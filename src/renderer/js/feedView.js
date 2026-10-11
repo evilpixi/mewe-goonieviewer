@@ -1,14 +1,16 @@
 import { api } from './api.js';
 import { clearError, showError } from './errorView.js';
 import { emptyState, h } from './ui/dom.js';
+import { icon } from './ui/icon.js';
 import { renderPost } from './ui/post.js';
+import { openPostComposer } from './ui/postComposer.js';
 import { createTabs } from './ui/tabs.js';
 
 const FEED_TYPE_KEY = 'feedType';
 const FEED_TYPES = [
   ['following', 'Todo'],
+  ['contacts', 'Personas'],
   ['groups', 'Grupos'],
-  ['contacts', 'Perfiles'],
 ];
 
 function savedFeedType() {
@@ -19,10 +21,17 @@ function savedFeedType() {
   }
 }
 
-// Feed de la cuenta activa (Siguiendo: Todo / Grupos / Perfiles), con paginación "Cargar más".
+// Feed de la cuenta activa (Todo / Personas / Grupos), con paginación "Cargar más".
+// En el segundo panel: "Crear post" a la izquierda y el filtro al centro (Actualizar lo pone la app a la derecha).
 export function createFeedView({ navigate }) {
   const filter = createTabs({ label: 'Tipo de feed', tabs: FEED_TYPES, onChange: changeType });
   const filterEl = filter.el;
+  const createBtn = h(
+    'button',
+    { className: 'btn primary', hidden: true, onClick: () => openPostComposer({ account, onDone: () => load() }) },
+    icon('plus'),
+    ' Crear post',
+  );
   const errorEl = h('div');
   const feedEl = h('section', { className: 'feed' });
   const loadMoreBtn = h('button', { className: 'btn load-more', hidden: true, onClick: () => load({ append: true }) }, 'Cargar más');
@@ -35,7 +44,7 @@ export function createFeedView({ navigate }) {
   let requestId = 0; // descarta respuestas de una cuenta que ya no está activa
 
   function renderFilter() {
-    filterEl.hidden = !account;
+    filterEl.hidden = createBtn.hidden = !account;
     filter.select(feedType);
   }
 
@@ -81,7 +90,7 @@ export function createFeedView({ navigate }) {
 
   return {
     el,
-    toolbar: filterEl,
+    toolbar: { left: createBtn, center: filterEl },
     show(newAccount) {
       account = newAccount;
       requestId++;

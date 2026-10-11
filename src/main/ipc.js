@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { dialog, ipcMain } from 'electron';
+import { clipboard, dialog, ipcMain, nativeImage } from 'electron';
 import { serializeError } from '../mewe/errors.js';
 import { avatarColor } from './avatarColor.js';
 
@@ -47,6 +47,9 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   account('post:reply', (client, _me, commentId, text) => client.addReply(commentId, text));
   account('post:commentReact', (client, _me, commentId, emoji, on) => client.setCommentReaction(commentId, emoji, on));
   account('post:commentReactors', (client, _me, commentId) => client.getCommentReactors(commentId));
+  account('post:upload', (client, _me, file) => client.uploadPostImage(file));
+  account('post:create', (client, _me, post) => client.createPost(post));
+  account('post:edit', (client, _me, postId, groupId, changes) => client.editPost(postId, groupId, changes));
 
   account('chat:threads', (client, me, filter) => client.getChatThreads(me.userId, filter));
   account('chat:messages', (client, me, threadId, beforeId) => client.getMessages(threadId, me.userId, beforeId));
@@ -70,6 +73,12 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   account('profile:follow', (client, _me, userId, on) => client.setFollow(userId, on));
   account('profile:requests', (client) => client.getFollowRequests());
   account('profile:answerRequest', (client, _me, requestId, accept) => client.answerFollowRequest(requestId, accept));
+  account('profile:people', (client, _me, kind, nextPage) => client.getPeople(kind, nextPage));
+  account('profile:block', (client, _me, userId) => client.blockUser(userId));
+  account('profile:unblock', (client, _me, userId) => client.unblockUser(userId));
+  account('profile:update', (client, me, changes) => client.updateProfile(me.userId, changes));
+  account('profile:setAvatar', (client, _me, file, crop) => client.setAvatar(file, crop));
+  account('profile:setCover', (client, _me, file, crop) => client.setCover(file, crop));
 
   account('group:list', (client) => client.getGroups());
   account('group:get', (client, _me, groupId) => client.getGroup(groupId));
@@ -81,7 +90,14 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   account('group:contacts', (client, _me, groupId, query, offset) => client.searchGroupContacts(groupId, query, offset));
   account('group:invite', (client, _me, groupId, userIds) => client.inviteToGroup(groupId, userIds));
 
-  account('notif:list', (client, _me, nextPage) => client.getNotifications(nextPage));
+  account('story:tellers', (client, me) => client.getStorytellers(me.userId));
+  account('story:list', (client, _me, tellerId, isPage) => client.getStories(tellerId, isPage));
+  account('story:seen', (client, _me, views) => client.markStoriesSeen(views));
+  account('story:reply', (client, _me, tellerId, storyId, text) => client.replyToStory(tellerId, storyId, text));
+  account('story:create', (client, _me, file, scope) => client.createStory(file, scope));
+  account('story:delete', (client, _me, storyId, scope) => client.deleteStory(storyId, scope));
+
+  account('notif:list',(client, _me, nextPage) => client.getNotifications(nextPage));
   account('notif:unseen', (client) => client.getUnseenNotifications());
   account('notif:markSeen', (client) => client.markNotificationsSeen());
   account('notif:markVisited', (client, _me, notificationId) => client.markNotificationVisited(notificationId));
@@ -99,13 +115,39 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
   // Descarga una imagen de MeWe (con las cookies de la cuenta) y la guarda donde elija el usuario
   account('ui:download', async (client, _me, url, suggestedName) => {
     const { data, contentType } = await client.downloadImage(url);
-    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }[contentType] ?? 'jpg';
+    const type = contentType.split(';')[0].trim();
+    // video/mp4: los videos de las historias se guardan por el mismo camino
+    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'video/mp4': 'mp4' }[type] ?? 'jpg';
     const base = String(suggestedName || 'mewe-imagen').replace(/[^\w.-]+/g, '_').replace(/\.\w+$/, '');
-    const options = { defaultPath: `${base}.${ext}`, filters: [{ name: 'Imagen', extensions: [ext] }] };
+    const options = { defaultPath: `${base}.${ext}`, filters: [{ name: ext === 'mp4' ? 'Video' : 'Imagen', extensions: [ext] }] };
     const win = getWindow();
     const { canceled, filePath } = await (win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options));
     if (canceled || !filePath) return { saved: false };
     await fs.writeFile(filePath, data);
     return { saved: true, filePath };
+  });
+
+  // Copia una imagen de MeWe al portapapeles. nativeImage sólo decodifica PNG y JPEG: con otro formato
+  // devuelve { copied: false } y la UI recurre a ui:copyImageAt.
+  account('ui:copyImage', async (client, _me, url) => {
+    const { data } = await client.downloadImage(url);
+    const image = nativeImage.createFromBuffer(data);
+    if (image.isEmpty()) return { copied: false };
+    clipboard.writeImage(image);
+    return { copied: true };
+  });
+
+  // Copia la imagen que se ve en ese punto de la ventana (x, y en px de CSS): sirve para WebP y GIF
+  handle('ui:copyImageAt', (x, y) => {
+    const contents = getWindow()?.webContents;
+    if (!contents) return { copied: false };
+    const zoom = contents.getZoomFactor();
+    contents.copyImageAt(Math.round(Number(x) * zoom), Math.round(Number(y) * zoom));
+    return { copied: true };
+  });
+
+  handle('ui:copyText', (text) => {
+    clipboard.writeText(String(text ?? '').slice(0, 2000));
+    return true;
   });
 }

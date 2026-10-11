@@ -9,6 +9,15 @@ export const formatTime = (ms) => time.format(ms);
 export const formatDateTime = (ms) => shortDateTime.format(ms);
 export const formatFull = (ms) => full.format(ms);
 
+// Tiempo transcurrido, corto: "ahora", "hace 5 min", "hace 3 h", "hace 2 d"
+export function formatAgo(ms) {
+  const minutes = Math.floor((Date.now() - ms) / 60000);
+  if (minutes < 1) return 'ahora';
+  if (minutes < 60) return `hace ${minutes} min`;
+  if (minutes < 60 * 24) return `hace ${Math.floor(minutes / 60)} h`;
+  return `hace ${Math.floor(minutes / (60 * 24))} d`;
+}
+
 // Clave por día local ("2026-10-01"), para agrupar
 export function dayKey(ms) {
   const d = new Date(ms);

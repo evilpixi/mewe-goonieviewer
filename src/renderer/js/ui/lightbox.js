@@ -1,5 +1,6 @@
 import { api, imageUrl } from '../api.js';
 import { emptyState, h } from './dom.js';
+import { icon } from './icon.js';
 
 // Visor de imágenes a pantalla completa (uno solo para toda la app).
 // openLightbox({ accountId, images: [{ src, full, postId? }], index, loadAll?, loadPost?, caption?, onClose? })
@@ -7,7 +8,7 @@ import { emptyState, h } from './dom.js';
 // - loadPost: async (imagen) => nodo con la publicación de esa imagen (las que traen postId);
 //   se muestra en un panel al costado
 // - caption: texto en la barra · onClose: se llama una vez al cerrarse (imágenes temporales del chat)
-// Teclado: ← → navegan, Esc cierra, Z alterna zoom, D descarga, P muestra u oculta la publicación.
+// Teclado: ← → navegan, Esc cierra, Z alterna zoom, G (o D) guarda, C copia, P muestra u oculta la publicación.
 let viewer = null;
 
 export function openLightbox(options) {
@@ -26,7 +27,8 @@ function createViewer() {
   const prevBtn = h('button', { className: 'lightbox-nav prev', title: 'Anterior (←)', attrs: { 'aria-label': 'Anterior' } }, '‹');
   const nextBtn = h('button', { className: 'lightbox-nav next', title: 'Siguiente (→)', attrs: { 'aria-label': 'Siguiente' } }, '›');
   const zoomBtn = h('button', { className: 'btn', title: 'Tamaño real (Z)' }, 'Zoom');
-  const downloadBtn = h('button', { className: 'btn', title: 'Descargar (D)' }, 'Descargar');
+  const downloadBtn = h('button', { className: 'btn', title: 'Guardar la imagen en el equipo (G)' }, icon('download'), ' Guardar');
+  const copyBtn = h('button', { className: 'btn', title: 'Copiar la imagen al portapapeles (C)' }, icon('copy'), ' Copiar');
   const postBtn = h('button', { className: 'btn', title: 'Mostrar u ocultar la publicación (P)', hidden: true }, 'Publicación');
   const closeBtn = h('button', { className: 'btn', title: 'Cerrar (Esc)' }, 'Cerrar');
   const stage = h('div', { className: 'lightbox-stage' }, img);
@@ -34,7 +36,7 @@ function createViewer() {
   const dialog = h(
     'dialog',
     { className: 'lightbox', attrs: { 'aria-label': 'Visor de imágenes' } },
-    h('div', { className: 'lightbox-bar' }, counter, status, h('span', { className: 'spacer' }), postBtn, zoomBtn, downloadBtn, closeBtn),
+    h('div', { className: 'lightbox-bar' }, counter, status, h('span', { className: 'spacer' }), postBtn, zoomBtn, downloadBtn, copyBtn, closeBtn),
     stage,
     prevBtn,
     nextBtn,
@@ -120,7 +122,7 @@ function createViewer() {
   async function download() {
     const current = images[index];
     if (!current) return;
-    status.textContent = 'Descargando…';
+    status.textContent = 'Guardando…';
     try {
       const result = await api.downloadImage(accountId, current.full ?? current.src, `mewe-${Date.now()}`);
       status.textContent = result.saved ? 'Guardada.' : '';
@@ -135,7 +137,40 @@ function createViewer() {
           // cae al mensaje de error
         }
       }
-      status.textContent = `No se pudo descargar: ${err.message}`;
+      status.textContent = `No se pudo guardar: ${err.message}`;
+    }
+  }
+
+  // Copia la imagen al portapapeles: la versión grande (o la miniatura si no existe). Si main no puede
+  // decodificarla (WebP, GIF), copia la que está en pantalla.
+  async function copy() {
+    const current = images[index];
+    if (!current) return;
+    const opened = session;
+    status.textContent = 'Copiando…';
+    const urls = [...new Set([current.full ?? current.src, current.src])];
+    let copied = false;
+    for (const url of urls) {
+      try {
+        ({ copied } = await api.copyImage(accountId, url));
+        break; // se descargó: si no se copió es por el formato, no por la URL
+      } catch {
+        // la versión grande puede no existir: se prueba la miniatura
+      }
+    }
+    if (opened !== session || images[index] !== current) return; // se cerró o se pasó a otra imagen
+    try {
+      if (!copied && img.complete && img.naturalWidth) {
+        const rect = img.getBoundingClientRect();
+        const area = stage.getBoundingClientRect();
+        // un punto de la imagen que esté a la vista (con zoom puede sobresalir del visor)
+        const x = Math.min(Math.max(rect.left + rect.width / 2, area.left + 1), area.right - 1);
+        const y = Math.min(Math.max(rect.top + rect.height / 2, area.top + 1), area.bottom - 1);
+        ({ copied } = await api.copyImageAt(x, y));
+      }
+      status.textContent = copied ? 'Copiada.' : 'No se pudo copiar la imagen.';
+    } catch (err) {
+      status.textContent = `No se pudo copiar: ${err.message}`;
     }
   }
 
@@ -144,6 +179,7 @@ function createViewer() {
   zoomBtn.addEventListener('click', () => dialog.classList.toggle('zoomed'));
   img.addEventListener('click', () => dialog.classList.toggle('zoomed'));
   downloadBtn.addEventListener('click', download);
+  copyBtn.addEventListener('click', copy);
   postBtn.addEventListener('click', togglePost);
   closeBtn.addEventListener('click', () => dialog.close());
   // click en el fondo (fuera de la imagen) cierra
@@ -157,7 +193,8 @@ function createViewer() {
     if (event.key === 'ArrowLeft') go(-1);
     else if (event.key === 'ArrowRight') go(1);
     else if (event.key === 'z' || event.key === 'Z') dialog.classList.toggle('zoomed');
-    else if (event.key === 'd' || event.key === 'D') download();
+    else if (/^[gd]$/i.test(event.key)) download();
+    else if (event.key === 'c' || event.key === 'C') copy();
     else if (event.key === 'p' || event.key === 'P') togglePost();
     else return;
     event.preventDefault();

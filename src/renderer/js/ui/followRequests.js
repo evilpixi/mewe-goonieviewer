@@ -1,7 +1,7 @@
 import { api } from '../api.js';
 import { showError } from '../errorView.js';
 import { avatar } from './avatar.js';
-import { h } from './dom.js';
+import { emptyState, h } from './dom.js';
 import { userName } from './userName.js';
 
 // Botón para seguir a `user` (o pedirle seguirlo si su cuenta es privada). Antes de seguir consulta
@@ -38,47 +38,47 @@ export function followButton({ account, user, results, onError }) {
   return button;
 }
 
-// Solicitudes de seguimiento recibidas, con Aceptar / Rechazar. Se oculta sola si no hay ninguna.
+// Solicitudes de seguimiento recibidas, con Aceptar / Rechazar (pestaña "Solicitudes" del perfil propio).
 // Al aceptar, la fila queda con el botón para seguir también a esa persona.
-// onChange(userId) avisa cuando se respondió una solicitud.
-export function createFollowRequests({ navigate, onChange }) {
+// onChange(userId) avisa cuando se respondió una solicitud · onCount(n): cuántas quedan sin responder.
+export function createFollowRequests({ navigate, onChange, onCount }) {
   const listEl = h('ul', { className: 'people-list' });
   const errorEl = h('div');
-  const el = h(
-    'section',
-    { className: 'card follow-requests', hidden: true, attrs: { 'aria-label': 'Solicitudes de seguimiento' } },
-    h('h2', { className: 'card-title' }, 'Solicitudes de seguimiento'),
-    errorEl,
-    listEl,
-  );
-  const rows = new Map(); // userId → fila
+  const el = h('section', { className: 'card follow-requests', attrs: { 'aria-label': 'Solicitudes de seguimiento' } }, errorEl, listEl);
+  const rows = new Map(); // userId → fila (sólo las que siguen sin responder)
   let generation = 0;
+
+  function renderEmpty() {
+    if (!listEl.childElementCount) listEl.replaceChildren(emptyState('No hay solicitudes de seguimiento.', 'li'));
+  }
 
   // Devuelve las solicitudes pendientes (vacío si no se pudieron cargar)
   async function load(account) {
     const gen = ++generation;
-    el.hidden = true;
     errorEl.replaceChildren();
+    listEl.replaceChildren();
     rows.clear();
+    onCount?.(0);
     if (!account) return [];
     try {
       const requests = await api.getFollowRequests(account.id);
       if (gen !== generation) return [];
       listEl.replaceChildren(...requests.map((request) => renderRequest(account, request)));
-      el.hidden = !requests.length;
+      renderEmpty();
+      onCount?.(rows.size);
       return requests;
     } catch (err) {
-      // sin solicitudes visibles la sección no aporta nada: sólo se registra
-      console.warn('[solicitudes]', err);
+      if (gen === generation) showError(errorEl, err, 'MeWe seguimiento');
       return [];
     }
   }
 
-  // Quita la fila de una persona (su solicitud se respondió desde otro lado)
-  function remove(userId) {
-    rows.get(userId)?.remove();
+  // La solicitud de esa persona ya no está pendiente. dropRow: además se quita su fila.
+  function settle(userId, dropRow) {
+    if (dropRow) rows.get(userId)?.remove();
     rows.delete(userId);
-    el.hidden = !listEl.childElementCount;
+    renderEmpty();
+    onCount?.(rows.size);
   }
 
   function renderRequest(account, { requestId, user }) {
@@ -93,9 +93,8 @@ export function createFollowRequests({ navigate, onChange }) {
         if (accept) {
           for (const btn of buttons) btn.remove();
           item.append(h('span', { className: 'status' }, 'Aceptada'), followButton({ account, user, onError }));
-        } else {
-          remove(user.id);
         }
+        settle(user.id, !accept);
         onChange?.(user.id);
       } catch (err) {
         for (const btn of buttons) btn.disabled = false;
@@ -117,5 +116,5 @@ export function createFollowRequests({ navigate, onChange }) {
     return item;
   }
 
-  return { el, load, remove };
+  return { el, load };
 }

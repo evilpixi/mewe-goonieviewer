@@ -45,6 +45,13 @@ export const config = {
     // Sobre la base: '' (detalle), /comments, /emojis, /multipost/medias
     post: (postId, groupId) =>
       groupId ? `/api/v3/group/${groupId}/post/${postId}` : `/api/v2/home/post/${postId}`,
+    // Crear y editar posts. Las fotos se suben antes (multipart, campo `file` → { id }) y van en imageIds.
+    posts: {
+      create: (groupId) => (groupId ? `/api/v3/group/${groupId}/post` : '/api/v2/home/post'), // POST { text, imageIds, everyone? }
+      // editar: PUT {base del post}/edit { text, mediaIds, existingFileIds, stickers } (mediaIds = fotos que se conservan)
+      upload: '/api/v2/photo/pt',
+      maxImages: 20,
+    },
     comments: {
       replies: (commentId) => `/api/v2/comments/${commentId}/replies`, // GET
       reply: (commentId) => `/api/v2/comments/${commentId}/reply`, // POST { text }
@@ -64,6 +71,21 @@ export const config = {
       search: '/api/v3/desktop/search/users', // GET ?query=&limit=&offset=&nm=1 → { results: [{ user }], hasMoreResults }
       acceptRequest: (requestId) => `/api/v2/following/request/${requestId}/accept`, // POST
       removeRequest: (requestId) => `/api/v2/following/request/${requestId}/remove`, // DELETE (rechazar o cancelar)
+      // Listas de personas, paginadas: { list: [{ user, following, follower }], _links.nextPage }
+      followers: '/api/v2/following/followers', // GET ?maxResults=
+      followed: '/api/v2/following/followed', // GET ?maxResults=
+      blocked: '/api/v2/following/blocked', // GET
+      block: '/api/v2/mycontacts/contact/block/user', // POST ?userId=
+      unblock: '/api/v2/mycontacts/contact/unblock', // POST ?userId=
+      listPageSize: 50,
+      // Perfil propio. Las fotos se suben antes (multipart, campo `file` → { id }) y se recortan en el servidor
+      // con croppX / croppY / croppW / croppH (sic), en píxeles de la imagen original.
+      uploadAvatar: '/api/v2/photo/up',
+      uploadCover: '/api/v2/photo/uc',
+      avatar: '/api/v2/profile', // PUT { picture: { id, croppX, croppY, croppW, croppH } }
+      cover: '/api/v2/profile/cover', // PUT { id, croppX, croppY, croppW, croppH }
+      publicProfile: '/api/v2/profile/public', // PUT { text, currentCity, job, …, status } (van todos los campos)
+      account: '/api/v2/account', // POST { firstName, lastName }
     },
 
     groups: {
@@ -82,6 +104,21 @@ export const config = {
       events: (groupId, when) => `/api/v2/events2/group/${groupId}/${when}`, // GET ?v=2&maxResults=
       membersPageSize: 30,
       eventsPageSize: 20,
+    },
+
+    // Historias (API v3). Sacado del bundle web; MeWe llama "storyteller" a quien publica.
+    stories: {
+      feed: '/api/v3/stories/feed', // GET → { storytellersInOrder: [{ storytellerId, storytellerType, userStoryteller, stories, hasNewStories }] }
+      // GET → { stories: [{ storyId, scope, media, isNew, createdAt, totalUniqueViews }] }
+      byTeller: (tellerId, isPage) => (isPage ? `/api/v3/page/${tellerId}/stories` : `/api/v3/stories/${tellerId}`),
+      markSeen: '/api/v3/stories/mark-seen', // POST { views: [{ storyId, storytellerId, storytellerType, viewedAt }] }
+      reply: (tellerId, storyId) => `/api/v3/stories/${tellerId}/${storyId}/reply`, // POST { message }: llega como mensaje de chat
+      upload: '/api/v2/photo/st', // multipart, campo `files` → { id }
+      create: (scope) => `/api/v3/story/${scope}`, // POST { userMediaId, location }
+      remove: (scope, storyId) => `/api/v3/story/${scope}/${storyId}`, // DELETE (scope en minúsculas)
+      scopes: ['followers', 'public', 'favorites'], // quién la ve: seguidores, todos, amigos cercanos
+      imageSize: '1200x1200', // el que pide la web
+      videoResolutions: ['original', '720p', '480p'], // se prueban en orden
     },
 
     notifications: {

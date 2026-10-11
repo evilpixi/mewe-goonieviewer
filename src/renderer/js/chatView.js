@@ -11,9 +11,9 @@ const THREADS_POLL_MS = 30000;
 const THREADS_REFRESH_DEBOUNCE_MS = 800;
 const FILTER_KEY = 'chatFilter';
 const FILTERS = [
+  ['all', 'Todos'],
   ['users', 'Personas'],
   ['groups', 'Grupos'],
-  ['all', 'Todos'],
 ];
 
 // Ancho de la lista de chats, elegido arrastrando su borde: { width: px | null, compact: bool }
@@ -46,12 +46,19 @@ export function createChatView({ navigate } = {}) {
   const filterTabs = createTabs({ label: 'Tipo de chat', tabs: FILTERS, onChange: changeFilter });
   const filterEl = filterTabs.el;
   const liveEl = h('span', { className: 'live-status', attrs: { 'aria-live': 'polite' } });
-  const toolbar = h('div', { className: 'view-toolbar-group' }, filterEl, liveEl);
   const threadsEl = h('ul', { className: 'chat-threads scroll', attrs: { 'aria-label': 'Conversaciones' } });
   const errorEl = h('div');
   const conversation = createConversation({
     navigate,
     onSent: () => scheduleThreadsRefresh(),
+    // se bloqueó a la persona del chat abierto: el chat se cierra y la lista se vuelve a pedir
+    onBlocked: () => {
+      activeId = null;
+      lastThread = null;
+      extraThread = null;
+      conversation.close();
+      loadThreads();
+    },
     // el chat abierto sabe si quedó leído (click, escribir, botón) o si le llegó algo nuevo
     onUnreadChange: (threadId, unread) => {
       const t = threads.find((item) => item.id === threadId);
@@ -137,6 +144,7 @@ export function createChatView({ navigate } = {}) {
   let threads = [];
   let activeId = null;
   let lastThread = null; // último chat abierto: se reabre al volver (p. ej. desde un perfil)
+  let extraThread = null; // chat pedido desde afuera ("Mensaje" en un perfil): se suma a la lista si MeWe no lo trae
   let generation = 0; // invalida respuestas de una cuenta anterior
   let threadsTimer = null;
   let refreshTimer = null;
@@ -192,6 +200,9 @@ export function createChatView({ navigate } = {}) {
       const list = await api.getChatThreads(account.id, requested);
       if (gen !== generation || requested !== filter) return;
       threads = list.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+      // un chat recién creado, todavía sin mensajes, no viene en la lista: va arriba para que quede seleccionado
+      const showExtra = extraThread && (requested === 'all' || (requested === 'groups') === Boolean(extraThread.isGroup));
+      if (showExtra && !threads.some((t) => t.id === extraThread.id)) threads.unshift(extraThread);
       // para el chat abierto vale lo que sabe la conversación (la lista puede llegar atrasada)
       const open = threads.find((t) => t.id === conversation.threadId);
       if (open) open.unread = conversation.unread;
@@ -259,18 +270,24 @@ export function createChatView({ navigate } = {}) {
 
   return {
     el,
-    toolbar,
-    show(newAccount) {
+    toolbar: { center: filterEl, right: liveEl },
+    // params.thread: chat a abrir (botón "Mensaje" de un perfil o de una lista de personas)
+    show(newAccount, params = {}) {
       stop();
       generation++;
       visible = true;
+      const sameAccount = Boolean(newAccount) && account?.id === newAccount.id;
+      const wanted = newAccount && params.thread?.id ? params.thread : null;
       // misma cuenta que antes (se vuelve de otra vista): se conserva la lista y se reabre el chat
-      const reopen = newAccount && account?.id === newAccount.id ? lastThread : null;
+      const reopen = wanted ?? (sameAccount ? lastThread : null);
       account = newAccount;
-      if (!reopen) {
+      extraThread = wanted;
+      if (!sameAccount || !reopen) {
         threads = [];
         lastThread = null;
       }
+      // el chat pedido tiene que entrar en el filtro activo
+      if (wanted && filter !== 'all' && (filter === 'groups') !== Boolean(wanted.isGroup)) filter = wanted.isGroup ? 'groups' : 'users';
       activeId = null;
       clearError(errorEl);
       renderFilter();

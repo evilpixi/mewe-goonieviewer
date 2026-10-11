@@ -21,14 +21,43 @@ import {
   normalizePostDetails,
   normalizeProfile,
   normalizeReactors,
+  normalizeStories,
+  normalizeStorytellers,
   normalizeThreads,
   normalizeUserProfile,
 } from './normalize.js';
 
-const { host, endpoints, userAgent, cookies: cookieNames, chat, comments, profile, groups, notifications } = config.mewe;
+const { host, endpoints, userAgent, cookies: cookieNames, chat, comments, profile, groups, stories, notifications } = config.mewe;
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const REFRESH_MIN_INTERVAL_MS = 30000; // no renovar la sesión más seguido que esto
+const TEMPORAL_CACHE_ITEMS = 30; // imágenes temporales que se guardan en memoria
+const TEMPORAL_CACHE_MAX_BYTES = 8 * 1024 * 1024; // las más pesadas no se guardan
+
+// Campos del perfil público. PUT /profile/public los pisa todos: siempre van juntos (ver updateProfile).
+const PROFILE_KEYS = ['text', 'currentCity', 'job', 'company', 'college', 'highSchool', 'relationshipStatus', 'interests', 'email', 'phone'];
+const PEOPLE_LISTS = { followers: profile.followers, following: profile.followed, blocked: profile.blocked };
+
+// file = { name, type, data: Uint8Array } desde el renderer → FormData con la imagen en `field`
+function imageForm(file, field) {
+  if (!/^image\/(png|jpe?g|gif|webp)$/.test(file?.type ?? '')) {
+    throw new MeweApiError({ message: `Tipo de imagen no soportado: ${file?.type}` });
+  }
+  const bytes = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data ?? []);
+  if (!bytes.byteLength || bytes.byteLength > MAX_UPLOAD_BYTES) {
+    throw new MeweApiError({ message: 'La imagen está vacía o supera 20 MB.' });
+  }
+  const form = new FormData();
+  form.append(field, new Blob([bytes], { type: file.type }), file.name || 'image');
+  return form;
+}
+
+// Recorte { x, y, width, height } en píxeles de la imagen original → los nombres que usa MeWe
+function cropParams(crop) {
+  const px = (value) => Math.max(0, Math.round(Number(value) || 0));
+  if (!crop || px(crop.width) < 1 || px(crop.height) < 1) throw new MeweApiError({ message: 'Recorte de imagen inválido.' });
+  return { croppX: px(crop.x), croppY: px(crop.y), croppW: px(crop.width), croppH: px(crop.height) };
+}
 
 // Los ids van dentro de rutas: sólo se aceptan [A-Za-z0-9_-]
 function assertId(value, label = 'id') {
@@ -58,6 +87,8 @@ function postBase(postId, groupId) {
 // Cliente de la API interna de MeWe para UNA cuenta.
 // Las cookies viven en la sesión de Electron de esa cuenta (ver SessionCookies).
 export class MeweClient {
+  #temporal = new Map(); // url → { data, contentType } de las imágenes temporales ya vistas
+
   constructor(cookies) {
     this.cookies = cookies;
     this.refreshing = null; // renovación de sesión en curso (promesa compartida)
@@ -146,17 +177,40 @@ export class MeweClient {
     return this.refreshing;
   }
 
-  // Descarga binaria (imágenes) con las cookies de la cuenta
-  async fetchRaw(url) {
+  // Descarga binaria (imágenes y videos) con las cookies de la cuenta. extra: headers de más (ej. range)
+  async fetchRaw(url, extra = {}) {
     const startedAt = Date.now();
-    let response = await fetch(url, { headers: await this.headers(url) });
+    let response = await fetch(url, { headers: await this.headers(url, extra) });
     await this.cookies.storeFromResponse(url, response);
     // las cookies del CDN de imágenes duran ~20 min: se renuevan igual que la sesión
     if ((response.status === 401 || response.status === 403) && (await this.refreshSession(startedAt))) {
-      response = await fetch(url, { headers: await this.headers(url) });
+      response = await fetch(url, { headers: await this.headers(url, extra) });
       await this.cookies.storeFromResponse(url, response);
     }
     return response;
+  }
+
+  // Las imágenes temporales del chat se piden a mewe.com con un tamaño fijo (ver normalize.js)
+  isTemporalImage(url) {
+    const target = new URL(url);
+    return target.hostname === new URL(host).hostname && target.pathname.includes(`/${chat.disappearingImageSize}/`);
+  }
+
+  // Una imagen temporal se guarda en memoria la primera vez que se ve: así se puede volver a abrir (y guardar
+  // o copiar) aunque MeWe ya no la entregue. Dura lo que la app abierta. → { status, data, contentType, cached }
+  async fetchTemporalImage(url) {
+    const key = String(url);
+    const hit = this.#temporal.get(key);
+    if (hit) return { status: 200, ...hit, cached: true };
+    const response = await this.fetchRaw(url);
+    const data = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+    if (response.ok && data.length && data.length <= TEMPORAL_CACHE_MAX_BYTES) {
+      this.#temporal.set(key, { data, contentType });
+      // se descartan las más viejas (un Map conserva el orden de inserción)
+      while (this.#temporal.size > TEMPORAL_CACHE_ITEMS) this.#temporal.delete(this.#temporal.keys().next().value);
+    }
+    return { status: response.status, data, contentType, cached: false };
   }
 
   async hasSessionCookie() {
@@ -190,6 +244,36 @@ export class MeweClient {
 
   async getPostReactors(postId, groupId) {
     return normalizeReactors(await this.request(`${postBase(postId, groupId)}/emojis`));
+  }
+
+  // Sube una foto para un post nuevo. Devuelve su id (va en imageIds al crear el post).
+  uploadPostImage(file) {
+    return this.#uploadPhoto(config.mewe.posts.upload, file);
+  }
+
+  // Publica en el feed propio o, con groupId, en un grupo. everyone: visible para todos, no sólo para quienes siguen.
+  async createPost({ text, imageIds, groupId, everyone } = {}) {
+    const body = String(text ?? '').trim();
+    const ids = (imageIds ?? []).slice(0, config.mewe.posts.maxImages).map((id) => assertId(id, 'imageId'));
+    if (!body && !ids.length) throw new MeweApiError({ message: 'La publicación está vacía.' });
+    const json = { text: body };
+    if (ids.length) json.imageIds = ids;
+    if (everyone && !groupId) json.everyone = true;
+    const data = await this.request(config.mewe.posts.create(groupId ? assertId(groupId, 'groupId') : null), { method: 'POST', json });
+    return data?.post ? normalizePostDetails(data) : null;
+  }
+
+  // Cambia el texto de un post propio. mediaIds: las fotos que tiene y se conservan (MeWe quita las que no vayan).
+  async editPost(postId, groupId, { text, mediaIds } = {}) {
+    const json = {
+      text: String(text ?? '').trim(),
+      mediaIds: (mediaIds ?? []).map((id) => assertId(id, 'mediaId')),
+      existingFileIds: [],
+      stickers: [],
+    };
+    if (!json.text && !json.mediaIds.length) throw new MeweApiError({ message: 'La publicación está vacía.' });
+    const data = await this.request(`${postBase(postId, groupId)}/edit`, { method: 'PUT', json });
+    return data?.post ? normalizePostDetails(data) : null;
   }
 
   // --- Comentarios ---
@@ -307,20 +391,8 @@ export class MeweClient {
   }
 
   // file = { name, type, data: Uint8Array } desde el renderer. Devuelve el id del adjunto.
-  async uploadChatImage(isGroup, file) {
-    if (!/^image\/(png|jpe?g|gif|webp)$/.test(file?.type ?? '')) {
-      throw new MeweApiError({ message: `Tipo de imagen no soportado: ${file?.type}` });
-    }
-    const bytes = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data ?? []);
-    if (!bytes.byteLength || bytes.byteLength > MAX_UPLOAD_BYTES) {
-      throw new MeweApiError({ message: 'La imagen está vacía o supera 20 MB.' });
-    }
-    const form = new FormData();
-    form.append('files[]', new Blob([bytes], { type: file.type }), file.name || 'image');
-    const data = await this.request(chat.upload(isGroup), { method: 'POST', form });
-    const id = data?.id ?? data?.[0]?.id ?? data?.files?.[0]?.id;
-    if (!id) throw new MeweApiError({ message: 'MeWe no devolvió el id de la imagen subida.', body: data });
-    return id;
+  uploadChatImage(isGroup, file) {
+    return this.#uploadPhoto(chat.upload(isGroup), file, 'files[]');
   }
 
   setMessageReaction(threadId, messageId, emoji, on) {
@@ -384,6 +456,64 @@ export class MeweClient {
     assertId(requestId, 'requestId');
     if (accept) await this.request(profile.acceptRequest(requestId), { method: 'POST' });
     else await this.request(profile.removeRequest(requestId), { method: 'DELETE' });
+    return true;
+  }
+
+  // kind: 'followers' | 'following' | 'blocked' → { users, nextPage }
+  async getPeople(kind, nextPage) {
+    const path = PEOPLE_LISTS[kind];
+    if (!path) throw new MeweApiError({ message: `Lista de personas desconocida: ${kind}` });
+    const data = nextPage
+      ? await this.request(assertNextPage(nextPage))
+      : await this.request(path, { query: { maxResults: profile.listPageSize } });
+    return { users: normalizeContacts(data).filter((user) => user.id), nextPage: data?._links?.nextPage?.href ?? null };
+  }
+
+  async blockUser(userId) {
+    await this.request(profile.block, { method: 'POST', query: { userId: assertId(userId, 'userId') } });
+    return true;
+  }
+
+  async unblockUser(userId) {
+    await this.request(profile.unblock, { method: 'POST', query: { userId: assertId(userId, 'userId') } });
+    return true;
+  }
+
+  // --- Perfil propio ---
+
+  // Foto de perfil: se sube y MeWe la recorta. crop = { x, y, width, height } en píxeles de la imagen.
+  async setAvatar(file, crop) {
+    const picture = cropParams(crop);
+    picture.id = await this.#uploadPhoto(profile.uploadAvatar, file);
+    await this.request(profile.avatar, { method: 'PUT', json: { picture } });
+    return true;
+  }
+
+  async setCover(file, crop) {
+    const json = cropParams(crop);
+    json.id = await this.#uploadPhoto(profile.uploadCover, file);
+    await this.request(profile.cover, { method: 'PUT', json });
+    return true;
+  }
+
+  // { firstName, lastName, fields: { text, currentCity, job, … } }: sólo se toca lo que venga.
+  // MeWe reemplaza el perfil público entero, así que los campos que no cambian se reenvían con su valor actual.
+  async updateProfile(myUserId, { firstName, lastName, fields } = {}) {
+    if (fields) {
+      const data = await this.request(profile.details(assertId(myUserId, 'userId')), { query: { details: true } });
+      const current = data?.profile ?? data?.user?.profile ?? {};
+      const json = { status: current.status ?? {} };
+      for (const key of PROFILE_KEYS) {
+        const value = fields[key] ?? current[key];
+        if (value != null) json[key] = String(value).trim().slice(0, key === 'text' ? 5000 : 500);
+      }
+      await this.request(profile.publicProfile, { method: 'PUT', json });
+    }
+    if (firstName != null || lastName != null) {
+      const name = { firstName: String(firstName ?? '').trim().slice(0, 100), lastName: String(lastName ?? '').trim().slice(0, 100) };
+      if (!name.firstName) throw new MeweApiError({ message: 'El nombre no puede quedar vacío.' });
+      await this.request(profile.account, { method: 'POST', json: name });
+    }
     return true;
   }
 
@@ -473,6 +603,56 @@ export class MeweClient {
     return true;
   }
 
+  // --- Historias ---
+
+  // Quienes tienen historias para ver (las propias no siempre vienen acá: ver getStories)
+  async getStorytellers(myUserId) {
+    return normalizeStorytellers(await this.request(stories.feed), myUserId);
+  }
+
+  // Todas las historias de una persona (o de una página, con isPage)
+  async getStories(tellerId, isPage = false) {
+    return normalizeStories(await this.request(stories.byTeller(assertId(tellerId, 'tellerId'), Boolean(isPage))));
+  }
+
+  // views: [{ storyId, tellerId, tellerType }] de las historias que se acaban de ver
+  async markStoriesSeen(views) {
+    const list = (Array.isArray(views) ? views : []).slice(0, 200).map((view) => ({
+      storyId: assertId(view?.storyId, 'storyId'),
+      storytellerId: assertId(view?.tellerId, 'tellerId'),
+      storytellerType: view?.tellerType === 'Page' ? 'Page' : 'User',
+      viewedAt: Number(view?.viewedAt) || Date.now(),
+    }));
+    if (list.length) await this.request(stories.markSeen, { method: 'POST', json: { views: list } });
+    return true;
+  }
+
+  // La respuesta le llega a su autor como un mensaje de chat
+  async replyToStory(tellerId, storyId, text) {
+    await this.request(stories.reply(assertId(tellerId, 'tellerId'), assertId(storyId, 'storyId')), {
+      method: 'POST',
+      json: { message: requireText(text).slice(0, 2000) },
+    });
+    return true;
+  }
+
+  // Publica una imagen como historia. scope: 'followers' | 'public' | 'favorites'
+  async createStory(file, scope = 'followers') {
+    if (!stories.scopes.includes(scope)) throw new MeweApiError({ message: `Audiencia de historia desconocida: ${scope}` });
+    const userMediaId = await this.#uploadPhoto(stories.upload, file, 'files');
+    // la web manda siempre esta ubicación fija
+    await this.request(stories.create(scope), { method: 'POST', json: { userMediaId, location: { latitude: 0.1, longitude: 0.1 } } });
+    return true;
+  }
+
+  async deleteStory(storyId, scope) {
+    const where = String(scope ?? '').toLowerCase();
+    // el alcance va en la ruta: se usa el que trae la historia (visto en el bundle: public, followers, favorites)
+    if (!/^[a-z]+$/.test(where)) throw new MeweApiError({ message: `No se puede borrar esta historia (alcance: ${scope}).` });
+    await this.request(stories.remove(where, assertId(storyId, 'storyId')), { method: 'DELETE' });
+    return true;
+  }
+
   // --- Notificaciones ---
 
   async getNotifications(nextPage) {
@@ -509,12 +689,25 @@ export class MeweClient {
     if (target.protocol !== 'https:' || !(target.hostname === 'mewe.com' || target.hostname.endsWith('.mewe.com'))) {
       throw new MeweApiError({ message: 'Host de imagen no permitido.' });
     }
+    if (this.isTemporalImage(target)) {
+      const image = await this.fetchTemporalImage(target);
+      if (image.status >= 400) throw new MeweApiError({ status: image.status, url: target, message: 'No se pudo descargar la imagen.' });
+      return { data: image.data, contentType: image.contentType };
+    }
     const response = await this.fetchRaw(target);
     if (!response.ok) throw new MeweApiError({ status: response.status, url: target, message: 'No se pudo descargar la imagen.' });
     return {
       data: Buffer.from(await response.arrayBuffer()),
       contentType: response.headers.get('content-type') ?? 'application/octet-stream',
     };
+  }
+
+  // Sube una imagen (multipart) y devuelve su id
+  async #uploadPhoto(path, file, field = 'file') {
+    const data = await this.request(path, { method: 'POST', form: imageForm(file, field) });
+    const id = data?.id ?? data?.[0]?.id ?? data?.files?.[0]?.id;
+    if (!id) throw new MeweApiError({ message: 'MeWe no devolvió el id de la imagen subida.', body: data });
+    return id;
   }
 
   // POST [emoji] agrega, DELETE ?emojis= quita (mismo formato en posts, comentarios y mensajes)

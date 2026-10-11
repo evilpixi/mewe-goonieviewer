@@ -37,6 +37,12 @@ export const api = {
   addReply: (id, commentId, text) => invoke('post:reply', id, commentId, text),
   reactComment: (id, commentId, emoji, on) => invoke('post:commentReact', id, commentId, emoji, on),
   getCommentReactors: (id, commentId) => invoke('post:commentReactors', id, commentId),
+  // file: { name, type, data: Uint8Array } → id de la foto, para imageIds
+  uploadPostImage: (id, file) => invoke('post:upload', id, file),
+  // post: { text, imageIds, groupId?, everyone? } → el post creado (o null si MeWe no lo devuelve)
+  createPost: (id, post) => invoke('post:create', id, post),
+  // changes: { text, mediaIds } (mediaIds: las fotos del post, que se conservan)
+  editPost: (id, post, changes) => invoke('post:edit', id, post.id, post.groupId, changes),
 
   // filter: 'users' | 'groups' | 'all'
   getChatThreads: (id, filter) => invoke('chat:threads', id, filter),
@@ -63,6 +69,15 @@ export const api = {
   setFollow: (id, userId, on) => invoke('profile:follow', id, userId, on),
   getFollowRequests: (id) => invoke('profile:requests', id),
   answerFollowRequest: (id, requestId, accept) => invoke('profile:answerRequest', id, requestId, accept),
+  // kind: 'followers' | 'following' | 'blocked' → { users, nextPage }
+  getPeople: (id, kind, nextPage) => invoke('profile:people', id, kind, nextPage),
+  blockUser: (id, userId) => invoke('profile:block', id, userId),
+  unblockUser: (id, userId) => invoke('profile:unblock', id, userId),
+  // Perfil propio. changes: { firstName, lastName, fields: { text, currentCity, … } }
+  updateProfile: (id, changes) => invoke('profile:update', id, changes),
+  // file: { name, type, data } · crop: { x, y, width, height } en píxeles de la imagen
+  setAvatar: (id, file, crop) => invoke('profile:setAvatar', id, file, crop),
+  setCover: (id, file, crop) => invoke('profile:setCover', id, file, crop),
 
   searchUsers: (id, query) => invoke('profile:search', id, query),
   getGroups: (id) => invoke('group:list', id),
@@ -79,6 +94,16 @@ export const api = {
   searchGroupContacts: (id, groupId, query, offset) => invoke('group:contacts', id, groupId, query, offset),
   inviteToGroup: (id, groupId, userIds) => invoke('group:invite', id, groupId, userIds),
 
+  // Historias. → [{ id, type, isPage, name, avatar, handle, hasNew, isMine, stories }]
+  getStorytellers: (id) => invoke('story:tellers', id),
+  getStories: (id, tellerId, isPage) => invoke('story:list', id, tellerId, isPage),
+  // views: [{ storyId, tellerId, tellerType, viewedAt }]
+  markStoriesSeen: (id, views) => invoke('story:seen', id, views),
+  replyToStory: (id, tellerId, storyId, text) => invoke('story:reply', id, tellerId, storyId, text),
+  // file: { name, type, data } · scope: 'followers' | 'public' | 'favorites'
+  createStory: (id, file, scope) => invoke('story:create', id, file, scope),
+  deleteStory: (id, storyId, scope) => invoke('story:delete', id, storyId, scope),
+
   getNotifications: (id, nextPage) => invoke('notif:list', id, nextPage),
   getUnseenNotifications: (id) => invoke('notif:unseen', id),
   markNotificationsSeen: (id) => invoke('notif:markSeen', id),
@@ -88,6 +113,11 @@ export const api = {
 
   setZoom: (factor) => invoke('ui:zoom', factor),
   downloadImage: (id, url, name) => invoke('ui:download', id, url, name),
+  // → { copied }: false si el formato no se pudo decodificar (ver copyImageAt)
+  copyImage: (id, url) => invoke('ui:copyImage', id, url),
+  // copia la imagen que se ve en ese punto de la ventana (px de CSS)
+  copyImageAt: (x, y) => invoke('ui:copyImageAt', x, y),
+  copyText: (text) => invoke('ui:copyText', text),
   getAvatarColor: (id, url) => invoke('ui:avatarColor', id, url),
 
   onLoginError: (callback) => on('login:error', callback),

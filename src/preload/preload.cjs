@@ -3,7 +3,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 // Dominios que la UI puede invocar (ipcMain.handle en src/main/ipc.js)
-const INVOKE_PREFIXES = ['accounts:', 'feed:', 'chat:', 'post:', 'profile:', 'group:', 'notif:', 'ui:'];
+const INVOKE_PREFIXES = ['accounts:', 'feed:', 'chat:', 'post:', 'profile:', 'group:', 'story:', 'notif:', 'ui:'];
 // Eventos que main empuja a la UI (webContents.send)
 const EVENT_PREFIXES = ['login:', 'chat:', 'notif:'];
 

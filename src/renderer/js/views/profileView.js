@@ -3,27 +3,44 @@ import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
 import { emptyState, h } from '../ui/dom.js';
 import { createFollowRequests } from '../ui/followRequests.js';
+import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
+import { confirmBlock, confirmUnblock, copyLinkButton, openChatWith, personRow } from '../ui/people.js';
 import { renderPost } from '../ui/post.js';
 import { createPostList } from '../ui/postList.js';
+import { openProfileEditor } from '../ui/profileEditor.js';
 import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
 
 // Ruta 'profile': { userId } → cabecera con la info, botón de seguimiento y pestañas Publicaciones / Imágenes / Álbumes.
 // Si la cuenta es privada y no la seguimos, se muestra el aviso en lugar del contenido.
-export function createProfileView({ navigate }) {
+// En el perfil propio hay además "Editar perfil" y las pestañas Solicitudes (de seguimiento) y Bloqueados.
+// onAccountChanged(): la cuenta cambió su nombre o su foto; devuelve (promesa) la cuenta actualizada.
+export function createProfileView({ navigate, back, onAccountChanged }) {
   const errorEl = h('div');
   const headerEl = h('section', { className: 'card profile-head' });
-  const requests = createFollowRequests({ navigate });
   const tabs = createTabs({
     label: 'Contenido del perfil',
     tabs: [
       ['posts', 'Publicaciones'],
       ['images', 'Imágenes'],
       ['albums', 'Álbumes'],
+      ['requests', 'Solicitudes'],
+      ['blocked', 'Bloqueados'],
     ],
     onChange: showTab,
   });
+  const OWN_TABS = ['requests', 'blocked']; // sólo en el perfil propio
+  const requests = createFollowRequests({
+    navigate,
+    onCount: (count) => tabs.setLabel('requests', count ? `Solicitudes (${count})` : 'Solicitudes'),
+  });
+  requests.el.hidden = true;
+  // Bloqueados: personas con su botón para desbloquear
+  const blockedList = h('ul', { className: 'people-list card' });
+  const blockedMore = h('button', { className: 'btn load-more', hidden: true, onClick: () => loadBlocked(true) }, 'Cargar más');
+  const blockedError = h('div');
+  const blockedEl = h('div', { hidden: true }, blockedError, blockedList, blockedMore);
   const privateEl = h(
     'section',
     { className: 'card private-notice', hidden: true },
@@ -62,25 +79,36 @@ export function createProfileView({ navigate }) {
     posts.el,
     allImages.el,
     albumsEl,
+    requests.el,
+    blockedEl,
   );
-  const el = h('div', { className: 'view scroll page' }, errorEl, headerEl, requests.el, privateEl, contentEl);
+  const el = h('div', { className: 'view scroll page' }, errorEl, headerEl, privateEl, contentEl);
 
   let account = null;
   let profile = null;
+  let blocked = [];
+  let blockedNext = null;
   let albums = [];
   let albumsNext = null;
   let openedAlbum = null; // nombre del álbum abierto
   let generation = 0; // descarta respuestas de otro perfil u otra cuenta
   let last = null;
+  let visible = false;
   const loaded = new Set(); // pestañas ya cargadas para este perfil
 
   async function show(newAccount, params = {}) {
     const gen = ++generation;
     last = params;
+    visible = true;
     account = newAccount;
     profile = null;
     albums = [];
     albumsNext = null;
+    blocked = [];
+    blockedNext = null;
+    blockedMore.hidden = true;
+    blockedList.replaceChildren();
+    clearError(blockedError);
     loaded.clear();
     allImages.reset();
     closeAlbum();
@@ -88,6 +116,7 @@ export function createProfileView({ navigate }) {
     clearError(errorEl);
     posts.reset();
     requests.load(null);
+    for (const tab of OWN_TABS) tabs.setHidden(tab, true);
     privateEl.hidden = true;
     contentEl.hidden = true;
     headerEl.replaceChildren(emptyState('Cargando…'));
@@ -100,13 +129,14 @@ export function createProfileView({ navigate }) {
       if (gen !== generation) return;
       profile = { ...data, id: data.id ?? params.userId };
       renderHeader();
-      if (profile.isMe) requests.load(account);
+      for (const tab of OWN_TABS) tabs.setHidden(tab, !profile.isMe);
+      if (profile.isMe) requests.load(account); // de entrada, para que la pestaña muestre cuántas hay
       if (!profile.canSeeContent) {
         showPrivate();
         return;
       }
       contentEl.hidden = false;
-      tabs.select(params.tab ?? 'posts');
+      tabs.select(OWN_TABS.includes(params.tab) && !profile.isMe ? 'posts' : (params.tab ?? 'posts'));
       showTab(tabs.value);
     } catch (err) {
       if (gen !== generation) return;
@@ -180,7 +210,7 @@ export function createProfileView({ navigate }) {
 
   function followButtons() {
     const p = profile;
-    if (p.isMe) return [];
+    if (p.isMe) return [h('button', { className: 'btn', onClick: () => editProfile() }, icon('pencil'), ' Editar perfil'), copyLinkButton(p)];
     const action = (label, run, className = 'btn') => h('button', { className, onClick: (event) => runAction(event.currentTarget, run) }, label);
     const buttons = [h('button', { className: 'btn', onClick: (event) => openChat(event.currentTarget) }, '💬 Mensaje')];
     if (p.requestReceived) {
@@ -202,24 +232,63 @@ export function createProfileView({ navigate }) {
     } else {
       buttons.push(action(p.isPublic ? 'Seguir' : 'Solicitar seguir', () => api.setFollow(account.id, p.id, true), 'btn primary'));
     }
+    buttons.push(
+      copyLinkButton(p),
+      h(
+        'button',
+        { className: 'btn icon-btn danger', title: 'Bloquear', attrs: { 'aria-label': `Bloquear a ${p.name}` }, onClick: (event) => block(event.currentTarget) },
+        icon('ban'),
+      ),
+    );
     return buttons;
   }
 
-  // Abre el chat con esta persona (el que ya existe o uno nuevo)
+  // Abre el chat con esta persona (el que ya existe o uno nuevo) en la vista de chats, con su lista al lado
   async function openChat(button) {
     const gen = generation;
     const p = profile;
     button.disabled = true;
     clearError(errorEl);
     try {
-      const thread = await api.openChatWith(account.id, p.id);
-      if (gen !== generation) return;
-      navigate('thread', { thread: { ...thread, name: p.name, avatar: p.avatar, userId: p.id } });
+      // si mientras tanto se cambió de cuenta o de perfil, no se navega
+      await openChatWith({ account, user: p, navigate: (...args) => gen === generation && navigate(...args) });
     } catch (err) {
       if (gen === generation) showError(errorEl, err, 'MeWe chat');
     } finally {
       button.disabled = false;
     }
+  }
+
+  // Bloquea a esta persona (con confirmación) y vuelve a la vista anterior: su perfil ya no se puede ver
+  async function block(button) {
+    const gen = generation;
+    button.disabled = true;
+    clearError(errorEl);
+    try {
+      if ((await confirmBlock(account, profile)) && gen === generation) back?.();
+    } catch (err) {
+      if (gen === generation) showError(errorEl, err, 'MeWe bloqueo');
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  // Perfil propio: al guardar se recarga y, si cambió el nombre o la foto, se actualiza la cuenta en la cabecera
+  function editProfile() {
+    const params = last;
+    openProfileEditor({
+      account,
+      profile,
+      onSaved: async ({ accountChanged }) => {
+        let updated = null;
+        try {
+          if (accountChanged) updated = await onAccountChanged?.();
+        } catch (err) {
+          console.warn('[perfil] actualizar la cuenta', err);
+        }
+        if (visible && last === params) show(updated ?? account, params); // sigue a la vista el mismo perfil
+      },
+    });
   }
 
   // Ejecuta una acción de seguimiento y recarga el perfil para reflejar el estado real
@@ -243,11 +312,65 @@ export function createProfileView({ navigate }) {
     posts.el.hidden = tab !== 'posts';
     allImages.el.hidden = tab !== 'images';
     albumsEl.hidden = tab !== 'albums';
+    requests.el.hidden = tab !== 'requests'; // se cargan al abrir el perfil propio (ver show)
+    blockedEl.hidden = tab !== 'blocked';
     if (loaded.has(tab)) return;
     loaded.add(tab);
     if (tab === 'posts') posts.load(account);
     else if (tab === 'images') allImages.load();
-    else loadAlbums();
+    else if (tab === 'albums') loadAlbums();
+    else if (tab === 'blocked') loadBlocked();
+  }
+
+  // --- Bloqueados (perfil propio) ---
+
+  async function loadBlocked(append = false) {
+    const gen = generation;
+    blockedMore.disabled = true;
+    clearError(blockedError);
+    if (!append) blockedList.replaceChildren(emptyState('Cargando…', 'li'));
+    try {
+      const page = await api.getPeople(account.id, 'blocked', append ? blockedNext : undefined);
+      if (gen !== generation) return;
+      const known = new Set(blocked.map((user) => user.id));
+      blocked = append ? [...blocked, ...page.users.filter((user) => !known.has(user.id))] : page.users;
+      blockedNext = page.nextPage;
+      renderBlocked();
+    } catch (err) {
+      if (gen !== generation) return;
+      if (!append) blockedList.replaceChildren();
+      showError(blockedError, err, 'MeWe bloqueados');
+    } finally {
+      blockedMore.disabled = false;
+    }
+  }
+
+  function renderBlocked() {
+    blockedMore.hidden = !blockedNext;
+    if (!blocked.length) {
+      blockedList.replaceChildren(emptyState('No tienes a nadie bloqueado.', 'li'));
+      return;
+    }
+    blockedList.replaceChildren(
+      ...blocked.map((user) => {
+        const button = h('button', { className: 'btn' }, 'Desbloquear');
+        button.addEventListener('click', async () => {
+          const gen = generation;
+          button.disabled = true;
+          clearError(blockedError);
+          try {
+            if (!(await confirmUnblock(account, user)) || gen !== generation) return;
+            blocked = blocked.filter((person) => person.id !== user.id);
+            renderBlocked();
+          } catch (err) {
+            if (gen === generation) showError(blockedError, err, 'MeWe bloqueados');
+          } finally {
+            button.disabled = false;
+          }
+        });
+        return personRow({ account, user, navigate, actions: [button] });
+      }),
+    );
   }
 
   // Grilla paginada de imágenes (todas las del perfil o las de un álbum). fetchPage(nextPage) → { images, nextPage }
@@ -395,6 +518,7 @@ export function createProfileView({ navigate }) {
     el,
     show,
     hide() {
+      visible = false;
       generation++;
       posts.reset();
       closeLightbox();

@@ -6,46 +6,49 @@ import { createLoginModal } from './loginModal.js';
 import { clearError, showError } from './errorView.js';
 import { createRouter } from './router.js';
 import { applySettings, setSettingsAccount } from './settings.js';
+import { avatar } from './ui/avatar.js';
+import { confirmDialog } from './ui/confirm.js';
+import { h } from './ui/dom.js';
+import { closePopover, openPopover } from './ui/popover.js';
 import { createGroupView } from './views/groupView.js';
-import { createGroupsView } from './views/groupsView.js';
+import { createListsView } from './views/listsView.js';
 import { createNotificationsView } from './views/notificationsView.js';
 import { createPostView } from './views/postView.js';
 import { createProfileView } from './views/profileView.js';
 import { createSearchView } from './views/searchView.js';
 import { createSettingsView } from './views/settingsView.js';
+import { createStoriesView } from './views/storiesView.js';
 import { createThreadView } from './views/threadView.js';
 
 const $ = (selector) => document.querySelector(selector);
 
-const titleEl = $('#app-title');
+const profileBtn = $('#app-title');
 const errorEl = $('#app-error');
 const viewTabsEl = $('#view-tabs');
-const backBtn = $('#nav-back');
+const toolbarEl = $('#view-toolbar');
 const refreshBtn = $('#refresh-view');
-const reloginBtn = $('#relogin-account');
-const removeBtn = $('#remove-account');
 
 const notifBtn = $('#open-notifications');
 const notifBadge = $('#notif-badge');
-const settingsBtn = $('#open-settings');
+const optionsBtn = $('#open-options');
 const searchBtn = $('#open-search');
 
-// Vistas raíz: las pestañas de la cabecera. El resto (perfil, grupo, post…) se abre con router.navigate.
-const ROOT_VIEWS = ['feed', 'chat', 'groups'];
+// Vistas raíz: los iconos del centro de la cabecera. El resto (perfil, grupo, post…) se abre con router.navigate.
+const ROOT_VIEWS = ['feed', 'chat', 'lists', 'stories'];
 const VIEW_KEY = 'view';
 const NOTIF_POLL_MS = 60000;
 
 let accounts = [];
 let active = null;
 let rootView = savedView();
+let optionsMenu = null; // popover del menú Opciones mientras está abierto
 
 applySettings();
 
 const router = createRouter({
   host: $('#view-host'),
-  toolbarSlot: $('#view-toolbar'),
-  onChange: ({ view, canGoBack }) => {
-    backBtn.hidden = !canGoBack;
+  toolbarSlots: { left: $('#toolbar-left'), center: $('#toolbar-center'), right: $('#toolbar-right') },
+  onChange: ({ view, hasToolbar, canReload }) => {
     for (const btn of viewTabsEl.querySelectorAll('[data-view]')) {
       const selected = btn.dataset.view === view;
       btn.classList.toggle('active', selected);
@@ -53,16 +56,20 @@ const router = createRouter({
       else btn.removeAttribute('aria-current');
     }
     notifBtn.classList.toggle('active', view === 'notifications');
-    settingsBtn.classList.toggle('active', view === 'settings');
+    optionsBtn.classList.toggle('active', view === 'settings');
     searchBtn.classList.toggle('active', view === 'search');
+    // el segundo panel sólo se muestra si la vista pone algo o se puede actualizar
+    refreshBtn.hidden = !active || !canReload;
+    toolbarEl.hidden = !active || (!hasToolbar && refreshBtn.hidden);
   },
 });
 
 router.registerView('feed', createFeedView);
 router.registerView('chat', createChatView);
-router.registerView('groups', createGroupsView);
+router.registerView('lists', createListsView);
+router.registerView('stories', createStoriesView);
 router.registerView('post', createPostView);
-router.registerView('profile', createProfileView);
+router.registerView('profile', (nav) => createProfileView({ ...nav, onAccountChanged: refreshActiveAccount }));
 router.registerView('group', createGroupView);
 router.registerView('thread', createThreadView);
 router.registerView('notifications', (nav) => createNotificationsView({ ...nav, onUnseenChange: setUnseen }));
@@ -106,22 +113,60 @@ viewTabsEl.addEventListener('click', (event) => {
   router.setRoot(view);
 });
 
-backBtn.addEventListener('click', () => router.back());
-
 // Abre una vista secundaria desde la cabecera (sin apilarla dos veces)
 function openView(view, params) {
   if (router.current()?.view === view) router.back();
   else router.navigate(view, params);
 }
 
-titleEl.addEventListener('click', () => {
+profileBtn.addEventListener('click', () => {
   if (active?.userId && router.current()?.params?.userId !== active.userId) router.navigate('profile', { userId: active.userId });
 });
 notifBtn.addEventListener('click', () => openView('notifications'));
-settingsBtn.addEventListener('click', () => openView('settings'));
 searchBtn.addEventListener('click', () => openView('search'));
 
-// Alt+← como en un navegador · F5 actualiza la vista · Ctrl+1…3 cambia de sección
+// Foto de la cuenta activa en la cabecera (sin el nombre, que queda en el title)
+function renderProfileButton() {
+  profileBtn.hidden = !active;
+  if (!active) return;
+  profileBtn.disabled = !active.userId;
+  profileBtn.title = `${active.name} — ver mi perfil`;
+  profileBtn.setAttribute('aria-label', profileBtn.title);
+  profileBtn.replaceChildren(avatar(active.id, active.avatar, { name: active.name }));
+}
+
+// --- Menú Opciones: ajustes, reconectar y quitar la cuenta ---
+
+optionsBtn.addEventListener('click', () => {
+  if (optionsMenu?.el.isConnected) {
+    closePopover();
+    return;
+  }
+  const item = (label, run, className = '') =>
+    h(
+      'button',
+      {
+        className: `menu-item ${className}`.trim(),
+        attrs: { role: 'menuitem' },
+        onClick: () => {
+          closePopover();
+          run();
+        },
+      },
+      label,
+    );
+  const menu = h(
+    'div',
+    { className: 'menu', attrs: { role: 'menu' } },
+    item('Ajustes de la interfaz', () => openView('settings')),
+    active && item('Reconectar', relogin),
+    active && item('Quitar cuenta', removeAccount, 'danger'),
+  );
+  optionsMenu = openPopover(optionsBtn, menu, { className: 'menu-popover', label: 'Opciones' });
+  menu.querySelector('button')?.focus();
+});
+
+// Alt+← como en un navegador · F5 actualiza la vista · Ctrl+1…4 cambia de sección
 window.addEventListener('keydown', (event) => {
   if (event.altKey && event.key === 'ArrowLeft') router.back();
   else if (event.key === 'F5') {
@@ -165,10 +210,9 @@ function selectAccount(account) {
   active = account;
   column.setActive(account?.id ?? null);
   setSettingsAccount(account); // cada cuenta puede tener su tema y colores
-  titleEl.textContent = account ? account.name : 'Sin cuenta seleccionada';
-  titleEl.disabled = !account?.userId;
+  renderProfileButton();
   viewTabsEl.hidden = !account;
-  for (const btn of [searchBtn, notifBtn, refreshBtn, reloginBtn, removeBtn]) btn.hidden = !account;
+  for (const btn of [searchBtn, notifBtn]) btn.hidden = !account;
   clearError(errorEl);
   setUnseen(0);
   router.setAccount(account, account ? rootView : 'feed'); // sin cuenta, el feed muestra cómo agregar una
@@ -184,9 +228,23 @@ async function refreshAccounts() {
   column.setAccounts(accounts);
 }
 
+// La cuenta activa cambió su nombre o su foto (se editó el perfil): se vuelven a pedir sus datos a MeWe
+// y se actualizan la cabecera y la columna de cuentas, sin salir de la vista. Devuelve la cuenta actualizada.
+async function refreshActiveAccount() {
+  if (!active) return null;
+  const account = await api.reloginAccount(active.id);
+  await refreshAccounts();
+  if (active?.id !== account.id) return account;
+  active = account;
+  column.setActive(account.id);
+  router.updateAccount(account);
+  renderProfileButton();
+  return account;
+}
+
 refreshBtn.addEventListener('click', () => router.reload());
 
-reloginBtn.addEventListener('click', async () => {
+async function relogin() {
   if (!active) return;
   clearError(errorEl);
   try {
@@ -196,23 +254,31 @@ reloginBtn.addEventListener('click', async () => {
   } catch (err) {
     showError(errorEl, err, 'MeWe login');
   }
-});
+}
 
 // Errores de login durante una reconexión (el modal está cerrado en ese caso)
 api.onLoginError(({ accountId, error }) => {
   if (active?.id === accountId) showError(errorEl, { details: error }, 'MeWe login');
 });
 
-removeBtn.addEventListener('click', async () => {
-  if (!active || !confirm(`¿Quitar la cuenta ${active.name}? Se borrará su sesión.`)) return;
+async function removeAccount() {
+  const account = active;
+  if (!account) return;
+  const confirmed = await confirmDialog({
+    title: `¿Quitar la cuenta ${account.name}?`,
+    text: 'Se borrará su sesión de esta aplicación. La cuenta de MeWe no se toca.',
+    confirmLabel: 'Quitar',
+    danger: true,
+  });
+  if (!confirmed) return;
   try {
-    await api.removeAccount(active.id);
+    await api.removeAccount(account.id);
     await refreshAccounts();
     selectAccount(accounts[0] ?? null);
   } catch (err) {
     showError(errorEl, err);
   }
-});
+}
 
 try {
   await refreshAccounts();
