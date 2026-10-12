@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-10-11
+
+- Corregido: los posts compartidos se veían vacíos. Ahora citan el post original, con su autor, fecha, texto y fotos.
+- Versión para Linux (AppImage y `.tar.gz`, 64 bits), experimental: todavía sin probar.
+
 ## 0.2.0 — 2026-10-11
 
 - Versión para Android (APK): la misma interfaz en su formato de teléfono, con varias cuentas, login en la ventana de MeWe, tiempo real, envío de imágenes, videos y guardado en la galería. El botón atrás cierra lo que esté abierto.
