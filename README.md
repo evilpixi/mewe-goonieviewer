@@ -244,7 +244,7 @@ npm start
 | `npm run debug` | Igual, pero guarda la última respuesta de cada endpoint en `mewe-debug/` (contiene datos personales: no la subas). |
 | `npm run dist:win` | Genera el instalador y el portable de Windows en `dist/`. |
 | `npm run dist:mac` | Genera `.dmg` y `.zip` para macOS (arm64 y x64), sin firmar. Hay que correrlo en una Mac. |
-| `npm run dist:linux` | Genera AppImage y `.tar.gz` para Linux (sin probar todavía). |
+| `npm run dist:linux` | Genera AppImage y `.tar.gz` para Linux (sin probar todavía). Hay que correrlo en Linux. |
 | `npm run pack` | Empaqueta sin generar instalador, para probar rápido. |
 | `npm run emoji:update` | Regenera los shortcodes de emojis. |
 | `npm run icons:update` | Copia los íconos de Lucide que usa la app. |
@@ -282,6 +282,21 @@ keyPassword=la contraseña elegida
 
 Los dos archivos están en `.gitignore`. Guardá una copia fuera del proyecto: Android sólo deja actualizar la app con
 un APK firmado con la misma clave.
+
+### Publicar una versión
+
+Las versiones las publica GitHub Actions ([release.yml](.github/workflows/release.yml)), no hace falta compilar a mano:
+
+1. En un PR, subí `version` en `package.json` y agregá la sección `## x.y.z — fecha` en `CHANGELOG.md`.
+2. Al mergearlo a `main`, el workflow compila Windows, macOS, Linux y Android, arma `SHA256SUMS.txt` y publica la
+   versión con el tag `vx.y.z`. Si ese tag ya existe, no hace nada.
+
+El avance se ve en la pestaña **Actions** del repositorio. Desde ahí también se puede lanzar a mano
+(**Publicar versión → Run workflow**): compila todo y deja los archivos adjuntos a la ejecución, sin publicar.
+
+El APK se firma con la clave guardada en los secretos del repositorio (**Settings → Secrets and variables →
+Actions**): `KEYSTORE_BASE64` (el `.jks` en base64) y `KEYSTORE_PROPERTIES_BASE64` (`android/keystore.properties`
+en base64).
 
 ### Estructura
 

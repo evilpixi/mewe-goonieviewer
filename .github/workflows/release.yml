@@ -1,0 +1,305 @@
+# Genera las builds de Windows, macOS, Linux y Android y publica la versión en GitHub.
+#
+# Con cada push a main (por ejemplo, al mergear un PR) lee la versión de package.json:
+#   - si el tag vX.Y.Z ya existe, no hace nada;
+#   - si no existe, compila todo, arma SHA256SUMS.txt y publica la versión con ese tag.
+# Para publicar una versión nueva alcanza con subir "version" en package.json y anotarla en CHANGELOG.md.
+#
+# También se puede lanzar a mano (pestaña Actions → Publicar versión → Run workflow). Así compila siempre y deja
+# los archivos adjuntos a la ejecución, sin publicar nada, salvo que se marque "publicar".
+name: Publicar versión
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: Publicar la versión (sólo desde main y si el tag todavía no existe)
+        type: boolean
+        default: false
+
+# Dos ejecuciones a la vez podrían intentar publicar la misma versión: la segunda espera a la primera.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preparar:
+    name: Leer la versión
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      compilar: ${{ steps.version.outputs.compilar }}
+      publicar: ${{ steps.version.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Decidir qué hacer
+        id: version
+        env:
+          PEDIDO_A_MANO: ${{ github.event_name == 'workflow_dispatch' }}
+          PUBLICAR_A_MANO: ${{ inputs.publicar }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then existe=true; else existe=false; fi
+
+          compilar=false
+          publicar=false
+          if [ "$PEDIDO_A_MANO" = true ]; then
+            compilar=true
+            if [ "$PUBLICAR_A_MANO" = true ] && [ "$existe" = false ] && [ "$GITHUB_REF" = refs/heads/main ]; then publicar=true; fi
+          elif [ "$existe" = false ]; then
+            compilar=true
+            publicar=true
+          fi
+
+          # Sin novedades anotadas no se publica: mejor fallar acá que después de compilar todo
+          if [ "$publicar" = true ] && [ -z "$(awk -v v="$version" '$1 == "##" && $2 == v { on = 1; next } on && /^## / { exit } on' CHANGELOG.md | tr -d '[:space:]')" ]; then
+            echo "::error file=CHANGELOG.md::Falta la sección \"## $version\" en CHANGELOG.md."
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "compilar=$compilar"
+            echo "publicar=$publicar"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ "$publicar" = true ]; then resumen="Se compila y se publica la versión **$version**."
+          elif [ "$compilar" = true ]; then resumen="Se compila la versión **$version** sin publicarla: los archivos quedan adjuntos a esta ejecución."
+          else resumen="El tag \`$tag\` ya existe: no hay nada que publicar."
+          fi
+          echo "$resumen" >> "$GITHUB_STEP_SUMMARY"
+
+  windows:
+    name: Windows
+    needs: preparar
+    if: needs.preparar.outputs.compilar == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # --publish never: los archivos los sube el job "publicar", no electron-builder
+      - run: npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    name: macOS
+    needs: preparar
+    if: needs.preparar.outputs.compilar == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --mac --publish never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Linux
+    needs: preparar
+    if: needs.preparar.outputs.compilar == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --linux --x64 --publish never
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: |
+            dist/*.AppImage
+            dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android
+    needs: preparar
+    if: needs.preparar.outputs.compilar == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      APK: dist/Goonie-Mewe-Viewer-${{ needs.preparar.outputs.version }}.apk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+
+      # La clave no está en el repo: se reconstruye a partir de los secretos (Settings → Secrets and variables → Actions)
+      - name: Reconstruir la clave de firma
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PROPERTIES_BASE64: ${{ secrets.KEYSTORE_PROPERTIES_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PROPERTIES_BASE64" ]; then
+            echo "::error::Faltan los secretos KEYSTORE_BASE64 y KEYSTORE_PROPERTIES_BASE64."
+            exit 1
+          fi
+          # certutil (Windows) agrega líneas "-----BEGIN/END-----" al base64: se descartan
+          decodificar() { printf '%s' "$1" | tr -d '\r' | grep -v '^-----' | base64 --decode; }
+          decodificar "$KEYSTORE_BASE64" > android/ci-release.jks
+          # storeFile apunta a donde estaba la clave en la PC en que se creó: se cambia por la de acá
+          {
+            decodificar "$KEYSTORE_PROPERTIES_BASE64" | tr -d '\r' | grep -vE '^\s*storeFile\s*[=:]'
+            printf '\nstoreFile=ci-release.jks\n'
+          } > android/keystore.properties
+
+      - name: Generar el APK
+        run: |
+          chmod +x android/gradlew
+          npm run android:apk
+          if [ ! -f "$APK" ]; then
+            echo "::error::El APK salió sin firmar."
+            exit 1
+          fi
+
+      # Android sólo deja actualizar la app si el APK está firmado con la misma clave que el instalado
+      - name: Comprobar que la firma sea la de la 0.2.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner
+          huella() { "$apksigner" verify --print-certs "$1" | grep 'certificate SHA-256 digest'; }
+          gh release download v0.2.0 --pattern Goonie-Mewe-Viewer-0.2.0.apk --dir "$RUNNER_TEMP/referencia"
+          esperada=$(huella "$RUNNER_TEMP/referencia/Goonie-Mewe-Viewer-0.2.0.apk")
+          obtenida=$(huella "$APK")
+          echo "$obtenida"
+          if [ -z "$esperada" ] || [ "$obtenida" != "$esperada" ]; then
+            echo "::error::El APK no está firmado con la misma clave que la versión 0.2.0."
+            exit 1
+          fi
+
+      - name: Borrar la clave
+        if: always()
+        run: rm -f android/ci-release.jks android/keystore.properties
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: ${{ env.APK }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publicar:
+    name: Publicar
+    needs: [preparar, windows, macos, linux, android]
+    if: needs.preparar.outputs.publicar == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.preparar.outputs.version }}
+      TAG: ${{ needs.preparar.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Armar SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          for archivo in \
+            "Goonie-Mewe-Viewer-Setup-$VERSION.exe" \
+            "Goonie-Mewe-Viewer-$VERSION-portable.exe" \
+            "Goonie-Mewe-Viewer-$VERSION-mac-arm64.dmg" \
+            "Goonie-Mewe-Viewer-$VERSION-mac-arm64.zip" \
+            "Goonie-Mewe-Viewer-$VERSION-mac-x64.dmg" \
+            "Goonie-Mewe-Viewer-$VERSION-mac-x64.zip" \
+            "Goonie-Mewe-Viewer-$VERSION-linux.AppImage" \
+            "Goonie-Mewe-Viewer-$VERSION-linux.tar.gz" \
+            "Goonie-Mewe-Viewer-$VERSION.apk"
+          do
+            if [ ! -f "$archivo" ]; then
+              echo "::error::Falta $archivo."
+              exit 1
+            fi
+          done
+          # --binary: el formato "<hash> *<archivo>" de las versiones anteriores
+          sha256sum --binary -- * > "$RUNNER_TEMP/SHA256SUMS.txt"
+          mv "$RUNNER_TEMP/SHA256SUMS.txt" .
+          cat SHA256SUMS.txt
+
+      - name: Armar las notas de la versión
+        run: |
+          cat > "$RUNNER_TEMP/notas.md" <<EOF
+          ## Descargas
+
+          | Archivo | Para qué |
+          |---|---|
+          | \`Goonie-Mewe-Viewer-$VERSION.apk\` | Android 7.0 o posterior. |
+          | \`Goonie-Mewe-Viewer-Setup-$VERSION.exe\` | Instalador para Windows (64 bits). Recomendado. |
+          | \`Goonie-Mewe-Viewer-$VERSION-portable.exe\` | Versión portable para Windows: se ejecuta sin instalar. |
+          | \`Goonie-Mewe-Viewer-$VERSION-mac-arm64.dmg\` | macOS con Apple Silicon (M1 en adelante). |
+          | \`Goonie-Mewe-Viewer-$VERSION-mac-x64.dmg\` | macOS con Intel. |
+          | \`Goonie-Mewe-Viewer-$VERSION-linux.AppImage\` | Linux (64 bits). Experimental: todavía sin probar. |
+          | \`Goonie-Mewe-Viewer-$VERSION-linux.tar.gz\` | Linux (64 bits), sin empaquetar. Experimental. |
+          | \`SHA256SUMS.txt\` | Hashes para verificar la descarga. |
+
+          > **Android:** la app no está en Google Play. Descargá el APK desde el teléfono, abrilo y aceptá el permiso para **instalar apps desconocidas**. No se actualiza sola: para actualizarla, instalá el APK de la versión nueva encima; las cuentas se conservan.
+
+          > **Windows:** el ejecutable todavía no está firmado digitalmente: Windows SmartScreen va a mostrar «Windows protegió su PC». Para continuar: **Más información → Ejecutar de todas formas**.
+
+          > **macOS:** la app no está firmada ni notarizada por Apple, así que la primera vez macOS se niega a abrirla. Para continuar: **Ajustes del Sistema → Privacidad y seguridad → Abrir igualmente**.
+
+          ## Novedades
+
+          EOF
+          awk -v v="$VERSION" '$1 == "##" && $2 == v { on = 1; next } on && /^## / { exit } on' CHANGELOG.md >> "$RUNNER_TEMP/notas.md"
+
+      # Se crea como borrador y se publica recién con todos los archivos arriba: el README manda a releases/latest.
+      # El tag se crea al publicar, así que una ejecución fallida no deja la versión a medias.
+      - name: Publicar la versión
+        run: |
+          # borrador que haya dejado una ejecución anterior fallida
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2> /dev/null)" = true ]; then
+            gh release delete "$TAG" --yes
+          fi
+          gh release create "$TAG" dist/* --draft --target "$GITHUB_SHA" --title "Goonie Mewe Viewer $VERSION" --notes-file "$RUNNER_TEMP/notas.md"
+          gh release edit "$TAG" --draft=false --latest
+          echo "Publicada: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
