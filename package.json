@@ -93,7 +93,8 @@
         "tar.gz"
       ],
       "executableName": "meweviewer",
-      "category": "Network"
+      "category": "Network",
+      "artifactName": "Goonie-Mewe-Viewer-${version}-linux.${ext}"
     }
   },
   "devDependencies": {
