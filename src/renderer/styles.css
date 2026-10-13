@@ -1297,6 +1297,10 @@ button.mention:hover {
   mask-image: url('icons/minimize-2.svg');
 }
 
+.icon-corner-down-left {
+  mask-image: url('icons/corner-down-left.svg');
+}
+
 .icon-x {
   mask-image: url('icons/x.svg');
 }
@@ -2738,14 +2742,19 @@ button.msg-story:not(:disabled) {
   background: var(--panel);
 }
 
+/* Segunda fila: los botones, con "Enter envía" y "Enviar" contra el borde derecho. La caja de texto va arriba. */
 .composer-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-3);
 }
 
+.composer-spacer {
+  flex: 1;
+}
+
 .composer-row .writing-as {
-  align-self: flex-end;
+  align-self: center;
 }
 
 /* Todo en la fila mide lo mismo que la foto de la cuenta: los botones son cuadrados de ese alto con el ícono
@@ -2756,13 +2765,30 @@ button.msg-story:not(:disabled) {
   font-size: calc(var(--avatar-md) * 0.72);
 }
 
-.composer-row .btn.primary {
+.composer-row .btn.primary,
+.composer-row .enter-btn {
   min-height: var(--avatar-md);
+}
+
+.composer-row .enter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.composer-row .btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.composer-row .enter-btn[aria-pressed='false'] {
+  color: var(--muted);
 }
 
 .chat-composer textarea {
   min-height: var(--avatar-md);
-  flex: 1;
+  flex-shrink: 0;
   resize: none;
   font: inherit;
   /* con una sola línea el texto queda centrado en el alto de la foto */
@@ -3698,13 +3724,15 @@ button.msg-story:not(:disabled) {
     font-size: var(--font-icon);
   }
 
-  /* caja de escribir: adjuntar · emoji · texto a todo el ancho · enviar (ícono). Sin foto ni agrandar. */
-  .composer-row {
+  /* caja de escribir: el texto a todo el ancho y, debajo, adjuntar · emoji · dados y enviar (ícono) a la derecha.
+     Sin foto, agrandar ni "Enter envía": acá Enter siempre hace un salto de línea (ver composer.js). */
+  .chat-composer {
     --avatar-md: calc(40px * var(--icon-scale));
   }
 
   .composer-row .writing-as,
-  .composer-row .expand-btn {
+  .composer-row .expand-btn,
+  .composer-row .enter-btn {
     display: none;
   }
 

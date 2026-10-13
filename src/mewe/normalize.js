@@ -303,12 +303,10 @@ export function normalizeMessage(m, myUserId, users = new Map()) {
 
 // --- Perfiles ---
 
+// Trabajo, empresa, universidad y secundaria ya no existen en el MeWe actual: no se muestran ni se editan
+// (updateProfile igual reenvía lo que la cuenta tenga guardado, para no borrarlo).
 const PROFILE_FIELDS = [
   ['Ciudad', 'currentCity'],
-  ['Trabajo', 'job'],
-  ['Empresa', 'company'],
-  ['Universidad', 'college'],
-  ['Secundaria', 'highSchool'],
   ['Relación', 'relationshipStatus'],
   ['Intereses', 'interests'],
 ];
