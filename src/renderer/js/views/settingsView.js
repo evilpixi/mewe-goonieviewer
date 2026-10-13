@@ -1,4 +1,5 @@
 import {
+  BADGES,
   COLORS,
   DEFAULTS,
   PRESETS,
@@ -50,6 +51,17 @@ export function createSettingsView() {
     { className: 'settings-rows' },
     TOGGLES.map(([key, label, hint]) =>
       h('label', { className: 'settings-check' }, toggles.get(key), h('span', {}, label, h('span', { className: 'person-meta' }, hint))),
+    ),
+  );
+  // Qué enciende el punto de aviso sobre la foto de las otras cuentas
+  const badges = new Map(
+    BADGES.map(([key]) => [key, h('input', { type: 'checkbox', onChange: (event) => update({ [key]: event.target.checked }) })]),
+  );
+  const badgesEl = h(
+    'div',
+    { className: 'settings-rows' },
+    BADGES.map(([key, label, hint]) =>
+      h('label', { className: 'settings-check' }, badges.get(key), h('span', {}, label, h('span', { className: 'person-meta' }, hint))),
     ),
   );
   const presetsEl = h(
@@ -117,6 +129,17 @@ export function createSettingsView() {
     h(
       'section',
       { className: 'card' },
+      h('h2', { className: 'card-title' }, 'Avisos de las otras cuentas'),
+      h(
+        'p',
+        { className: 'person-meta settings-hint' },
+        'Un punto sobre la foto de una cuenta que no estás usando avisa que tiene algo nuevo. Elige qué lo enciende.',
+      ),
+      badgesEl,
+    ),
+    h(
+      'section',
+      { className: 'card' },
       h('h2', { className: 'card-title' }, 'Vista previa'),
       h(
         'p',
@@ -167,6 +190,7 @@ export function createSettingsView() {
     resetColorsBtn.disabled = !COLORS.some(([key]) => settings[key]);
     renderContrast();
     for (const [key, input] of toggles) input.checked = settings[key];
+    for (const [key, input] of badges) input.checked = settings[key];
     renderScales(settings);
   }
 

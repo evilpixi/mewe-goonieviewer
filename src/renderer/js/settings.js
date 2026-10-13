@@ -52,6 +52,13 @@ const FLAGS = {
   chatCover: 'data-chat-cover',
 };
 
+// Avisos sobre la foto de las otras cuentas (ver accountActivity.js): qué los enciende. [clave, etiqueta, descripción]
+export const BADGES = [
+  ['badgeDms', 'Mensajes privados', 'Chats con personas que tienen mensajes sin leer'],
+  ['badgeGroupChats', 'Chats de grupo', 'Chats de grupo con mensajes sin leer'],
+  ['badgeMentions', 'Menciones', 'Te mencionaron en una publicación, un comentario o un chat'],
+];
+
 export const DEFAULTS = Object.freeze({
   theme: 'auto',
   zoom: 1,
@@ -63,6 +70,9 @@ export const DEFAULTS = Object.freeze({
   fullWidth: false,
   compactThreads: false,
   chatCover: false,
+  badgeDms: true,
+  badgeGroupChats: false,
+  badgeMentions: false,
   accent: '',
   bg: '',
   panel: '',
@@ -70,9 +80,9 @@ export const DEFAULTS = Object.freeze({
   sidebar: '',
 });
 
-// Lo que cambian los ajustes rápidos: tamaños y disposición (el fondo del chat es un gusto aparte)
+// Lo que cambian los ajustes rápidos: tamaños y disposición (el fondo del chat y los avisos son gustos aparte)
 const LAYOUT_DEFAULTS = Object.fromEntries(
-  Object.entries(DEFAULTS).filter(([key]) => !APPEARANCE_KEYS.includes(key) && key !== 'chatCover'),
+  Object.entries(DEFAULTS).filter(([key]) => !APPEARANCE_KEYS.includes(key) && key !== 'chatCover' && !BADGES.some(([badge]) => badge === key)),
 );
 
 // Ajustes rápidos: cambian escalas y disposición, no el tema ni el acento.
@@ -126,6 +136,9 @@ function sanitize(settings) {
     if (Number.isFinite(value)) clean[key] = Math.min(Math.max(value, min), max);
   }
   for (const key of Object.keys(FLAGS)) clean[key] = settings[key] === true;
+  for (const [key] of BADGES) {
+    if (typeof settings[key] === 'boolean') clean[key] = settings[key];
+  }
   for (const [key] of COLORS) {
     if (/^#[0-9a-f]{6}$/i.test(settings[key] ?? '')) clean[key] = settings[key];
   }
@@ -185,6 +198,13 @@ export function applySettings() {
   root.style.colorScheme = settings.bg ? (luminance(settings.bg) > 0.179 ? 'light' : 'dark') : '';
 
   api.setZoom(settings.zoom).catch((err) => console.warn('[ajustes] zoom', err));
+  for (const callback of listeners) callback(settings);
+}
+
+// callback(ajustes vigentes) cada vez que se aplican (cambió un ajuste o la cuenta activa)
+const listeners = new Set();
+export function onSettingsChange(callback) {
+  listeners.add(callback);
 }
 
 // Luminancia relativa (WCAG) de un color #rrggbb

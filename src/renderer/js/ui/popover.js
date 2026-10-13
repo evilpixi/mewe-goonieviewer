@@ -1,7 +1,8 @@
 import { h } from './dom.js';
+import { isTextField } from './keyboard.js';
 
 // Popover flotante anclado a un elemento (uno abierto a la vez).
-// Se cierra con Esc, click afuera o close(). Devuelve { el, close }.
+// Se cierra con Esc, click afuera o close(). Devuelve { el, close, reposition }.
 let current = null;
 
 export function openPopover(anchor, content, { className = '', label } = {}) {
@@ -22,13 +23,25 @@ export function openPopover(anchor, content, { className = '', label } = {}) {
       anchor.focus?.();
     }
   };
+  // ¿Se está escribiendo en un campo del popover (o en su ancla, como el menú de menciones)?
+  const typing = () => isTextField(document.activeElement) && (el.contains(document.activeElement) || anchor.contains(document.activeElement));
   const onScroll = (event) => {
-    if (!el.contains(event.target)) close();
+    if (el.contains(event.target) || anchor.contains(event.target)) return;
+    // al abrirse el teclado en pantalla la página se puede desplazar para mostrar el campo: no es motivo para cerrar
+    if (typing()) place(el, anchor);
+    else close();
+  };
+  // El teclado en pantalla (Android) cambia el alto de la ventana: cerrar ahí sacaba el foco del campo y el
+  // teclado se volvía a ir. Sólo se cierra si cambia el ancho (se giró la pantalla o se redimensionó la ventana).
+  let width = window.innerWidth;
+  const onResize = () => {
+    if (window.innerWidth !== width) close();
+    else place(el, anchor);
   };
   setTimeout(() => document.addEventListener('pointerdown', onPointer), 0);
   document.addEventListener('keydown', onKey, true);
   document.addEventListener('scroll', onScroll, true);
-  window.addEventListener('resize', close);
+  window.addEventListener('resize', onResize);
 
   function close() {
     if (current?.el !== el) return;
@@ -37,7 +50,7 @@ export function openPopover(anchor, content, { className = '', label } = {}) {
     document.removeEventListener('pointerdown', onPointer);
     document.removeEventListener('keydown', onKey, true);
     document.removeEventListener('scroll', onScroll, true);
-    window.removeEventListener('resize', close);
+    window.removeEventListener('resize', onResize);
   }
 
   current = { el, close, reposition: () => place(el, anchor) };

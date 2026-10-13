@@ -10,7 +10,9 @@ const ICONS = [
   // barra de la vista en mobile: reemplazan a las etiquetas
   'layout-grid', 'user', 'users-round', 'user-check', 'heart', 'bell', 'check-check', 'radio', 'settings',
   // acciones
-  'ban', 'download', 'copy', 'link', 'check', 'play',
+  'ban', 'download', 'copy', 'link', 'check', 'play', 'external-link',
+  // chat: menú de un mensaje y temporizador
+  'ellipsis', 'forward', 'timer',
   // historias
   'pause', 'trash-2', 'send', 'chevron-left', 'chevron-right', 'type', 'image', 'eye',
 ];

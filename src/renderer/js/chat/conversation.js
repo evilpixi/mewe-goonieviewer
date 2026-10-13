@@ -5,14 +5,17 @@ import { avatar } from '../ui/avatar.js';
 import { tintWithAvatarColor } from '../ui/avatarColor.js';
 import { dayKey, formatDay, formatFull, formatTime } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
+import { quickReactions } from '../ui/emojiPicker.js';
 import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
+import { EDGE_SWIPE_PX } from '../ui/mobile.js';
 import { confirmBlock } from '../ui/people.js';
 import { closePopover, openPopover } from '../ui/popover.js';
 import { createReactions } from '../ui/reactions.js';
 import { emojiOnlyCount, plainText, richText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
 import { createComposer } from './composer.js';
+import { canForward, openForwardDialog } from './forward.js';
 
 const PAGE_SIZE = 25; // igual que config.mewe.chat.pageSize
 const RUN_GAP_MS = 5 * 60 * 1000; // mensajes del mismo autor más juntos que esto se agrupan
@@ -20,16 +23,32 @@ const POLL_FAST_MS = 5000; // sin tiempo real
 const POLL_SLOW_MS = 30000; // con websocket conectado (sólo como red de seguridad)
 const MAX_PAGES_TO_FIND_REPLY = 20;
 const OLDER_PAGES_PER_CLICK = 5; // "Cargar más antiguos" en búsqueda y galería
+const QUICK_REACTIONS = 15; // emojis del menú de un mensaje: dos filas, con el último lugar para "más emojis"
+// Gestos táctiles sobre un mensaje
+const LONG_PRESS_MS = 450; // apretado este tiempo sin moverse, abre su menú
+const PRESS_MOVE_PX = 10; // moverse más que esto ya no es mantener apretado
+const SWIPE_START_PX = 14; // a partir de acá el mensaje sigue al dedo
+const SWIPE_REPLY_PX = 64; // soltarlo más lejos que esto lo responde
+const SWIPE_MAX_PX = 88;
+
+// A quiénes se ofrece mencionar primero en un chat: la otra persona o, en uno de grupo, sus miembros
+// (la primera página, que se pide una sola vez por chat abierto)
+function mentionable(accountId, thread) {
+  if (!thread.isGroup) return () => (thread.userId ? [{ id: thread.userId, name: thread.name, avatar: thread.avatar }] : []);
+  let members = null;
+  return () => (members ??= api.getGroupMembers(accountId, thread.id).then((page) => page.members));
+}
 
 // Para comparar texto sin distinguir mayúsculas ni acentos
-const fold = (text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+const fold =(text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 // Una conversación (mensajes + caja de redacción) para cualquier threadId:
 // chats con personas, de grupo y (más adelante) de eventos.
 // navigate: el del router; con él, los nombres y las fotos llevan al perfil.
 // onUnreadChange(threadId, unread): el chat pasó a leído o volvió a tener mensajes sin leer.
-// Abrir un chat no lo marca como leído: se marca al hacer click en los mensajes, al escribir,
-// al enviar o con el botón de la barra (que sólo se ve mientras hay algo sin leer).
+// Un chat se marca como leído cuando lo abre la persona (open con read), al hacer click en los mensajes, al
+// escribir, al enviar o con el botón de la barra (que sólo se ve mientras hay algo sin leer). Lo que llega
+// después, con el chat ya abierto, lo deja otra vez sin leer hasta alguna de esas acciones.
 // onBlocked(thread): se bloqueó a la persona del chat (botón de la barra, sólo en chats de a dos).
 // onBack(): se tocó la flecha de la barra, que sólo se ve en mobile (vuelve a la lista de chats).
 export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, navigate } = {}) {
@@ -129,6 +148,11 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
   let pinned = true; // anclado al final: lo nuevo se sigue solo. Se suelta al subir a leer mensajes viejos
   let missed = false; // llegaron mensajes mientras no estaba anclado
   const videoBoxes = new Map(); // "idMensaje:n" → nodo del video (ver renderVideo)
+  const menus = new Map(); // idMensaje → { open(ancla), reply() } de los mensajes dibujados (ver renderMessage)
+  let messageMenu = null; // menú de un mensaje abierto, con su ancla
+  let touch = null; // gesto táctil en curso sobre un mensaje: { el, actions, x, y, swiping, timer }
+  let touching = false; // lo último que tocó los mensajes fue un dedo (o un lápiz), no el mouse
+  let skipClick = false; // ver "Gestos táctiles"
 
   // --- Leído / sin leer ---
 
@@ -248,6 +272,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     const names = authorNames();
     const allImages = messages.flatMap((m) => (m.expiresIn ? [] : m.images)); // las temporales se abren aparte
     const nodes = [];
+    menus.clear();
     if (hasOlder) nodes.push(h('button', { className: 'btn load-older', onClick: loadOlder }, 'Cargar anteriores'));
 
     let prev = null;
@@ -330,6 +355,11 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
 
     // Como en la web, sólo se editan los mensajes propios de puro texto
     const canEdit = m.mine && !m.deleted && Boolean(m.text) && !m.images.length && !m.videos.length && !m.files.length && !m.expiresIn;
+    const reply = () => composer.setReplyTo(m, names.get(m.authorId));
+    const openMenu = (anchor) => openMessageMenu(anchor, m, { reactions, reply, canEdit });
+    menus.set(m.id, { open: openMenu, reply });
+    // Los tres puntitos al costado del globo (escritorio, ver styles.css): en mobile el menú se abre
+    // manteniendo apretado el mensaje (ver "Gestos táctiles")
     const actions = h(
       'div',
       { className: 'msg-actions' },
@@ -337,28 +367,12 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
         'button',
         {
           className: 'icon-btn',
-          title: 'Responder',
-          attrs: { 'aria-label': 'Responder' },
-          onClick: () => composer.setReplyTo(m, names.get(m.authorId)),
+          title: 'Acciones',
+          attrs: { 'aria-label': 'Acciones del mensaje', 'aria-haspopup': 'menu' },
+          onClick: (event) => openMenu(event.currentTarget),
         },
-        icon('reply'),
+        icon('ellipsis'),
       ),
-      h(
-        'button',
-        {
-          className: 'icon-btn',
-          title: 'Reaccionar',
-          attrs: { 'aria-label': 'Reaccionar', 'aria-haspopup': 'dialog' },
-          onClick: (event) => reactions.pick(event.currentTarget),
-        },
-        icon('smile-plus'),
-      ),
-      canEdit &&
-        h(
-          'button',
-          { className: 'icon-btn', title: 'Editar', attrs: { 'aria-label': 'Editar mensaje' }, onClick: () => composer.setEditing(m) },
-          icon('pencil'),
-        ),
     );
 
     // Foto de quien habla, arriba y al lado del nombre: a la izquierda la de los demás, a la derecha la propia.
@@ -388,6 +402,131 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       m.mine && face(account.name, account.avatar, account.userId),
     );
   }
+
+  // --- Menú de un mensaje ---
+
+  // Reaccionar (con los emojis a la vista, sin abrir el selector), responder, reenviar, editar y copiar.
+  // Lo abren los tres puntitos del mensaje o, en una pantalla táctil, mantenerlo apretado.
+  function openMessageMenu(anchor, m, { reactions, reply, canEdit }) {
+    if (messageMenu?.el.isConnected && messageMenu.anchor === anchor) {
+      closePopover();
+      return;
+    }
+    const item = (name, label, run) =>
+      h(
+        'button',
+        {
+          className: 'menu-item account-item',
+          attrs: { role: 'menuitem' },
+          onClick: () => {
+            closePopover();
+            run();
+          },
+        },
+        h('span', { className: 'account-item-icon' }, icon(name)),
+        label,
+      );
+    const emojis = quickReactions((emoji) => {
+      closePopover();
+      reactions.react(emoji);
+    }, QUICK_REACTIONS);
+    // el último lugar de la grilla abre el selector completo
+    emojis.append(
+      h(
+        'button',
+        { type: 'button', className: 'emoji-option', title: 'Más emojis', attrs: { 'aria-label': 'Más emojis', 'aria-haspopup': 'dialog' }, onClick: () => reactions.pick(anchor) },
+        icon('smile-plus'),
+      ),
+    );
+    const menu = h(
+      'div',
+      { className: 'menu', attrs: { role: 'menu' } },
+      emojis,
+      h('hr', { className: 'menu-sep' }),
+      item('reply', 'Responder', reply),
+      canForward(m) && item('forward', 'Reenviar', () => forward(m)),
+      canEdit && item('pencil', 'Editar', () => composer.setEditing(m)),
+      // en una pantalla táctil el texto de los mensajes no se puede seleccionar (ver styles.css)
+      m.text && !m.deleted && item('copy', 'Copiar texto', () => api.copyText(plainText(m.text)).catch((err) => showError(errorEl, err, 'MeWe chat'))),
+    );
+    messageMenu = { ...openPopover(anchor, menu, { className: 'menu-popover msg-menu', label: 'Acciones del mensaje' }), anchor };
+  }
+
+  // Reenviar: se elige el chat en un diálogo. Si es éste mismo, el mensaje nuevo aparece al final.
+  async function forward(m) {
+    const gen = generation;
+    const target = await openForwardDialog({ account, message: m });
+    if (!target || gen !== generation) return;
+    if (target.id === thread.id) loadLatest({ scroll: 'bottom' });
+    onSent?.();
+  }
+
+  // --- Gestos táctiles sobre un mensaje ---
+
+  // Mantenerlo apretado abre su menú; arrastrarlo hacia un costado lo responde.
+  // (.chat-messages tiene touch-action: pan-y: si el dedo va en vertical es scroll y llega pointercancel)
+  function endTouch() {
+    if (!touch) return;
+    clearTimeout(touch.timer);
+    touch.el.classList.remove('swiping', 'swipe-ready');
+    touch.el.style.removeProperty('transform');
+    touch = null;
+  }
+
+  messagesEl.addEventListener('pointerdown', (event) => {
+    endTouch();
+    skipClick = false;
+    touching = event.pointerType !== 'mouse';
+    if (!touching || !event.isPrimary) return;
+    const msgEl = event.target.closest('.msg');
+    const actions = menus.get(msgEl?.dataset.messageId);
+    // el borde izquierdo es para la lista de chats (ver chatView.js), y arrastrar sobre un video mueve su barra
+    if (!actions || event.clientX - messagesEl.getBoundingClientRect().left < EDGE_SWIPE_PX || event.target.closest('video')) return;
+    touch = { el: msgEl, actions, x: event.clientX, y: event.clientY, swiping: false, timer: null };
+    const bubble = event.target.closest('.bubble');
+    if (!bubble) return;
+    touch.timer = setTimeout(() => {
+      endTouch();
+      skipClick = true;
+      navigator.vibrate?.(10);
+      actions.open(bubble);
+    }, LONG_PRESS_MS);
+  });
+  messagesEl.addEventListener('pointermove', (event) => {
+    if (!touch) return;
+    const dx = event.clientX - touch.x;
+    const dy = event.clientY - touch.y;
+    if (!touch.swiping) {
+      if (Math.hypot(dx, dy) > PRESS_MOVE_PX) clearTimeout(touch.timer);
+      if (Math.abs(dx) < SWIPE_START_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      touch.swiping = true;
+      touch.el.classList.add('swiping');
+    }
+    touch.el.style.transform = `translateX(${Math.max(-SWIPE_MAX_PX, Math.min(SWIPE_MAX_PX, dx))}px)`;
+    touch.el.classList.toggle('swipe-ready', Math.abs(dx) >= SWIPE_REPLY_PX);
+  });
+  messagesEl.addEventListener('pointerup', (event) => {
+    if (!touch) return;
+    const { swiping, actions, x } = touch;
+    endTouch();
+    if (!swiping) return;
+    skipClick = true;
+    if (Math.abs(event.clientX - x) >= SWIPE_REPLY_PX) actions.reply();
+  });
+  messagesEl.addEventListener('pointercancel', endTouch);
+  // el toque que terminó en un gesto no cuenta además como click (no abre la imagen que tenía debajo)
+  messagesEl.addEventListener(
+    'click',
+    (event) => {
+      if (!skipClick) return;
+      skipClick = false;
+      event.stopPropagation();
+      event.preventDefault();
+    },
+    true,
+  );
+  // el menú del sistema que sale al mantener apretado: acá ese gesto abre el menú del mensaje
+  messagesEl.addEventListener('contextmenu', (event) => touching && event.preventDefault());
 
   // Imagen con temporizador: no se muestra hasta tocarla. Como la web, una ajena queda abierta `expiresIn`
   // segundos (o hasta cerrarla) y recién ahí se avisa a MeWe que fue vista: en ese momento MeWe la borra,
@@ -760,11 +899,19 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       return;
     }
     const sent = [];
+    const isVideo = (file) => file.type.startsWith('video/');
+    let videos = 0; // enviados a procesar: MeWe los publica en el chat cuando termina de convertirlos
     try {
       if (text) sent.push(await api.sendMessage(accountId, threadId, { text, replyTo }));
       for (const [i, file] of files.entries()) {
-        composer.setStatus(`Subiendo imagen ${i + 1} de ${files.length}…`);
+        composer.setStatus(`Subiendo ${isVideo(file) ? 'video' : 'imagen'} ${i + 1} de ${files.length}…`);
         const data = new Uint8Array(await file.arrayBuffer());
+        // el camino normal de los videos ignora el temporizador: con él, el video va como adjunto, igual que una imagen
+        if (isVideo(file) && !expiresIn) {
+          await api.sendChatVideo(accountId, threadId, { name: file.name, type: file.type, data }, { replyTo });
+          videos++;
+          continue;
+        }
         const attachmentId = await api.uploadChatImage(accountId, thread.isGroup, { name: file.name, type: file.type, data });
         sent.push(await api.sendMessage(accountId, threadId, { attachments: [attachmentId], replyTo, expiresIn }));
       }
@@ -786,13 +933,17 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
         errorEl,
         {
           details: {
-            message: 'MeWe no aplicó el temporizador: la imagen se envió como una normal.',
+            message: 'MeWe no aplicó el temporizador: lo adjunto se envió como un mensaje normal.',
             hint: 'La web de MeWe no permite mensajes temporales; sólo la app móvil.',
           },
         },
         'MeWe chat',
       );
     }
+    if (!videos) return null;
+    // el aviso queda en la caja de redacción (ver createComposer)
+    const note = videos > 1 ? `${videos} videos subidos: aparecen en el chat` : 'Video subido: aparece en el chat';
+    return `${note} cuando MeWe termine de procesarlo${videos > 1 ? 's' : ''}.`;
   }
 
   // --- Polling ---
@@ -853,7 +1004,8 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     get unread() {
       return unread;
     },
-    async open(newAccount, newThread) {
+    // read: marcarlo como leído apenas carga (cuando lo abre la persona; no cuando la app lo reabre sola)
+    async open(newAccount, newThread, { read = false } = {}) {
       generation++;
       account = newAccount;
       thread = newThread;
@@ -870,13 +1022,17 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       clearError(errorEl);
       composer.clear();
       composer.setAccount(account);
+      composer.setPeople(mentionable(account.id, thread));
       composer.el.hidden = false;
       closePanel();
       toolsEl.hidden = false;
       renderTitle();
       loadCover();
       messagesEl.replaceChildren(emptyState('Cargando…'));
+      const gen = generation;
       await loadLatest({ scroll: 'bottom' });
+      if (gen !== generation) return; // mientras cargaba se abrió otro chat (o se cerró éste)
+      if (read) markRead();
       composer.focus();
       restartPolling();
     },
@@ -899,6 +1055,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       messagesEl.replaceChildren(emptyState(text));
     },
     refresh: () => loadLatest(),
+    markRead,
     // Va a un mensaje y lo resalta (menciones desde las notificaciones)
     goTo: (messageId) => scrollToMessage(messageId),
     // Con websocket conectado el polling pasa a ser lento

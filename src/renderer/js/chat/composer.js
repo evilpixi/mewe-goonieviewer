@@ -3,6 +3,7 @@ import { h } from '../ui/dom.js';
 import { openEmojiPicker } from '../ui/emojiPicker.js';
 import { takeFiles } from '../ui/files.js';
 import { icon } from '../ui/icon.js';
+import { attachMentions } from '../ui/mentions.js';
 import { isMobile } from '../ui/mobile.js';
 import { plainText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
@@ -11,25 +12,21 @@ import { openDicePicker } from './dicePicker.js';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const MAX_FILES = 10;
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // igual que en MeweClient
+const isVideo = (file) => file.type.startsWith('video/');
 // Pausa entre tiradas de dados, para que no llenen el chat
 const ROLL_COOLDOWN = 2000;
 
-// Segundos; MeWe sólo hace desaparecer fotos/videos, así que aplica a las imágenes adjuntas
-const TIMERS = [
-  [0, 'Sin temporizador'],
-  [5, '5 s'],
-  [10, '10 s'],
-  [30, '30 s'],
-  [60, '1 min'],
-  [300, '5 min'],
-  [3600, '1 h'],
-  [86400, '24 h'],
-];
+// Temporizador: se usa o no, siempre con esta duración (segundos). MeWe sólo hace desaparecer fotos/videos,
+// así que aplica a las imágenes y videos adjuntos.
+const TIMER_SECONDS = 86400;
 
 // Caja de redacción del chat.
 //   onSend({ text, files, replyTo, expiresIn, editId }) → promesa; si se resuelve, se limpia la caja
+//   (y, si resuelve con un texto, queda como aviso en el estado)
 //   (editId: id del mensaje que se está editando; ahí sólo importa `text`)
-// Imágenes y GIFs: botón 📎, Ctrl+V con una imagen en el portapapeles, o arrastrarlas (ver acceptDrop).
+// Imágenes, GIFs y videos: botón 📎, Ctrl+V con uno en el portapapeles, o arrastrarlos (ver acceptDrop).
+// Menciones: "@" y el nombre abren un menú para elegir a quién mencionar (ver ui/mentions.js).
 // Dados de rol: botón 🎲 (elige los dados y envía la tirada) o escribir "/roll 2d20" (ver dice.js).
 // Dos filas: arriba la caja de texto a todo el ancho, abajo los botones (con "Enviar" al final).
 // Botón "Enter envía" (sólo escritorio): elige si Enter envía el mensaje o hace un salto de línea.
@@ -83,14 +80,14 @@ export function createComposer({ onSend }) {
   const meEl = h('span', { className: 'writing-as', attrs: { role: 'img' }, hidden: true });
   const fileInput = h('input', {
     type: 'file',
-    accept: IMAGE_TYPES.join(','),
+    accept: [...IMAGE_TYPES, 'video/*'].join(','),
     multiple: true,
     hidden: true,
     attrs: { 'aria-hidden': 'true', tabindex: '-1' },
   });
   const attachBtn = h(
     'button',
-    { type: 'button', className: 'btn icon-btn', title: 'Adjuntar imagen', attrs: { 'aria-label': 'Adjuntar imagen' } },
+    { type: 'button', className: 'btn icon-btn', title: 'Adjuntar imagen o video', attrs: { 'aria-label': 'Adjuntar imagen o video' } },
     icon('paperclip'),
   );
   const replyText = h('span', { className: 'composer-reply-text' });
@@ -118,13 +115,20 @@ export function createComposer({ onSend }) {
       icon('x'),
     ),
   );
-  const timerSelect = h(
-    'select',
-    { className: 'composer-timer', title: 'Temporizador: la imagen desaparece después de verla', attrs: { 'aria-label': 'Temporizador' } },
-    TIMERS.map(([value, label]) => h('option', { value }, `⏱ ${label}`)),
+  const timerBtn = h(
+    'button',
+    {
+      type: 'button',
+      className: 'btn composer-timer',
+      title: 'Temporizador (24 h): la imagen o el video desaparece después de verlo',
+      attrs: { 'aria-pressed': 'false' },
+      onClick: () => setTimed(!timed),
+    },
+    icon('timer'),
+    ' Temporal',
   );
   const thumbs = h('div', { className: 'composer-thumbs' });
-  const attachmentsBar = h('div', { className: 'composer-attachments', hidden: true }, thumbs, timerSelect);
+  const attachmentsBar = h('div', { className: 'composer-attachments', hidden: true }, thumbs, timerBtn);
   const status = h('div', { className: 'composer-status', attrs: { 'aria-live': 'polite' } });
   const el = h(
     'form',
@@ -141,10 +145,14 @@ export function createComposer({ onSend }) {
   let files = []; // [{ file, url }]
   let replyTo = null;
   let editing = null; // mensaje que se está editando
+  let timed = false; // lo adjunto va con temporizador
   let busy = false;
   let expanded = false;
   let enterSends = storedEnterSends();
   let lastRoll = 0;
+  let accountId = null;
+  let people = null; // quiénes están en el chat (ver setPeople)
+  const mentions = attachMentions(textarea, { accountId: () => accountId, people: () => people?.() ?? [] });
 
   // ¿Enter (sin modificadores) envía? Si no, hace un salto de línea y se envía con Ctrl+Enter o con el botón.
   const sendsOnEnter = () => enterSends && !expanded && !isMobile();
@@ -166,6 +174,11 @@ export function createComposer({ onSend }) {
     }
     renderEnterMode();
     textarea.focus();
+  }
+
+  function setTimed(value) {
+    timed = value;
+    timerBtn.setAttribute('aria-pressed', String(timed));
   }
 
   function setExpanded(value) {
@@ -196,7 +209,7 @@ export function createComposer({ onSend }) {
     sendBtn.title = sendLabel.textContent = message ? 'Guardar' : 'Enviar';
     if (!message) return;
     editText.textContent = plainText(message.text);
-    textarea.value = message.text;
+    textarea.value = mentions.decode(message.text); // las menciones se ven como "@Nombre"
     autosize();
     textarea.focus();
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
@@ -225,12 +238,14 @@ export function createComposer({ onSend }) {
   }
 
   function addFiles(list) {
-    const images = [...list].filter((f) => IMAGE_TYPES.includes(f.type));
-    if (!images.length || editing) return false; // al editar sólo cambia el texto
-    for (const file of images.slice(0, MAX_FILES - files.length)) {
+    const media = [...list].filter((f) => IMAGE_TYPES.includes(f.type) || isVideo(f));
+    if (!media.length || editing) return false; // al editar sólo cambia el texto
+    const fit = media.filter((f) => !isVideo(f) || f.size <= MAX_VIDEO_BYTES);
+    for (const file of fit.slice(0, MAX_FILES - files.length)) {
       files.push({ file, url: URL.createObjectURL(file) });
     }
-    if (images.length > MAX_FILES) status.textContent = `Máximo ${MAX_FILES} imágenes por envío.`;
+    if (fit.length < media.length) status.textContent = 'Los videos de más de 200 MB no se pueden enviar.';
+    else if (media.length > MAX_FILES) status.textContent = `Máximo ${MAX_FILES} archivos por envío.`;
     renderFiles();
     textarea.focus();
     return true;
@@ -249,7 +264,9 @@ export function createComposer({ onSend }) {
         h(
           'div',
           { className: 'composer-thumb' },
-          h('img', { src: url, alt: file.name }),
+          isVideo(file)
+            ? [h('video', { src: url, muted: true, preload: 'metadata', title: file.name }), h('span', { className: 'gif-badge', attrs: { 'aria-hidden': 'true' } }, 'Video')]
+            : h('img', { src: url, alt: file.name }),
           h(
             'button',
             { type: 'button', className: 'icon-btn', title: 'Quitar', attrs: { 'aria-label': `Quitar ${file.name}` }, onClick: () => removeFile(i) },
@@ -265,7 +282,8 @@ export function createComposer({ onSend }) {
     files = [];
     renderFiles();
     textarea.value = '';
-    timerSelect.value = '0';
+    mentions.clear();
+    setTimed(false);
     status.textContent = '';
     setReplyTo(null);
     setEditing(null);
@@ -303,7 +321,7 @@ export function createComposer({ onSend }) {
   }
 
   async function send() {
-    let text = textarea.value.trim();
+    let text = mentions.encode(textarea.value.trim());
     if (busy || (!text && !files.length)) return;
     if (editing && text === editing.text.trim()) {
       cancelEditing(); // sin cambios: no hay nada que guardar
@@ -321,16 +339,17 @@ export function createComposer({ onSend }) {
     }
     busy = true;
     sendBtn.disabled = true;
-    status.textContent = files.length ? 'Subiendo imágenes…' : '';
+    status.textContent = files.length ? 'Subiendo…' : '';
     try {
-      await onSend({
+      const note = await onSend({
         text,
         files: files.map((f) => f.file),
         replyTo: replyTo?.id ?? null,
-        expiresIn: Number(timerSelect.value) || null,
+        expiresIn: timed ? TIMER_SECONDS : null,
         editId: editing?.id ?? null,
       });
       clear();
+      if (note) status.textContent = note;
     } catch {
       status.textContent = ''; // el error lo muestra la conversación
     } finally {
@@ -375,10 +394,13 @@ export function createComposer({ onSend }) {
     lastWidth = width;
     autosize();
   }).observe(textarea);
-  // Ctrl+V con una imagen copiada
+  // Ctrl+V con una imagen o un video copiados
   textarea.addEventListener('paste', (event) => {
     if (addFiles(event.clipboardData?.files ?? [])) event.preventDefault();
   });
+  // Tocar "Enviar" no le saca el foco a la caja: en mobile eso cerraba el teclado (y con el salto de la pantalla
+  // el toque se perdía: había que tocar dos veces). Así además se puede seguir escribiendo después de enviar.
+  for (const type of ['pointerdown', 'mousedown']) sendBtn.addEventListener(type, (event) => event.preventDefault());
   attachBtn.addEventListener('click', () => fileInput.click());
   emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, insertText, { forText: true }));
   diceBtn.addEventListener('click', () => openDicePicker(diceBtn, sendRoll));
@@ -392,11 +414,16 @@ export function createComposer({ onSend }) {
   return {
     el,
     setAccount(account) {
+      accountId = account?.id ?? null;
       meEl.hidden = !account;
       if (!account) return;
       meEl.title = `Escribes como ${account.name}`;
       meEl.setAttribute('aria-label', meEl.title);
       meEl.replaceChildren(avatar(account.id, account.avatar, { name: account.name }));
+    },
+    // loader(): [{ id, name, avatar }] (o una promesa) de las personas del chat: son las primeras que se ofrecen al mencionar
+    setPeople(loader) {
+      people = loader;
     },
     setReplyTo,
     setEditing,
@@ -410,7 +437,7 @@ export function createComposer({ onSend }) {
     setStatus: (text) => {
       status.textContent = text;
     },
-    // Hace que `zone` acepte imágenes arrastradas (muestra un aviso mientras se arrastra)
+    // Hace que `zone` acepte imágenes y videos arrastrados (muestra un aviso mientras se arrastra)
     acceptDrop(zone) {
       let depth = 0;
       const hasFiles = (event) => [...(event.dataTransfer?.types ?? [])].includes('Files');

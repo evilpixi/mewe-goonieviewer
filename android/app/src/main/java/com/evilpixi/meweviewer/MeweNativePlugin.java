@@ -1,7 +1,12 @@
 package com.evilpixi.meweviewer;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Base64;
@@ -32,7 +37,8 @@ import okhttp3.WebSocketListener;
 // - loginOpen / loginClose: el login real de mewe.com (evento "loginSession" cuando hay una sesión para verificar)
 // - wsOpen / wsSend / wsClose: el tiempo real, con las cookies de la cuenta (eventos "ws")
 // - saveMedia: guarda una imagen o un video en la galería
-// - getCookie / clearAccount / storageGet / storageSet / setTextZoom
+// - openUrl: abre un link en el navegador del teléfono
+// - getCookie / clearAccount / storageGet / storageSet / setTextZoom / setWindowColor
 // - el botón "atrás": evento "back", y minimize si la UI no tenía nada que cerrar
 // Las imágenes y videos que muestra la UI no pasan por acá: ver MediaServer.
 @CapacitorPlugin(name = "MeweNative")
@@ -44,6 +50,7 @@ public class MeweNativePlugin extends Plugin {
     private MeweHttp http;
     private SharedPreferences storage;
     private LoginWindow loginWindow;
+    private Integer windowColor; // ver setWindowColor
 
     @Override
     public void load() {
@@ -83,12 +90,14 @@ public class MeweNativePlugin extends Plugin {
     @PluginMethod
     public void request(PluginCall call) {
         String accountId = call.getString("accountId");
-        HttpUrl url = meweUrl(call, "url");
-        if (accountId == null || url == null) {
+        String method = call.getString("method", "GET").toUpperCase();
+        HttpUrl url = HttpUrl.parse(call.getString("url", ""));
+        // subir un video: POST al bucket de S3 de MeWe, sin las cookies de la cuenta
+        boolean upload = method.equals("POST") && MeweHttp.isUploadBucket(url);
+        if (accountId == null || !(upload || MeweHttp.isMewe(url))) {
             call.reject("Faltan accountId o una url de MeWe.");
             return;
         }
-        String method = call.getString("method", "GET").toUpperCase();
         Request.Builder builder = new Request.Builder().url(url);
         JSObject headers = call.getObject("headers", new JSObject());
         for (Iterator<String> names = headers.keys(); names.hasNext();) {
@@ -104,8 +113,7 @@ public class MeweNativePlugin extends Plugin {
         // OkHttp exige cuerpo en POST/PUT/PATCH: vacío si no vino ninguno. El content-type ya va en las cabeceras.
         builder.method(method, bodyless ? null : RequestBody.create(body == null ? new byte[0] : body, null));
 
-        http
-            .clientFor(accountId)
+        (upload ? http.uploadClient() : http.clientFor(accountId))
             .newCall(builder.build())
             .enqueue(
                 new Callback() {
@@ -340,6 +348,54 @@ public class MeweNativePlugin extends Plugin {
             getBridge().getWebView().getSettings().setTextZoom(value);
             call.resolve();
         });
+    }
+
+    // { url }: abre un link http(s) en el navegador del teléfono
+    @PluginMethod
+    public void openUrl(PluginCall call) {
+        Uri uri = Uri.parse(call.getString("url", ""));
+        if (!"https".equals(uri.getScheme()) && !"http".equals(uri.getScheme())) {
+            call.reject("Link no válido.");
+            return;
+        }
+        try {
+            getActivity().startActivity(new Intent(Intent.ACTION_VIEW, uri));
+            call.resolve();
+        } catch (ActivityNotFoundException err) {
+            call.reject("No hay una app para abrir el link.");
+        }
+    }
+
+    // { color: "#rrggbb" }: el color de fondo de la app. Con él se pinta la ventana, que es lo que se ve donde el
+    // WebView no llega: debajo de las barras del sistema en los WebView viejos y, en algunos teléfonos, una
+    // franja entre la app y el teclado (el sistema reserva más alto que el que el teclado ocupa). Sin esto ahí
+    // se ve el gris del tema de Android.
+    @PluginMethod
+    public void setWindowColor(PluginCall call) {
+        try {
+            windowColor = Color.parseColor(call.getString("color", ""));
+        } catch (IllegalArgumentException err) {
+            call.reject("Color inválido.");
+            return;
+        }
+        main.post(() -> {
+            applyWindowColor();
+            call.resolve();
+        });
+    }
+
+    private void applyWindowColor() {
+        if (windowColor == null || getActivity() == null) return;
+        getActivity().getWindow().getDecorView().setBackgroundColor(windowColor);
+        getBridge().getWebView().setBackgroundColor(windowColor);
+    }
+
+    // Al girar la pantalla o cambiar el modo oscuro, el plugin SystemBars de Capacitor repinta la ventana con
+    // el color del tema de Android: el nuestro se vuelve a poner después.
+    @Override
+    protected void handleOnConfigurationChanged(Configuration newConfig) {
+        super.handleOnConfigurationChanged(newConfig);
+        main.post(this::applyWindowColor);
     }
 
     private static HttpUrl meweUrl(PluginCall call, String field) {

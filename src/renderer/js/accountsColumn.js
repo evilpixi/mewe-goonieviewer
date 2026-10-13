@@ -6,23 +6,26 @@ import { h } from './ui/dom.js';
 export function createAccountsColumn({ listEl, addButton, onSelect, onAdd }) {
   let accounts = [];
   let activeId = null;
+  let activityOf = () => ''; // ver setActivity
 
   addButton.addEventListener('click', onAdd);
 
   function render() {
     listEl.replaceChildren(
       ...accounts.map((account) => {
+        const news = activityOf(account.id);
         const btn = h(
           'button',
           {
             className: `account-btn${account.id === activeId ? ' active' : ''}`,
-            title: account.email ? `${account.name}\n${account.email}` : account.name,
-            attrs: { 'aria-label': account.name, 'aria-current': account.id === activeId ? 'true' : null },
+            title: [account.name, account.email, news].filter(Boolean).join('\n'),
+            attrs: { 'aria-label': news ? `${account.name}: ${news}` : account.name, 'aria-current': account.id === activeId ? 'true' : null },
             onClick: () => onSelect(account),
           },
           avatar(account.id, account.avatar, { name: account.name, size: 'lg' }),
         );
-        return h('li', {}, btn);
+        // el punto va fuera del botón, que recorta lo que sobresale de la foto
+        return h('li', {}, btn, news && h('span', { className: 'account-dot', attrs: { 'aria-hidden': 'true' } }));
       }),
     );
     // la cuenta activa siempre a la vista, aunque la lista no entre entera
@@ -36,6 +39,11 @@ export function createAccountsColumn({ listEl, addButton, onSelect, onAdd }) {
     },
     setActive(id) {
       activeId = id;
+      render();
+    },
+    // describe(accountId) → las novedades de esa cuenta en palabras ('' si no tiene): las que tienen llevan un punto de aviso
+    setActivity(describe) {
+      activityOf = describe;
       render();
     },
   };

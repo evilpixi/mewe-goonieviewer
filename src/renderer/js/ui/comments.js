@@ -4,6 +4,7 @@ import { avatar } from './avatar.js';
 import { formatDateTime, formatFull } from './dates.js';
 import { emptyState, h } from './dom.js';
 import { renderGallery } from './gallery.js';
+import { attachMentions } from './mentions.js';
 import { createReactions } from './reactions.js';
 import { richText } from './richText.js';
 import { userName } from './userName.js';
@@ -183,6 +184,8 @@ export function createComments({ account, post, onCountChange, navigate }) {
   function createInput(placeholder, submit) {
     const textarea = h('textarea', { rows: 1, placeholder, attrs: { 'aria-label': placeholder } });
     const button = h('button', { type: 'submit', className: 'btn primary' }, 'Enviar');
+    // tocar "Enviar" no le saca el foco a la caja: en mobile eso cerraba el teclado y el toque se perdía (ver chat/composer.js)
+    for (const type of ['pointerdown', 'mousedown']) button.addEventListener(type, (event) => event.preventDefault());
     // foto de la cuenta que va a comentar
     const meEl = h(
       'span',
@@ -190,13 +193,16 @@ export function createComments({ account, post, onCountChange, navigate }) {
       avatar(accountId, account.avatar, { name: account.name, size: 'sm' }),
     );
     const form = h('form', { className: 'comment-form' }, meEl, textarea, button);
+    // "@" y el nombre: menú para mencionar a alguien
+    const mentions = attachMentions(textarea, { accountId: () => accountId });
     async function sendIt() {
-      const text = textarea.value.trim();
+      const text = mentions.encode(textarea.value.trim());
       if (!text || button.disabled) return;
       button.disabled = true;
       try {
         await submit(text);
         textarea.value = '';
+        mentions.clear();
       } catch (err) {
         showError(errorEl, err, 'MeWe comentarios');
       } finally {
@@ -208,6 +214,8 @@ export function createComments({ account, post, onCountChange, navigate }) {
       event.preventDefault();
       sendIt();
     });
+    // tocar "Enviar" no le saca el foco a la caja (en mobile cerraría el teclado antes de que llegue el click)
+    for (const type of ['pointerdown', 'mousedown']) button.addEventListener(type, (event) => event.preventDefault());
     textarea.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
         event.preventDefault();

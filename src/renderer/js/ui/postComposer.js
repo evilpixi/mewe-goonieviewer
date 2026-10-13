@@ -4,6 +4,7 @@ import { h } from './dom.js';
 import { openEmojiPicker } from './emojiPicker.js';
 import { takeFiles } from './files.js';
 import { icon } from './icon.js';
+import { attachMentions } from './mentions.js';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const MAX_FILES = 20; // igual que config.mewe.posts.maxImages
@@ -86,9 +87,12 @@ export function openPostComposer({ account, groupId = null, groupName = '', post
     className: 'input post-composer-text',
     rows: 6,
     placeholder: '¿Qué quieres compartir?',
-    value: editing ? post.text : (draft.text ?? ''),
     attrs: { 'aria-label': 'Texto de la publicación', dir: 'auto' },
   });
+  // "@" y el nombre: menú para mencionar a alguien. En la caja las menciones se ven como "@Nombre";
+  // el texto que se publica (y el del borrador) las lleva en el formato de MeWe.
+  const mentions = attachMentions(textarea, { accountId: () => accountId });
+  textarea.value = mentions.decode(editing ? post.text : (draft.text ?? ''));
   const target = h('select', { className: 'input', attrs: { 'aria-label': 'Dónde se publica' } }, h('option', { value: '' }, 'Mi feed'));
   const audience = h(
     'select',
@@ -157,7 +161,7 @@ export function openPostComposer({ account, groupId = null, groupName = '', post
   function saveDraft() {
     clearTimeout(saveTimer);
     if (editing || discard) return;
-    const text = textarea.value;
+    const text = mentions.encode(textarea.value);
     const empty = !text.trim() && !files.length;
     writeDraft(accountId, empty ? null : { text, groupId: target.value || null, everyone: audience.value === 'everyone' });
     writeDraftImages(accountId, files.map((item) => item.file));
@@ -208,6 +212,7 @@ export function openPostComposer({ account, groupId = null, groupName = '', post
     for (const { url } of files) URL.revokeObjectURL(url);
     files = [];
     textarea.value = '';
+    mentions.clear();
     status.textContent = '';
     clearError(errorEl);
     renderFiles();
@@ -219,7 +224,7 @@ export function openPostComposer({ account, groupId = null, groupName = '', post
   // --- Publicar / guardar ---
 
   async function submit() {
-    const text = textarea.value.trim();
+    const text = mentions.encode(textarea.value.trim());
     if (busy) return;
     if (!text && !(editing ? post.images.length : files.length)) {
       status.textContent = 'Escribe algo o agrega una imagen.';

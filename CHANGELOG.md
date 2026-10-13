@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0 — 2026-10-13
+
+- Chats: cada mensaje tiene un menú con los emojis para reaccionar a la vista, responder, reenviar, editar y copiar el texto. En escritorio se abre con los tres puntitos que aparecen al pasarle el mouse; en el teléfono, manteniendo apretado el mensaje. Reemplaza a los iconos del costado.
+- Chats: reenviar un mensaje a otro chat, con su texto y sus imágenes. Los videos y archivos no se reenvían.
+- Chats, en el teléfono: arrastrar un mensaje hacia un costado lo responde.
+- Chats, en el teléfono: el agarrador de la lista compacta pasa a ser una lengüeta sobre el borde izquierdo de la conversación, que se toca o se tironea.
+- Chats: el temporizador de imágenes y videos es un botón **Temporal** que se usa o no, siempre a 24 horas.
+- Chats: los videos (hasta 200 MB) se envían por el mismo camino que usa la web de MeWe; aparecen en el chat cuando MeWe termina de procesarlos.
+- Chats: los globos tienen los bordes menos redondeados y más relleno.
+- Menciones: al escribir `@` y parte del nombre aparece un menú para elegir a quién mencionar, en chats, publicaciones y comentarios.
+- Selector de emojis con buscador, categorías y los usados hace poco.
+- Cuentas: un aviso sobre la foto de las cuentas que no se están usando cuando tienen algo nuevo. En los ajustes se elige qué lo enciende: mensajes privados, chats de grupo o menciones. En el teléfono, el menú de la cuenta muestra un contador por cuenta.
+- Perfiles: los links de la descripción se abren en el navegador y se pueden copiar.
+- Publicaciones: la cabecera muestra una cosa por línea (autor, grupo y fecha).
+- Las imágenes de las publicaciones y las historias muestran un spinner mientras cargan.
+- En el teléfono, la barra de navegación se oculta mientras se escribe.
+- Corregido, en el teléfono: al responder una historia o comentar, tocar **Enviar** sólo cerraba el teclado.
+
 ## 0.3.1 — 2026-10-12
 
 - Chats: la caja de escribir tiene dos filas, el texto arriba y los botones abajo. En escritorio, el botón **Enter envía** elige si Enter envía el mensaje o hace un salto de línea; `Ctrl+Enter` envía siempre. En el teléfono, Enter sólo hace un salto de línea.

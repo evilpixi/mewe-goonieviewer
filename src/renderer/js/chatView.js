@@ -4,7 +4,7 @@ import { clearError, showError } from './errorView.js';
 import { avatar } from './ui/avatar.js';
 import { emptyState, h } from './ui/dom.js';
 import { icon } from './ui/icon.js';
-import { isMobile } from './ui/mobile.js';
+import { EDGE_SWIPE_PX, isMobile } from './ui/mobile.js';
 import { plainText } from './ui/richText.js';
 import { createTabs } from './ui/tabs.js';
 import { userName } from './ui/userName.js';
@@ -23,6 +23,10 @@ const SIDEBAR_KEY = 'chatSidebar';
 const SIDEBAR_MIN_PX = 150; // más angosta que esto pasa a compacta (sólo fotos)
 const SIDEBAR_KEY_STEP_PX = 24;
 const CONVERSATION_MIN_PX = 260;
+
+// Tirón del agarrador de la lista (mobile): cuánto hay que arrastrarlo para cada cosa
+const PULL_START_PX = 8; // menos que esto es un toque
+const PULL_SHOW_PX = 20; // muestra (a la derecha) u oculta (a la izquierda) la lista compacta
 
 function savedSidebar() {
   try {
@@ -51,6 +55,9 @@ export function createChatView({ navigate } = {}) {
   liveIcon.classList.add('label-icon');
   const liveText = h('span', { className: 'label-text' });
   const liveEl = h('span', { className: 'live-status', attrs: { 'aria-live': 'polite' } }, liveIcon, liveText);
+  // Sólo se ve mientras la lista tiene chats sin leer (ver renderThreads)
+  const readAllBtn = h('button', { className: 'btn icon-btn', hidden: true, onClick: () => markAllRead() }, icon('check-check'));
+  const toolbarRight = h('div', { className: 'toolbar-slot' }, readAllBtn, liveEl);
   const threadsEl = h('ul', { className: 'chat-threads scroll', attrs: { 'aria-label': 'Conversaciones' } });
   const errorEl = h('div');
   const conversation = createConversation({
@@ -82,14 +89,60 @@ export function createChatView({ navigate } = {}) {
     title: 'Arrastra para cambiar el ancho de la lista de chats (doble click: ancho original)',
     attrs: { role: 'separator', tabindex: '0', 'aria-orientation': 'vertical', 'aria-label': 'Ancho de la lista de chats' },
   });
-  // Agarrador (mobile): con una conversación abierta, muestra u oculta la lista compacta (sólo fotos) a su izquierda
+  // Agarrador (mobile): flota sobre el borde izquierdo de la conversación abierta. Tocarlo o tironearlo hacia
+  // la derecha muestra la lista compacta (sólo fotos), y queda en el borde de esa lista; hacia la izquierda
+  // la oculta. El mismo gesto vale arrancando del borde izquierdo de la conversación.
   const grabberEl = h('button', {
     className: 'chat-grabber',
     title: 'Mostrar u ocultar la lista de chats',
     attrs: { 'aria-label': 'Lista de chats', 'aria-expanded': 'false' },
-    onClick: () => grabberEl.setAttribute('aria-expanded', String(el.classList.toggle('threads-shown'))),
+    onClick: () => {
+      if (pulled) pulled = false; // el click que cierra un tirón: ya se resolvió al soltar
+      else showThreads(!el.classList.contains('threads-shown'));
+    },
   });
   const el = h('div', { className: 'view chat' }, sidebarEl, grabberEl, resizerEl, conversation.el);
+
+  function showThreads(shown) {
+    el.classList.toggle('threads-shown', shown);
+    grabberEl.setAttribute('aria-expanded', String(shown));
+  }
+
+  let pulled = false; // el agarrador se acaba de tironear (ver su onClick)
+
+  // Sigue un tirón horizontal que empieza en `event` (pointerdown)
+  function trackPull(event) {
+    const target = event.currentTarget;
+    const onGrabber = target === grabberEl;
+    const startX = event.clientX;
+    const wasShown = el.classList.contains('threads-shown');
+    // la lista aparece (o se va) mientras se tironea, sin esperar a soltar
+    const move = (e) => {
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) >= PULL_START_PX) pulled = onGrabber;
+      showThreads(wasShown ? dx > -PULL_SHOW_PX : dx >= PULL_SHOW_PX);
+    };
+    const end = () => {
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', end);
+      target.removeEventListener('pointercancel', end);
+    };
+    // (un dedo ya manda sus eventos a donde empezó; capturarlo en la conversación le sacaría el click a sus botones)
+    if (onGrabber) target.setPointerCapture(event.pointerId);
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', end);
+    target.addEventListener('pointercancel', end);
+  }
+
+  grabberEl.addEventListener('pointerdown', (event) => {
+    pulled = false;
+    if (event.isPrimary && event.button === 0) trackPull(event);
+  });
+  conversation.el.addEventListener('pointerdown', (event) => {
+    // sólo sobre los mensajes: la barra de arriba y la caja de escribir tienen botones en ese borde
+    const fromEdge = event.clientX - conversation.el.getBoundingClientRect().left < EDGE_SWIPE_PX && event.target.closest('.chat-messages');
+    if (isMobile() && activeId && event.isPrimary && event.pointerType !== 'mouse' && fromEdge) trackPull(event);
+  });
 
   // --- Ancho de la lista (arrastrando el borde, o con ← → teniendo el foco en él) ---
 
@@ -203,6 +256,7 @@ export function createChatView({ navigate } = {}) {
       // sin storage: el filtro no se recuerda
     }
     threads = [];
+    readAllBtn.hidden = true;
     threadsEl.replaceChildren(emptyState('Cargando…', 'li'));
     loadThreads();
   }
@@ -237,6 +291,11 @@ export function createChatView({ navigate } = {}) {
   }
 
   function renderThreads() {
+    const unreadCount = threads.filter((t) => t.unread).length;
+    const scope = { all: 'todos los chats', users: 'los chats con personas', groups: 'los chats de grupo' }[filter];
+    readAllBtn.hidden = !unreadCount;
+    readAllBtn.title = `Marcar como leídos ${scope} (${unreadCount} sin leer)`;
+    readAllBtn.setAttribute('aria-label', readAllBtn.title);
     if (!threads.length) {
       threadsEl.replaceChildren(emptyState('Sin chats.', 'li'));
       return;
@@ -250,7 +309,7 @@ export function createChatView({ navigate } = {}) {
             className: `chat-thread-item${active ? ' active' : ''}${t.unread ? ' unread' : ''}`,
             title: t.name,
             attrs: { 'aria-current': active ? 'true' : null },
-            onClick: () => openThread(t),
+            onClick: () => openThread(t, { read: true }),
           },
           avatar(account.id, t.avatar, { name: t.name }),
           h(
@@ -275,13 +334,42 @@ export function createChatView({ navigate } = {}) {
   function setActive(id) {
     activeId = id;
     el.classList.toggle('thread-open', Boolean(id));
+    if (!id) showThreads(false); // la lista compacta es de la conversación que se cierra
   }
 
-  function openThread(t) {
+  // read: lo abrió la persona (tocándolo, o con "Mensaje" desde un perfil), así que queda leído. Cuando lo abre
+  // la app sola (el más reciente al entrar, o el que estaba abierto al volver de otra vista) no se marca.
+  function openThread(t, { read = false } = {}) {
     setActive(t.id);
     lastThread = t;
-    renderThreads(); // abrirlo no lo marca como leído: eso lo decide la conversación
-    conversation.open(account, t);
+    renderThreads(); // el punto de "sin leer" lo saca la conversación cuando MeWe lo marca (onUnreadChange)
+    conversation.open(account, t, { read });
+  }
+
+  // Marca como leídos todos los chats de la lista que se está viendo (todos, personas o grupos, según el filtro).
+  // MeWe no tiene un pedido para todos juntos: se marcan de a uno.
+  async function markAllRead() {
+    const pending = threads.filter((t) => t.unread);
+    if (!pending.length || readAllBtn.disabled) return;
+    const gen = generation;
+    const accountId = account.id;
+    readAllBtn.disabled = true;
+    clearError(errorEl);
+    try {
+      for (const t of pending) {
+        // el chat abierto lo marca la conversación, que es la que sabe su estado
+        if (t.id === conversation.threadId) await conversation.markRead();
+        else await api.markChatRead(accountId, t.id);
+        if (gen !== generation) return; // cambió la cuenta o se salió de los chats
+        t.unread = t.id === conversation.threadId && conversation.unread; // (si falló, la conversación ya mostró el error)
+        renderThreads();
+      }
+    } catch (err) {
+      if (gen === generation) showError(errorEl, err, 'MeWe chat');
+    } finally {
+      readAllBtn.disabled = false;
+      renderThreads();
+    }
   }
 
   function closeThread() {
@@ -298,7 +386,7 @@ export function createChatView({ navigate } = {}) {
 
   return {
     el,
-    toolbar: { center: filterEl, right: liveEl },
+    toolbar: { center: filterEl, right: toolbarRight },
     // params.thread: chat a abrir (botón "Mensaje" de un perfil o de una lista de personas)
     show(newAccount, params = {}) {
       stop();
@@ -317,6 +405,7 @@ export function createChatView({ navigate } = {}) {
       // el chat pedido tiene que entrar en el filtro activo
       if (wanted && filter !== 'all' && (filter === 'groups') !== Boolean(wanted.isGroup)) filter = wanted.isGroup ? 'groups' : 'users';
       setActive(null);
+      readAllBtn.hidden = !threads.some((t) => t.unread);
       clearError(errorEl);
       renderFilter();
       conversation.close();
@@ -325,7 +414,7 @@ export function createChatView({ navigate } = {}) {
         return;
       }
       renderLive();
-      if (reopen) openThread(reopen);
+      if (reopen) openThread(reopen, { read: Boolean(wanted) });
       else threadsEl.replaceChildren(emptyState('Cargando…', 'li'));
       loadThreads();
       threadsTimer = setInterval(() => {

@@ -95,6 +95,12 @@
   --panel-shadow: none; /* sombra de tarjetas y posts */
 
   /* Layout */
+  /* Barras del sistema (hora, gestos) sobre las que dibuja la app en el teléfono. En Android los valores los
+     inyecta Capacitor (--safe-area-inset-*), que pone en 0 el de abajo mientras el teclado está abierto;
+     env() solo no siempre lo hace, y quedaba una franja entre la app y el teclado. */
+  --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+
   --sidebar-width: calc(var(--avatar-lg) + 2 * var(--space-5));
   --threads-width: min(calc(230px * var(--font-scale)), 35vw);
   --bubble-max-width: 75%;
@@ -627,6 +633,24 @@ button.mention:hover {
   border-color: var(--accent);
 }
 
+/* Aviso de novedades en una cuenta que no se está usando (accountActivity.js): un punto sobre la esquina de su foto */
+.account-list li {
+  position: relative;
+  display: flex;
+}
+
+.account-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: calc(12px * var(--icon-scale));
+  height: calc(12px * var(--icon-scale));
+  border-radius: var(--radius-round);
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--sidebar);
+  pointer-events: none;
+}
+
 .account-btn.add {
   font-size: var(--font-icon);
   background: transparent;
@@ -795,6 +819,40 @@ button.mention:hover {
 
 .menu-item.danger {
   color: var(--danger);
+}
+
+/* Menú para mencionar a alguien mientras se escribe (ui/mentions.js): el foco sigue en la caja de texto,
+   así que la opción elegida con las flechas se marca con aria-selected */
+.mention-menu .menu-item[aria-selected='true'] {
+  background: var(--accent-soft);
+}
+
+.mention-menu .user-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* en el menú de la cuenta, las novedades van al final de la fila: un badge por tipo, con ícono y cantidad */
+.activity-badges {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.activity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-accent);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  line-height: 1.6;
 }
 
 /* Menú de la cuenta (mobile, se abre desde la foto): foto + nombre; la cuenta activa va resaltada */
@@ -997,8 +1055,40 @@ button.mention:hover {
   margin: 0;
 }
 
-.post-date-link {
-  margin-left: auto;
+/* Cabecera de un post (ui/post.js): al lado de la foto va una cosa por línea: quién, en qué grupo y la fecha */
+.post-head-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.post-head-info .post-date {
+  margin-left: 0;
+  font-size: var(--font-xs);
+}
+
+/* Spinner sobre una imagen o un video que todavía está cargando (ui/dom.js: spinWhileLoading) */
+.spinner {
+  position: absolute;
+  inset: 0;
+  width: calc(28px * var(--icon-scale));
+  height: calc(28px * var(--icon-scale));
+  margin: auto;
+  border: 3px solid rgb(128 128 128 / 35%);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Post compartido: el original, citado dentro del que lo comparte */
@@ -1080,6 +1170,13 @@ button.mention:hover {
 
 .gallery.count-1 .gallery-tile {
   aspect-ratio: auto;
+}
+
+/* una foto sola que todavía carga: el lugar que va a ocupar (gallery.js le pone su proporción si la conoce) */
+.gallery.count-1 .gallery-tile.loading {
+  width: 100%;
+  max-height: 420px;
+  aspect-ratio: 4 / 3;
 }
 
 .gallery.count-3 .gallery-tile:first-child {
@@ -1406,6 +1503,22 @@ button.mention:hover {
   mask-image: url('icons/link.svg');
 }
 
+.icon-external-link {
+  mask-image: url('icons/external-link.svg');
+}
+
+.icon-ellipsis {
+  mask-image: url('icons/ellipsis.svg');
+}
+
+.icon-forward {
+  mask-image: url('icons/forward.svg');
+}
+
+.icon-timer {
+  mask-image: url('icons/timer.svg');
+}
+
 .icon-check {
   mask-image: url('icons/check.svg');
 }
@@ -1566,9 +1679,49 @@ button.mention:hover {
   background: var(--accent-soft);
 }
 
+/* Selector de emojis (emojiPicker.js): buscador y pestañas fijos; sólo se desplaza la grilla, con un alto
+   fijo para que el selector no cambie de tamaño al cambiar de categoría */
+.emoji-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+
+.emoji-tabs {
+  display: flex;
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.emoji-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-size: var(--font-lg);
+  font-family: var(--font-emoji), var(--font-names);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.emoji-tab:hover,
+.emoji-tab[aria-selected='true'] {
+  opacity: 1;
+}
+
+.emoji-tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+}
+
+.emoji-body {
+  height: min(calc(250px * var(--font-scale)), 38vh);
+  overflow-y: auto;
+}
+
 .emoji-input {
   width: 100%;
-  margin-top: var(--space-4);
   font: inherit;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-sm);
@@ -1692,7 +1845,7 @@ button.mention:hover {
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
   /* en el teléfono el visor llega hasta arriba de todo: los botones van debajo de la barra de estado */
-  padding-top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
+  padding-top: calc(var(--space-4) + var(--safe-top));
   background: linear-gradient(rgb(0 0 0 / 60%), transparent);
 }
 
@@ -2311,7 +2464,7 @@ button.mention:hover {
 
 /* Aviso al arrastrar imágenes sobre la conversación */
 .chat-conversation.drop-active::after {
-  content: 'Suelta las imágenes para adjuntarlas';
+  content: 'Suelta las imágenes o los videos para adjuntarlos';
   position: absolute;
   inset: var(--space-4);
   display: grid;
@@ -2438,8 +2591,8 @@ button.msg-avatar:hover {
   min-width: 0;
   background: var(--bubble);
   border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-5);
 }
 
 .msg.mine .bubble {
@@ -2706,7 +2859,92 @@ button.msg-story:not(:disabled) {
   object-fit: cover;
 }
 
-/* Botones Responder / Reaccionar al costado del globo: visibles con hover o foco */
+/* Menú de un mensaje (conversation.js): arriba los emojis para reaccionar, debajo las acciones */
+.msg-menu .emoji-grid {
+  padding: var(--space-2);
+}
+
+.msg-menu .emoji-option {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* Gestos táctiles sobre un mensaje (conversation.js): mantenerlo apretado abre su menú, así que su texto no se
+   selecciona, y arrastrarlo hacia un costado lo responde. En vertical sigue siendo scroll. */
+@media (pointer: coarse) {
+  .chat-messages {
+    overflow-x: hidden;
+    touch-action: pan-y;
+  }
+
+  .msg {
+    -webkit-touch-callout: none;
+    user-select: none;
+    transition: transform 0.15s;
+  }
+
+  .msg.swiping {
+    transition: none;
+  }
+
+  /* arrastrado hasta acá, al soltar se responde */
+  .msg.swipe-ready .bubble {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+}
+
+/* Reenviar un mensaje (chat/forward.js): qué se reenvía, buscador y la lista de chats para elegir */
+.modal.forward {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: 86vh;
+}
+
+.modal.forward:not([open]) {
+  display: none;
+}
+
+.modal.forward h2 {
+  margin: 0;
+}
+
+.forward-preview {
+  display: -webkit-box;
+  flex-shrink: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--font-sm);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.forward-note {
+  display: block;
+}
+
+.forward-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: calc(120px * var(--font-scale));
+}
+
+.forward-list[aria-busy='true'] .menu-item {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.forward-list[aria-busy='true'] .menu-item.sending {
+  opacity: 1;
+  background: var(--accent-soft);
+}
+
+/* Los tres puntitos al costado del globo, que abren el menú del mensaje: visibles con hover o foco */
 .msg-actions {
   display: flex;
   align-items: center;
@@ -2856,7 +3094,8 @@ button.msg-story:not(:disabled) {
   background: var(--placeholder);
 }
 
-.composer-thumb img {
+.composer-thumb img,
+.composer-thumb video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -2873,14 +3112,15 @@ button.msg-story:not(:disabled) {
   color: var(--on-overlay);
 }
 
+/* Temporizador de lo adjunto: se usa o no (composer.js) */
 .composer-timer {
-  font: inherit;
   font-size: var(--font-sm);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: var(--border-width) solid var(--border);
-  background: var(--bg);
-  color: var(--text);
+  white-space: nowrap;
+}
+
+.composer-timer[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .composer-status {
@@ -3095,6 +3335,19 @@ button.msg-story:not(:disabled) {
   margin: var(--space-4) 0 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Link a una página de afuera (ui/links.js) */
+.ext-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.ext-link:hover {
+  text-decoration-thickness: 2px;
 }
 
 .profile-info {
@@ -3539,26 +3792,35 @@ button.msg-story:not(:disabled) {
     height: var(--avatar-lg);
   }
 
-  /* Con una conversación abierta, el agarrador de su borde izquierdo muestra la lista compacta: sólo
-     fotos, sin barra de desplazamiento y con el punto de "sin leer" sobre la esquina de la foto */
+  /* Con una conversación abierta, el agarrador flota sobre su borde izquierdo, a media altura (el margen
+     negativo hace que no ocupe ancho). Tocarlo o tironearlo muestra la lista compacta: sólo fotos, sin barra
+     de desplazamiento y con el punto de "sin leer" sobre la esquina de la foto (ver chatView.js). */
   .chat.thread-open .chat-grabber {
+    --grabber-width: var(--space-8);
+
     display: grid;
-    place-items: center;
+    place-items: center start;
+    align-self: center;
     flex-shrink: 0;
-    width: var(--space-7);
+    z-index: 4;
+    width: var(--grabber-width);
+    height: calc(var(--space-9) * 5);
+    margin-right: calc(-1 * var(--grabber-width));
     padding: 0;
     border: 0;
-    border-right: var(--border-width) solid var(--border);
-    background: var(--panel);
+    background: transparent;
     cursor: pointer;
+    touch-action: none;
   }
 
+  /* una lengüeta del color de acento pegada al borde: el de la pantalla o, con la lista abierta, el de la lista */
   .chat-grabber::before {
     content: '';
-    width: var(--space-2);
-    height: var(--space-9);
-    border-radius: 999px;
-    background: var(--muted);
+    width: var(--space-3);
+    height: calc(var(--space-9) * 3);
+    border-radius: 0 999px 999px 0;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px var(--bg), var(--shadow);
   }
 
   .chat.thread-open.threads-shown .chat-sidebar {
@@ -3594,7 +3856,7 @@ button.msg-story:not(:disabled) {
   }
 
   /* Mensajes: la foto va arriba con el nombre al lado, así el globo usa todo el ancho. Sin foto propia.
-     Responder / reaccionar / editar van en columna y siempre a la vista (no hay hover). */
+     Sin botones al costado: el menú del mensaje se abre manteniéndolo apretado (ver conversation.js). */
   .chat-messages {
     padding: var(--space-3);
   }
@@ -3632,16 +3894,7 @@ button.msg-story:not(:disabled) {
   }
 
   .msg-actions {
-    flex-direction: column;
-    align-self: flex-start;
-    margin-block: 0;
-    opacity: 1;
-  }
-
-  .msg-actions .icon-btn {
-    width: calc(var(--font-icon) + var(--space-2));
-    height: calc(var(--font-icon) + var(--space-2));
-    font-size: calc(var(--font-icon) * 0.8);
+    display: none;
   }
 
   /* lo que en escritorio aparece con el mouse encima, acá está siempre */
@@ -3750,7 +4003,13 @@ button.msg-story:not(:disabled) {
   /* la cabecera va abajo de todo, al alcance del pulgar: secciones · notificaciones · foto, en una sola
      fila repartida, con iconos y foto más grandes. La barra de la vista queda arriba. */
   .main {
-    padding-top: env(safe-area-inset-top, 0px);
+    padding-top: var(--safe-top);
+  }
+
+  /* Mientras se escribe (teclado en pantalla abierto, ver ui/keyboard.js) la barra de navegación se oculta:
+     el alto es para lo que se está escribiendo. Para salir queda "Volver", en la barra de arriba. */
+  :root[data-keyboard] .app-header {
+    display: none;
   }
 
   .app-header {
@@ -3761,7 +4020,7 @@ button.msg-story:not(:disabled) {
     justify-content: space-between;
     gap: var(--space-1);
     padding: var(--space-3);
-    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--space-3) + var(--safe-bottom));
     border-top: var(--border-width) solid var(--border);
     border-bottom: 0;
   }
@@ -3812,6 +4071,23 @@ button.msg-story:not(:disabled) {
     width: 100%;
     height: 100%;
     font-size: var(--font-md);
+  }
+
+  /* otra cuenta tiene novedades (acá no hay columna de cuentas): el aviso va sobre la foto que abre el menú */
+  .profile-btn.has-news {
+    position: relative;
+  }
+
+  .profile-btn.has-news::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: calc(12px * var(--icon-scale));
+    height: calc(12px * var(--icon-scale));
+    border-radius: var(--radius-round);
+    background: var(--danger);
+    box-shadow: 0 0 0 2px var(--panel);
   }
 
   .menu-item {
@@ -4049,7 +4325,7 @@ button.msg-story:not(:disabled) {
   max-height: none;
   margin: 0;
   /* en el teléfono, sin meterse debajo de la barra de estado ni de la de gestos */
-  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  padding: var(--safe-top) 0 var(--safe-bottom);
   border: 0;
   overflow: hidden;
 }

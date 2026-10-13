@@ -177,12 +177,16 @@ function createViewer() {
     renderProgress();
     renderHead();
     setPaused('loading', true);
+    // mientras la imagen o el video carga (ver styles.css)
+    const spinner = h('span', { className: 'spinner', attrs: { 'aria-hidden': 'true' } });
     const ready = () => {
+      spinner.remove();
       if (shown !== session || story() !== item) return;
       markSeen(item);
       setPaused('loading', false);
     };
     const failed = () => {
+      spinner.remove();
       if (shown !== session || story() !== item) return;
       statusEl.textContent = 'No se pudo cargar esta historia.';
     };
@@ -219,6 +223,7 @@ function createViewer() {
       img.src = imageUrl(account.id, item.image.full ?? item.image.src);
       mediaEl.replaceChildren(img);
     }
+    mediaEl.append(spinner);
   }
 
   // Abre a una persona: pide todas sus historias (la lista sólo trae algunas) y arranca en la primera sin ver.
@@ -381,6 +386,9 @@ function createViewer() {
     reply();
   });
   // mientras se escribe la respuesta, la historia espera
+  // Tocar "Enviar" no le saca el foco a la caja: en mobile eso cerraba el teclado y, con el salto de la pantalla,
+  // el toque se perdía (igual que en la caja del chat, ver chat/composer.js)
+  for (const type of ['pointerdown', 'mousedown']) sendBtn.addEventListener(type, (event) => event.preventDefault());
   replyInput.addEventListener('focus', () => setPaused('reply', true));
   replyInput.addEventListener('blur', () => setPaused('reply', false));
   emojiBtn.addEventListener('click', () =>
