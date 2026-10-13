@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img: https://*.giphy.com; media-src 'self' mewe-img:; font-src 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: mewe-img: https://*.giphy.com; media-src 'self' blob: mewe-img:; font-src 'self'"
     />
     <title>Goonie Mewe Viewer</title>
     <link rel="stylesheet" href="styles.css" />
@@ -50,7 +50,13 @@
       </header>
       <!-- segundo panel: controles propios de la vista activa (izquierda / centro / derecha) y Actualizar -->
       <div id="view-toolbar" class="view-toolbar" hidden>
-        <div id="toolbar-left" class="toolbar-zone left"></div>
+        <div class="toolbar-zone left">
+          <!-- sólo en mobile: vuelve a la vista anterior; mientras se escribe (la barra de navegación se oculta), cierra el teclado -->
+          <button id="nav-back" class="btn icon-btn" title="Volver" aria-label="Volver" hidden>
+            <span class="icon icon-arrow-left" aria-hidden="true"></span>
+          </button>
+          <div id="toolbar-left" class="toolbar-slot"></div>
+        </div>
         <div id="toolbar-center" class="toolbar-zone center"></div>
         <div class="toolbar-zone right">
           <div id="toolbar-right" class="toolbar-slot"></div>

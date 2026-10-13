@@ -1,7 +1,7 @@
 import { api, imageUrl } from '../api.js';
 import { clearError, showError } from '../errorView.js';
 import { avatar } from '../ui/avatar.js';
-import { emptyState, h } from '../ui/dom.js';
+import { emptyState, h, spinWhileLoading } from '../ui/dom.js';
 import { icon } from '../ui/icon.js';
 import { openStoryEditor } from '../ui/storyEditor.js';
 import { openStoryViewer } from '../ui/storyViewer.js';
@@ -46,21 +46,22 @@ export function createStoriesView({ navigate }) {
   function card(teller) {
     const preview = (teller.stories.find((story) => story.isNew) ?? teller.stories[0])?.image?.src;
     const label = teller.isMine ? 'Tu historia' : teller.name;
+    const button = h(
+      'button',
+      {
+        className: `story-card ${teller.hasNew ? 'unseen' : 'seen'}`,
+        title: label,
+        attrs: { 'aria-label': `Ver la historia de ${teller.isMine ? 'tu cuenta' : teller.name}${teller.hasNew ? ' (sin ver)' : ''}` },
+        onClick: () => open(teller),
+      },
+      h('span', { className: 'story-card-ring' }, avatar(account.id, teller.avatar, { name: teller.name, size: 'lg' })),
+      userName(label, { className: 'story-card-name' }),
+    );
+    if (preview) button.prepend(spinWhileLoading(button, h('img', { className: 'story-card-img', src: imageUrl(account.id, preview), alt: '', loading: 'lazy' })));
     return h(
       'div',
       { className: 'story-card-slot', attrs: { role: 'listitem' } },
-      h(
-        'button',
-        {
-          className: `story-card ${teller.hasNew ? 'unseen' : 'seen'}`,
-          title: label,
-          attrs: { 'aria-label': `Ver la historia de ${teller.isMine ? 'tu cuenta' : teller.name}${teller.hasNew ? ' (sin ver)' : ''}` },
-          onClick: () => open(teller),
-        },
-        preview && h('img', { className: 'story-card-img', src: imageUrl(account.id, preview), alt: '', loading: 'lazy' }),
-        h('span', { className: 'story-card-ring' }, avatar(account.id, teller.avatar, { name: teller.name, size: 'lg' })),
-        userName(label, { className: 'story-card-name' }),
-      ),
+      button,
       teller.isMine &&
         h('button', { className: 'story-card-add', title: 'Crear otra historia', attrs: { 'aria-label': 'Crear otra historia' }, onClick: create }, icon('plus')),
     );

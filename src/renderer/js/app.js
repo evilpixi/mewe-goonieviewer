@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { createAccountActivity, describeActivity } from './accountActivity.js';
 import { createAccountsColumn } from './accountsColumn.js';
 import { createChatView } from './chatView.js';
 import { createFeedView } from './feedView.js';
@@ -10,7 +11,8 @@ import { avatar } from './ui/avatar.js';
 import { confirmDialog } from './ui/confirm.js';
 import { h } from './ui/dom.js';
 import { icon } from './ui/icon.js';
-import { isMobile } from './ui/mobile.js';
+import { hideKeyboard, keyboardOpen, onKeyboardChange } from './ui/keyboard.js';
+import { isMobile, onMobileChange } from './ui/mobile.js';
 import { closePopover, openPopover } from './ui/popover.js';
 import { createGroupView } from './views/groupView.js';
 import { createListsView } from './views/listsView.js';
@@ -29,6 +31,7 @@ const errorEl = $('#app-error');
 const viewTabsEl = $('#view-tabs');
 const toolbarEl = $('#view-toolbar');
 const refreshBtn = $('#refresh-view');
+const backBtn = $('#nav-back');
 
 const notifBtn = $('#open-notifications');
 const notifBadge = $('#notif-badge');
@@ -39,19 +42,41 @@ const searchBtn = $('#open-search');
 const ROOT_VIEWS = ['feed', 'chat', 'lists', 'stories'];
 const VIEW_KEY = 'view';
 const NOTIF_POLL_MS = 60000;
+// Novedades de otra cuenta en el menú de la cuenta: [qué (ver accountActivity.js), ícono]
+const ACTIVITY_ICONS = [
+  ['dms', 'message-circle'],
+  ['groups', 'users-round'],
+  ['mentions', 'bell'],
+];
 
 let accounts = [];
 let active = null;
 let rootView = savedView();
 let optionsMenu = null; // popover del menú Opciones mientras está abierto
 let accountMenu = null; // ídem, el menú de la cuenta (mobile)
+let viewState = { canGoBack: false, hasToolbar: false, canReload: false }; // lo último que avisó el router
 
 applySettings();
+
+// Segundo panel: sólo se muestra si la vista pone algo, se puede actualizar o hay adónde volver.
+// "Volver" es de mobile: ahí no hay Alt+← y, mientras se escribe, la barra de navegación está oculta.
+function renderToolbar() {
+  refreshBtn.hidden = !active || !viewState.canReload;
+  backBtn.hidden = !isMobile() || !(viewState.canGoBack || keyboardOpen());
+  toolbarEl.hidden = backBtn.hidden && (!active || (!viewState.hasToolbar && refreshBtn.hidden));
+}
+
+// Vuelve a la vista anterior; si no hay (se está escribiendo en una vista raíz), cierra el teclado
+backBtn.addEventListener('click', () => {
+  if (!router.goBack()) hideKeyboard();
+});
+onKeyboardChange(renderToolbar);
+onMobileChange(renderToolbar);
 
 const router = createRouter({
   host: $('#view-host'),
   toolbarSlots: { left: $('#toolbar-left'), center: $('#toolbar-center'), right: $('#toolbar-right') },
-  onChange: ({ view, hasToolbar, canReload }) => {
+  onChange: ({ view, canGoBack, hasToolbar, canReload }) => {
     for (const btn of viewTabsEl.querySelectorAll('[data-view]')) {
       const selected = btn.dataset.view === view;
       btn.classList.toggle('active', selected);
@@ -61,9 +86,8 @@ const router = createRouter({
     notifBtn.classList.toggle('active', view === 'notifications');
     optionsBtn.classList.toggle('active', view === 'settings');
     searchBtn.classList.toggle('active', view === 'search');
-    // el segundo panel sólo se muestra si la vista pone algo o se puede actualizar
-    refreshBtn.hidden = !active || !canReload;
-    toolbarEl.hidden = !active || (!hasToolbar && refreshBtn.hidden);
+    viewState = { canGoBack, hasToolbar, canReload };
+    renderToolbar();
   },
 });
 
@@ -85,6 +109,15 @@ const column = createAccountsColumn({
   onSelect: selectAccount,
   onAdd: () => loginModal.open(),
 });
+
+// Novedades de las otras cuentas: un punto sobre su foto en la columna y en el menú de la cuenta (y, en
+// mobile, sobre la foto de la cabecera, que es la que abre ese menú)
+const activity = createAccountActivity({ onChange: renderActivity });
+
+function renderActivity() {
+  column.setActivity((id) => describeActivity(activity.get(id)));
+  profileBtn.classList.toggle('has-news', accounts.some((account) => activity.has(account.id)));
+}
 
 const loginModal = createLoginModal({
   dialog: $('#login-modal'),
@@ -183,9 +216,23 @@ function openAccountMenu() {
     h('div', { className: 'menu-label' }, icon('users'), accounts.length > 1 ? ' Cambiar de cuenta' : ' Cuentas'),
     accounts
       .filter((account) => account.id !== active?.id)
-      .map((account) =>
-        item(() => selectAccount(account), {}, avatar(account.id, account.avatar, { name: account.name }), h('span', { className: 'user-name' }, account.name)),
-      ),
+      .map((account) => {
+        const counts = activity.get(account.id);
+        const news = describeActivity(counts);
+        return item(
+          () => selectAccount(account),
+          {},
+          avatar(account.id, account.avatar, { name: account.name }),
+          h('span', { className: 'account-current-info' }, h('span', { className: 'user-name' }, account.name)),
+          // novedades: un badge por tipo, con su ícono y la cantidad (el detalle queda para lectores de pantalla)
+          news &&
+            h(
+              'span',
+              { className: 'activity-badges', title: news, attrs: { role: 'img', 'aria-label': news } },
+              ACTIVITY_ICONS.filter(([key]) => counts[key]).map(([key, name]) => h('span', { className: 'activity-badge' }, icon(name), counts[key])),
+            ),
+        );
+      }),
     action('plus', 'Agregar cuenta', () => loginModal.open()),
     h('hr', { className: 'menu-sep' }),
     active && action('search', 'Buscar personas', () => openView('search')),
@@ -288,6 +335,7 @@ api.onNotification(({ accountId }) => {
 function selectAccount(account) {
   active = account;
   column.setActive(account?.id ?? null);
+  activity.setActive(account?.id ?? null);
   setSettingsAccount(account); // cada cuenta puede tener su tema y colores
   renderProfileButton();
   viewTabsEl.hidden = !account;
@@ -305,6 +353,8 @@ function selectAccount(account) {
 async function refreshAccounts() {
   accounts = await api.listAccounts();
   column.setAccounts(accounts);
+  activity.setAccounts(accounts);
+  renderActivity();
 }
 
 // La cuenta activa cambió su nombre o su foto (se editó el perfil): se vuelven a pedir sus datos a MeWe

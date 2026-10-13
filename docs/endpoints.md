@@ -12,12 +12,13 @@ Con `npm run debug`, la última respuesta de cada endpoint se guarda en `mewe-de
 | Mensajes | `GET /api/v2/chat/thread/{id}/messages?limit=&beforeId=` | `{ messages: [...] }`. La fecha viene en `date` (segundos). |
 | Enviar | `POST /api/v2/chat/thread/{id}/message` | `{ message, setAsRead: true, replyTo?: messageId, attachments?: [attachmentId] }`. La web envía cada imagen como un mensaje aparte. |
 | Subir imagen | `POST /api/v2/attachment/upload/pm` (chat con personas) o `/gc` (chat de grupo) | multipart, campo `files[]`. Responde `{ id }`, que se usa en `attachments`. |
+| Enviar video | 1. `GET /api/v2/video/upload/authorize-request?length={bytes}` 2. `POST https://{instanceBucketName}.s3.amazonaws.com` 3. `POST /api/v2/video/upload/process` | El paso 1 responde `{ awsAccessKeyId, signature, policy, acl, key, successActionStatus, sessionToken, instanceBucketName, uploadFolder }`. El 2 es multipart con esos campos (`AWSAccessKeyId`, `signature`, `policy`, `acl`, `key`, `success_action_status`, `x-amz-security-token`) y el video en `file`, al final; va sin cookies. El 3 lleva `{ threadId, uploadFolder, mime, fileName, replyTo? }` y responde `{ jobId }`: el mensaje aparece en el chat cuando MeWe termina de convertir el video (la web escucha `transcoding.job.done`; `GET /api/v2/video/pending-jobs` lista los que faltan). Sacado del bundle web; el envío está probado. El paso 3 ignora `expiresIn` y `dissapearingType` (probado: el video llega normal). Por eso, con temporizador la app manda el video como adjunto, igual que una imagen (`attachment/upload` + `expiresIn` en el envío); **sin probar**. |
 | Reaccionar | `POST /api/v2/chat/thread/{t}/message/{m}/emojis` con body `["😀"]` | Quitar: `DELETE …/emojis?emojis=😀`. |
 | Quién reaccionó | `GET /api/v2/chat/thread/{t}/message/{m}/emojis` | `{ usersWithEmojis: [{ user, emojis }], _links.nextPage }`. De un solo emoji: `GET …/emoji?emoji=😀` devuelve `{ users }`. |
 | Abrir / crear chat | `POST /api/v2/chat/thread` `{ receivers: [userId] }` | Devuelve el chat. Sacado del bundle web. **Sin probar.** |
 | Editar mensaje | `PUT /api/v2/chat/thread/{threadId}/message/{id}` | `{ text }`. Sólo mensajes propios de texto; el mensaje vuelve con `editedAt`. **Sin probar.** |
 | Mensaje temporal visto | `POST /api/v2/messages/message/{id}/seen` | La web lo llama al **terminar** de mostrar un mensaje con `expiresIn` (ahí MeWe lo borra), no al abrirlo. La imagen se pide a `mewe.com` (no a `img.mewe.com`) en `400x400`. La app guarda en memoria cada imagen temporal que muestra, para poder reabrirla, guardarla o copiarla mientras siga abierta. **Sin probar.** |
-| Marcar leído | `DELETE /api/v2/messages/thread/{id}/unread` | La web lo llama al enfocar la caja de texto. La app, al hacer click en los mensajes, al escribir o con el botón "Marcar como leído". **Sin probar.** |
+| Marcar leído | `DELETE /api/v2/messages/thread/{id}/unread` | La web lo llama al enfocar la caja de texto. La app, al abrir un chat, al hacer click en los mensajes, al escribir o con el botón "Marcar como leído". No se encontró un pedido para marcarlos todos: el botón de la lista de chats llama a éste una vez por chat sin leer. **Sin probar.** |
 
 Forma de un mensaje:
 - Fotos en `attachments[]`, con `aType: 'photo'` y `_links.self.href`, una plantilla con `{imageSize}`.
@@ -39,6 +40,8 @@ Forma de un mensaje:
 - Respuestas a una historia en `story: { storyId, storytellerId, storytellerType, media, isLive }`, con `media` igual que en **Historias**
   (visto: `_links.media.href` = `/api/v2/photo/story/user/{userId}/{storyId}/{imageSize}`).
 - Reacciones en `emojis: { userEmojis, emojiCounts, counts }`.
+- Menciones dentro del texto, como `@{{u_<userId>}Nombre visible}` (igual en posts y comentarios). La app las manda con
+  ese mismo formato dentro de `message` / `text`; el envío está **sin probar**.
 - Mensajes temporales: `expiresIn` (segundos) y `dissapearingType` (sic, así lo escribe MeWe).
 
 **Mensajes temporales:** la web de MeWe no permite enviarlos, solo la app móvil. La app manda `expiresIn` en el body del envío. Si la respuesta vuelve sin `expiresIn`, avisa que MeWe no lo aplicó. Falta confirmarlo con una cuenta real.

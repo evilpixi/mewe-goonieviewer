@@ -1,5 +1,5 @@
 import { imageUrl } from '../api.js';
-import { h } from './dom.js';
+import { h, spinWhileLoading } from './dom.js';
 import { openLightbox } from './lightbox.js';
 
 const MAX_TILES = 4;
@@ -19,7 +19,7 @@ export function renderGallery({ accountId, images, total = images.length, loadAl
     { className: `gallery count-${Math.min(count, MAX_TILES)}` },
     tiles.map((img, i) => {
       const more = i === tiles.length - 1 && hidden > 0;
-      return h(
+      const tile = h(
         'button',
         {
           className: 'gallery-tile',
@@ -27,9 +27,23 @@ export function renderGallery({ accountId, images, total = images.length, loadAl
           attrs: { 'aria-label': more ? `Ver las ${count} imágenes` : `Ver imagen ${i + 1} de ${count}` },
           onClick: () => open(i),
         },
-        h('img', { src: imageUrl(accountId, img.src), alt: '', loading: 'lazy' }),
         more && h('span', { className: 'gallery-more' }, `+${hidden}`),
       );
+      const image = spinWhileLoading(tile, h('img', { src: imageUrl(accountId, img.src), alt: '', loading: 'lazy' }));
+      // una foto sola toma el alto de la imagen: hasta que carga no tendría ninguno (ni lugar para el spinner),
+      // así que mientras tanto se le reserva el suyo
+      if (count === 1) {
+        tile.classList.add('loading');
+        if (img.width && img.height) tile.style.aspectRatio = `${img.width} / ${img.height}`;
+        const loaded = () => {
+          tile.classList.remove('loading');
+          tile.style.removeProperty('aspect-ratio');
+        };
+        image.addEventListener('load', loaded, { once: true });
+        image.addEventListener('error', loaded, { once: true });
+      }
+      tile.prepend(image);
+      return tile;
     }),
   );
 }

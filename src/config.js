@@ -38,6 +38,9 @@ export const config = {
       emojis: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}/emojis`,
       // multipart files[] -> { id }; 'pm' = chat con personas, 'gc' = chat de grupo
       upload: (isGroup) => `/api/v2/attachment/upload/${isGroup ? 'gc' : 'pm'}`,
+      // Videos: GET ?length=bytes → los datos para subirlo al S3 de MeWe; después se manda a procesar
+      videoAuthorize: '/api/v2/video/upload/authorize-request',
+      videoProcess: '/api/v2/video/upload/process', // POST { threadId, uploadFolder, mime, fileName, replyTo } → { jobId }
       chatTypes: { all: 'AllChat', users: 'UserChat', groups: 'GroupChat', events: 'EventChat' },
       pageSize: 25,
     },

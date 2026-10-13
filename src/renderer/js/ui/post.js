@@ -39,27 +39,14 @@ export function renderPost(post, options) {
     });
   }
 
-  const head = h(
-    'div',
-    { className: 'post-head' },
-    avatar(accountId, post.author.avatar, { name: post.author.name, size: 'sm' }),
-    link(userName(post.author.name, { className: 'post-author' }), post.author.id && (() => navigate('profile', { userId: post.author.id }))),
-    post.group &&
-      h(
-        'span',
-        { className: 'post-group' },
-        '› ',
-        link(userName(post.group, { fallback: '' }), post.groupId && (() => navigate('group', { groupId: post.groupId }))),
-      ),
-    post.createdAt &&
-      link(
-        h('time', { className: 'post-date', dateTime: new Date(post.createdAt).toISOString(), title: formatFull(post.createdAt) }, formatDateTime(post.createdAt)),
-        !expanded && (() => navigate('post', { postId: post.id, groupId: post.groupId })),
-        'post-date-link',
-      ),
-    canEdit &&
+  const head = renderHead(post, {
+    accountId,
+    navigate,
+    openPost: !expanded,
+    extra:
+      canEdit &&
       h('button', { className: 'icon-btn post-edit', title: 'Editar publicación', attrs: { 'aria-label': 'Editar publicación' }, onClick: edit }, icon('pencil')),
-  );
+  });
 
   const reactions = createReactions({
     accountId,
@@ -118,25 +105,7 @@ function renderShared(shared, { accountId, navigate, gallery }) {
   return h(
     'div',
     { className: 'post-shared' },
-    h(
-      'div',
-      { className: 'post-head' },
-      avatar(accountId, shared.author.avatar, { name: shared.author.name, size: 'sm' }),
-      link(userName(shared.author.name, { className: 'post-author' }), shared.author.id && (() => navigate('profile', { userId: shared.author.id }))),
-      shared.group &&
-        h(
-          'span',
-          { className: 'post-group' },
-          '› ',
-          link(userName(shared.group, { fallback: '' }), shared.groupId && (() => navigate('group', { groupId: shared.groupId }))),
-        ),
-      shared.createdAt &&
-        link(
-          h('time', { className: 'post-date', dateTime: new Date(shared.createdAt).toISOString(), title: formatFull(shared.createdAt) }, formatDateTime(shared.createdAt)),
-          shared.id && (() => navigate('post', { postId: shared.id, groupId: shared.groupId })),
-          'post-date-link',
-        ),
-    ),
+    renderHead(shared, { accountId, navigate, openPost: Boolean(shared.id) }),
     shared.text && h('p', { className: 'post-text', attrs: { dir: 'auto' } }, richText(shared.text, { accountId, navigate })),
     gallery &&
       renderGallery({
@@ -145,6 +114,34 @@ function renderShared(shared, { accountId, navigate, gallery }) {
         total: shared.imagesCount,
         loadAll: () => api.getPostImages(accountId, ref),
       }),
+  );
+}
+
+// Cabecera de un post: la foto y, al lado, una cosa por línea: quién publicó, en qué grupo (si es de uno) y la
+// fecha, más chica. openPost: la fecha lleva al post. extra: lo que vaya al final de la fila (el lápiz de editar).
+function renderHead(post, { accountId, navigate, openPost, extra }) {
+  return h(
+    'div',
+    { className: 'post-head' },
+    avatar(accountId, post.author.avatar, { name: post.author.name, size: 'sm' }),
+    h(
+      'div',
+      { className: 'post-head-info' },
+      link(userName(post.author.name, { className: 'post-author' }), post.author.id && (() => navigate('profile', { userId: post.author.id }))),
+      post.group &&
+        h(
+          'span',
+          { className: 'post-group' },
+          '› ',
+          link(userName(post.group, { fallback: '' }), post.groupId && (() => navigate('group', { groupId: post.groupId }))),
+        ),
+      post.createdAt &&
+        link(
+          h('time', { className: 'post-date', dateTime: new Date(post.createdAt).toISOString(), title: formatFull(post.createdAt) }, formatDateTime(post.createdAt)),
+          openPost && (() => navigate('post', { postId: post.id, groupId: post.groupId })),
+        ),
+    ),
+    extra,
   );
 }
 

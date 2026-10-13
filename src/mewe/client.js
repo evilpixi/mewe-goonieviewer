@@ -28,6 +28,17 @@ import {
 const { host, endpoints, userAgent, cookies: cookieNames, chat, comments, profile, groups, stories, notifications } = config.mewe;
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // el video cruza el puente entero, en memoria
+// Campos del formulario de subida a S3, en el orden de la web: nombre en S3 → nombre en la respuesta de MeWe
+const S3_FIELDS = [
+  ['AWSAccessKeyId', 'awsAccessKeyId'],
+  ['signature', 'signature'],
+  ['policy', 'policy'],
+  ['acl', 'acl'],
+  ['key', 'key'],
+  ['success_action_status', 'successActionStatus'],
+  ['x-amz-security-token', 'sessionToken'],
+];
 const REFRESH_MIN_INTERVAL_MS = 30000; // no renovar la sesión más seguido que esto
 const TEMPORAL_CACHE_ITEMS = 30; // imágenes temporales que se guardan en memoria
 const TEMPORAL_CACHE_MAX_BYTES = 8 * 1024 * 1024; // las más pesadas no se guardan
@@ -49,6 +60,16 @@ function imageForm(file, field) {
   const form = new FormData();
   form.append(field, new Blob([bytes], { type: file.type }), file.name || 'image');
   return form;
+}
+
+// Los bytes de un video { name, type, data } que viene del renderer
+function videoBytes(file) {
+  if (!/^video\//.test(file?.type ?? '')) throw new MeweApiError({ message: `Tipo de video no soportado: ${file?.type}` });
+  const bytes = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data ?? []);
+  if (!bytes.byteLength || bytes.byteLength > MAX_VIDEO_BYTES) {
+    throw new MeweApiError({ message: 'El video está vacío o supera 200 MB.' });
+  }
+  return bytes;
 }
 
 // Recorte { x, y, width, height } en píxeles de la imagen original → los nombres que usa MeWe
@@ -389,6 +410,18 @@ export class MeweClient {
     return normalizeMessage(data?.message ?? data ?? {}, myUserId);
   }
 
+  // Reenvía a otro chat el texto y las imágenes de un mensaje. MeWe no tiene un pedido para reenviar: las
+  // imágenes (sus URLs de MeWe) se bajan y se vuelven a subir, y va todo en un mensaje nuevo.
+  async forwardMessage(threadId, myUserId, isGroup, { text, images } = {}) {
+    const attachments = [];
+    for (const [i, url] of (images ?? []).entries()) {
+      const { data, contentType } = await this.downloadImage(url);
+      const type = contentType.split(';')[0].trim();
+      attachments.push(await this.uploadChatImage(Boolean(isGroup), { name: `imagen-${i + 1}.${type.split('/')[1] ?? 'jpg'}`, type, data }));
+    }
+    return this.sendMessage(threadId, myUserId, { text, attachments });
+  }
+
   // Cambia el texto de un mensaje propio (igual que la web: PUT { text })
   async editMessage(threadId, messageId, text) {
     await this.request(chat.edit(assertId(threadId, 'threadId'), assertId(messageId, 'messageId')), {
@@ -399,8 +432,47 @@ export class MeweClient {
   }
 
   // file = { name, type, data: Uint8Array } desde el renderer. Devuelve el id del adjunto.
-  uploadChatImage(isGroup, file) {
-    return this.#uploadPhoto(chat.upload(isGroup), file, 'files[]');
+  // También acepta un video: queda como adjunto del mensaje (así se mandan los que llevan temporizador,
+  // porque el camino normal, sendChatVideo, lo ignora).
+  async uploadChatImage(isGroup, file) {
+    if (!/^video\//.test(file?.type ?? '')) return this.#uploadPhoto(chat.upload(isGroup), file, 'files[]');
+    const form = new FormData();
+    form.append('files[]', new Blob([videoBytes(file)], { type: file.type }), file.name || 'video');
+    const data = await this.request(chat.upload(isGroup), { method: 'POST', form });
+    const id = data?.id ?? data?.[0]?.id ?? data?.files?.[0]?.id;
+    if (!id) throw new MeweApiError({ message: 'MeWe no devolvió el id del video subido.', body: data });
+    return id;
+  }
+
+  // Envía un video al chat como la web: pide permiso, lo sube al S3 de MeWe y lo manda a procesar.
+  // file = { name, type, data: Uint8Array }. Devuelve el id del trabajo: el mensaje no vuelve acá, aparece
+  // en el chat cuando MeWe termina de convertir el video.
+  async sendChatVideo(threadId, file, { replyTo } = {}) {
+    assertId(threadId, 'threadId');
+    const bytes = videoBytes(file);
+    const fileName = file.name || 'video';
+
+    const grant = await this.request(chat.videoAuthorize, { query: { length: bytes.byteLength } });
+    // el nombre del bucket arma la URL de subida: sólo se acepta uno con forma de bucket
+    if (!/^[a-z0-9][a-z0-9.-]*$/.test(grant?.instanceBucketName ?? '') || !grant.key || !grant.uploadFolder) {
+      throw new MeweApiError({ message: 'MeWe no autorizó la subida del video.', body: grant });
+    }
+    const form = new FormData();
+    for (const [field, key] of S3_FIELDS) {
+      if (grant[key] != null) form.append(field, String(grant[key]));
+    }
+    form.append('file', new Blob([bytes], { type: file.type }), fileName); // S3 exige que el archivo vaya último
+    // directo a S3: sin las cookies ni las cabeceras de MeWe
+    const bucket = `https://${grant.instanceBucketName}.s3.amazonaws.com`;
+    const uploaded = await this.#fetch(bucket, { method: 'POST', body: form });
+    if (config.debug) console.log(`[mewe] POST ${bucket} -> ${uploaded.status}`);
+    if (!uploaded.ok) throw new MeweApiError({ status: uploaded.status, url: bucket, message: 'No se pudo subir el video.' });
+
+    const json = { threadId, uploadFolder: grant.uploadFolder, mime: file.type, fileName };
+    if (replyTo) json.replyTo = assertId(replyTo, 'replyTo');
+    // Este endpoint ignora expiresIn y dissapearingType (probado): acá no hay videos temporales
+    const data = await this.request(chat.videoProcess, { method: 'POST', json });
+    return data?.jobId ?? null;
   }
 
   setMessageReaction(threadId, messageId, emoji, on) {

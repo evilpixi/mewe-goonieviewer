@@ -247,7 +247,7 @@ npm start
 | `npm run dist:mac` | Genera `.dmg` y `.zip` para macOS (arm64 y x64), sin firmar. Hay que correrlo en una Mac. |
 | `npm run dist:linux` | Genera AppImage y `.tar.gz` para Linux (sin probar todavía). Hay que correrlo en Linux. |
 | `npm run pack` | Empaqueta sin generar instalador, para probar rápido. |
-| `npm run emoji:update` | Regenera los shortcodes de emojis. |
+| `npm run emoji:update` | Regenera los shortcodes de emojis y el catálogo por categorías del selector. |
 | `npm run icons:update` | Copia los íconos de Lucide que usa la app. |
 
 ### Android

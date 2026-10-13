@@ -24,6 +24,18 @@ export function accountChannels(handle, accountManager) {
     handle(channel, (accountId, ...args) => accountManager.withClient(accountId, (client, me) => fn(client, me, ...args)));
 }
 
+// Para 'ui:openExternal': la dirección a abrir fuera de la app, o un error si no es un link http(s)
+export function externalUrl(url) {
+  let target = null;
+  try {
+    target = new URL(url);
+  } catch {
+    // no es una dirección
+  }
+  if (!['http:', 'https:'].includes(target?.protocol)) throw new Error('Link no válido.');
+  return target.href;
+}
+
 // handle(canal, fn) registra un canal en el puente de la plataforma.
 // Agregar un endpoint = un método en MeweClient + una línea acá (el preload ya acepta el prefijo).
 export function registerChannels({ handle, accountManager, realtime }) {
@@ -56,8 +68,10 @@ export function registerChannels({ handle, accountManager, realtime }) {
   account('chat:threads', (client, me, filter) => client.getChatThreads(me.userId, filter));
   account('chat:messages', (client, me, threadId, beforeId) => client.getMessages(threadId, me.userId, beforeId));
   account('chat:send', (client, me, threadId, message) => client.sendMessage(threadId, me.userId, message));
-  account('chat:edit', (client, _me, threadId, messageId, text) => client.editMessage(threadId, messageId, text));
+  account('chat:forward', (client, me, threadId, isGroup, message) => client.forwardMessage(threadId, me.userId, isGroup, message));
+  account('chat:edit',(client, _me, threadId, messageId, text) => client.editMessage(threadId, messageId, text));
   account('chat:upload', (client, _me, isGroup, file) => client.uploadChatImage(isGroup, file));
+  account('chat:video', (client, _me, threadId, file, options) => client.sendChatVideo(threadId, file, options));
   account('chat:react', (client, _me, threadId, messageId, emoji, on) =>
     client.setMessageReaction(threadId, messageId, emoji, on),
   );

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
-import { clipboard, dialog, ipcMain, nativeImage } from 'electron';
-import { accountChannels, registerChannels, wrapHandler } from '../core/channels.js';
+import { clipboard, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { accountChannels, externalUrl, registerChannels, wrapHandler } from '../core/channels.js';
 import { avatarColor } from './avatarColor.js';
 
 // Engancha a ipcMain los canales compartidos (src/core/channels.js) y los propios de Electron ('ui:*').
@@ -60,6 +60,12 @@ export function registerIpc({ accountManager, realtime, getWindow }) {
 
   handle('ui:copyText', (text) => {
     clipboard.writeText(String(text ?? '').slice(0, 2000));
+    return true;
+  });
+
+  // Abre un link en el navegador del sistema (los links de un perfil). Sólo http(s).
+  handle('ui:openExternal', async (url) => {
+    await shell.openExternal(externalUrl(url));
     return true;
   });
 }

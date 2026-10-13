@@ -32,6 +32,17 @@ function flatten(children) {
     .map((child) => (child instanceof Node ? child : String(child)));
 }
 
+// Pone un spinner sobre `box` (que tiene que estar posicionada) hasta que `media`, una imagen o un video,
+// cargue o falle. Devuelve `media`.
+export function spinWhileLoading(box, media) {
+  const spinner = h('span', { className: 'spinner', attrs: { 'aria-hidden': 'true' } });
+  const done = () => spinner.remove();
+  media.addEventListener(media instanceof HTMLVideoElement ? 'loadeddata' : 'load', done, { once: true });
+  media.addEventListener('error', done, { once: true });
+  box.append(spinner);
+  return media;
+}
+
 // Mensaje gris centrado ("Cargando…", "No hay mensajes."…)
 export function emptyState(text, tag = 'p') {
   // dentro de una lista (li) no se cambia el rol: dejaría de ser un ítem

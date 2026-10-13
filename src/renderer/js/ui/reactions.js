@@ -148,5 +148,7 @@ export function createReactions({ accountId, emojis = [], canReact = true, onTog
     pick(anchor) {
       if (canReact) openEmojiPicker(anchor, toggleOn);
     },
+    // Reacciona con un emoji ya elegido (ej. los del menú de un mensaje)
+    react: toggleOn,
   };
 }

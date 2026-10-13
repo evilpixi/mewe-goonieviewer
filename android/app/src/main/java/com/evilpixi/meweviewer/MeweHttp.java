@@ -45,6 +45,16 @@ final class MeweHttp {
         return url != null && url.isHttps() && (url.host().equals("mewe.com") || url.host().endsWith(".mewe.com"));
     }
 
+    // La única excepción: los videos se suben directo a un bucket de S3 que indica MeWe (ver sendChatVideo
+    // en src/mewe/client.js). Ahí sólo se hace POST, con uploadClient (sin las cookies de la cuenta).
+    static boolean isUploadBucket(HttpUrl url) {
+        return url != null && url.isHttps() && url.host().endsWith(".s3.amazonaws.com");
+    }
+
+    OkHttpClient uploadClient() {
+        return base;
+    }
+
     // Un cliente por cuenta: comparten conexiones, cada uno con las cookies de la suya
     synchronized OkHttpClient clientFor(String accountId) {
         OkHttpClient client = clients.get(accountId);

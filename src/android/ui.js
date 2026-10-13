@@ -1,4 +1,4 @@
-import { accountChannels } from '../core/channels.js';
+import { accountChannels, externalUrl } from '../core/channels.js';
 import { dominantColor, SAMPLE } from '../core/dominantColor.js';
 import { native } from './platform.js';
 
@@ -80,6 +80,12 @@ export function registerUiChannels({ handle, accountManager }) {
 
   handle('ui:copyText', async (text) => {
     await navigator.clipboard.writeText(String(text ?? '').slice(0, 2000));
+    return true;
+  });
+
+  // Abre un link en el navegador del teléfono (los links de un perfil). Sólo http(s).
+  handle('ui:openExternal', async (url) => {
+    await native.openUrl({ url: externalUrl(url) });
     return true;
   });
 }

@@ -95,7 +95,12 @@ export function plainText(text) {
   return String(text ?? '').replace(GIPHYS, 'GIF').replace(MENTIONS, '@$<mentionName>');
 }
 
-const EMOJI_ONLY = /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[#*0-9]️?⃣|[‍️\s])+$/u;
+// Reemplaza cada mención del texto por lo que devuelva fn(userId, nombre)
+export function replaceMentions(text, fn) {
+  return String(text ?? '').replace(MENTIONS, (_match, userId, name) => fn(userId, name));
+}
+
+const EMOJI_ONLY =/^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}|[#*0-9]️?⃣|[‍️\s])+$/u;
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 // Cantidad de emojis si el texto son sólo emojis (y espacios); 0 si tiene algo más

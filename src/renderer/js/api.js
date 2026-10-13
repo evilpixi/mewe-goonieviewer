@@ -49,8 +49,12 @@ export const api = {
   getMessages: (id, threadId, beforeId) => invoke('chat:messages', id, threadId, beforeId),
   // message: { text, replyTo, attachments, expiresIn }
   sendMessage: (id, threadId, message) => invoke('chat:send', id, threadId, message),
+  // message: { text, images: [url] } → el mensaje nuevo en ese chat (las imágenes se vuelven a subir)
+  forwardMessage: (id, threadId, isGroup, message) => invoke('chat:forward', id, threadId, isGroup, message),
   editMessage: (id, threadId, messageId, text) => invoke('chat:edit', id, threadId, messageId, text),
   uploadChatImage: (id, isGroup, file) => invoke('chat:upload', id, isGroup, file),
+  // file: { name, type, data: Uint8Array } · options: { replyTo, expiresIn }. El mensaje aparece cuando MeWe procesa el video.
+  sendChatVideo: (id, threadId, file, options) => invoke('chat:video', id, threadId, file, options),
   reactMessage: (id, threadId, messageId, emoji, on) => invoke('chat:react', id, threadId, messageId, emoji, on),
   getMessageReactors: (id, threadId, messageId) => invoke('chat:reactors', id, threadId, messageId),
   openChatWith: (id, userId) => invoke('chat:open', id, userId),
@@ -118,6 +122,8 @@ export const api = {
   // copia la imagen que se ve en ese punto de la ventana (px de CSS)
   copyImageAt: (x, y) => invoke('ui:copyImageAt', x, y),
   copyText: (text) => invoke('ui:copyText', text),
+  // abre un link http(s) en el navegador del sistema
+  openExternal: (url) => invoke('ui:openExternal', url),
   getAvatarColor: (id, url) => invoke('ui:avatarColor', id, url),
 
   onLoginError: (callback) => on('login:error', callback),

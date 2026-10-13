@@ -5,6 +5,7 @@ import { emptyState, h } from '../ui/dom.js';
 import { createFollowRequests } from '../ui/followRequests.js';
 import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
+import { linkify } from '../ui/links.js';
 import { confirmBlock, confirmUnblock, copyLinkButton, openChatWith, personRow } from '../ui/people.js';
 import { renderPost } from '../ui/post.js';
 import { createPostList } from '../ui/postList.js';
@@ -200,9 +201,10 @@ export function createProfileView({ navigate, back, onAccountChanged }) {
       ),
       counters.length > 0 &&
         h('p', { className: 'profile-counters' }, counters.map(([label, value]) => h('span', {}, h('strong', {}, value), ` ${label}`))),
-      p.bio && h('p', { className: 'profile-bio', attrs: { dir: 'auto' } }, p.bio),
+      // los links de la descripción y de los datos se pueden abrir y copiar (ver ui/links.js)
+      p.bio && h('p', { className: 'profile-bio', attrs: { dir: 'auto' } }, linkify(p.bio)),
       p.info.length > 0 &&
-        h('dl', { className: 'profile-info' }, p.info.map(([label, value]) => [h('dt', {}, label), h('dd', { attrs: { dir: 'auto' } }, String(value))])),
+        h('dl', { className: 'profile-info' }, p.info.map(([label, value]) => [h('dt', {}, label), h('dd', { attrs: { dir: 'auto' } }, linkify(value))])),
     ];
     headerEl.classList.toggle('has-cover', Boolean(p.coverImage));
     headerEl.replaceChildren(...parts.filter(Boolean));
