@@ -25,7 +25,7 @@ export function openLoginWindow({ ses, parent, email, password, verify, onApiErr
         nodeIntegration: false,
       },
     });
-    win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    allowLoginPopups(win);
 
     let settled = false;
     let verifying = false;
@@ -107,6 +107,22 @@ export function openLoginWindow({ ses, parent, email, password, verify, onApiErr
     win.loadURL(config.mewe.loginUrl).catch((err) => {
       onApiError(new MeweApiError({ message: `No se pudo cargar ${config.mewe.loginUrl}: ${err.message}` }));
     });
+  });
+}
+
+// "Continuar con Google" (y Apple) abre un popup: primero about:blank, que después navega al proveedor, y al
+// terminar le avisa a la página de MeWe por window.opener. El popup hereda la sesión de la cuenta y se cierra
+// con la ventana de login. Desde un popup no se abren más ventanas.
+function allowLoginPopups(win) {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url !== 'about:blank' && !url.startsWith('https://')) return { action: 'deny' };
+    return { action: 'allow', overrideBrowserWindowOptions: { parent: win, modal: false, autoHideMenuBar: true, title: 'Iniciar sesión' } };
+  });
+  win.webContents.on('did-create-window', (popup) => {
+    // Google rechaza los navegadores embebidos: el popup se presenta como Chrome, sin las marcas de Electron y de la app
+    popup.webContents.setUserAgent(popup.webContents.getUserAgent().replace(/ (?!Chrome\/|Safari\/)[^\s/()]+\/\S+(?= Chrome\/| Safari\/)/g, ''));
+    popup.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    if (config.debug) popup.webContents.on('did-navigate', (_e, url) => console.log('[login] popup navega a', url.split('?')[0]));
   });
 }
 

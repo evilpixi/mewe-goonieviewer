@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-10-12
+
+- Chats: la caja de escribir tiene dos filas, el texto arriba y los botones abajo. En escritorio, el botón **Enter envía** elige si Enter envía el mensaje o hace un salto de línea; `Ctrl+Enter` envía siempre. En el teléfono, Enter sólo hace un salto de línea.
+- Agregar cuenta: botón **Iniciar sesión con Google** (escritorio), que abre la ventana de MeWe sin pedir email ni contraseña. La ventana de login ahora permite el popup de Google.
+- Perfiles: se quitaron Trabajo, Empresa, Universidad y Secundaria, que MeWe ya no tiene.
+
 ## 0.3.0 — 2026-10-12
 
 - Chats: tiradas de dados de rol. El botón de dados de la caja de escribir abre un panel para elegir los dados, un modificador y un mensaje; también se puede escribir `/roll 2d20+1d6-3 {mensaje}`. La tirada se envía como un mensaje común, así que se ve igual en la app oficial de MeWe. Hasta 20 dados de hasta 100 caras por tirada.

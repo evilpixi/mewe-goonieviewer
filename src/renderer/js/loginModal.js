@@ -9,7 +9,11 @@ export function createLoginModal({ dialog, onLoggedIn }) {
   const errorEl = dialog.querySelector('#login-error');
   const submitBtn = dialog.querySelector('#login-submit');
   const cancelBtn = dialog.querySelector('#login-cancel');
+  const googleBtn = dialog.querySelector('#login-google');
+  // En Android la ventana de login no abre popups, y el de Google lo necesita
+  googleBtn.hidden = Boolean(window.Capacitor);
   let busy = false;
+  let withGoogle = false; // el estado lo fija el diálogo: los avisos de la ventana no lo pisan
 
   // Errores de /auth/login que ocurren dentro de la ventana de MeWe
   api.onLoginError(({ error }) => {
@@ -19,21 +23,30 @@ export function createLoginModal({ dialog, onLoggedIn }) {
   });
 
   api.onLoginStatus(({ message }) => {
-    if (dialog.open && busy) statusEl.textContent = message;
+    if (dialog.open && busy && !withGoogle) statusEl.textContent = message;
   });
 
   cancelBtn.addEventListener('click', () => {
     if (!busy) dialog.close();
   });
 
-  form.addEventListener('submit', async (event) => {
+  form.addEventListener('submit', (event) => {
     event.preventDefault();
     const data = new FormData(form);
-    const credentials = { email: data.get('email').trim(), password: data.get('password') };
+    login({ email: data.get('email').trim(), password: data.get('password') }, 'Completa el captcha en la ventana de MeWe…');
+  });
 
+  // Con Google no hacen falta el email ni la contraseña: se abre la ventana de MeWe sin rellenar nada
+  googleBtn.addEventListener('click', () => {
+    withGoogle = true;
+    login({ email: '', password: '' }, 'Pulsa «Continuar con Google» en la ventana de MeWe.');
+  });
+
+  async function login(credentials, status) {
+    if (busy) return;
     setBusy(true);
     clearError(errorEl);
-    statusEl.textContent = 'Completa el captcha en la ventana de MeWe…';
+    statusEl.textContent = status;
 
     try {
       const account = await api.addAccount(credentials);
@@ -44,13 +57,15 @@ export function createLoginModal({ dialog, onLoggedIn }) {
       statusEl.textContent = 'No se pudo iniciar sesión.';
       showError(errorEl, err, 'MeWe login');
     } finally {
+      withGoogle = false;
       setBusy(false);
     }
-  });
+  }
 
   function setBusy(value) {
     busy = value;
     submitBtn.disabled = value;
+    googleBtn.disabled = value;
     cancelBtn.disabled = value;
   }
 

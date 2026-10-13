@@ -211,7 +211,7 @@ se hace distinto:
 | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` / `Ctrl+4` | Feed / Chats / Listas / Historias |
 | `Alt+←` | Volver a la vista anterior |
 | `F5` | Actualizar la vista |
-| `Enter` | Enviar mensaje o comentario (`Shift+Enter`: salto de línea) |
+| `Enter` | Enviar mensaje o comentario (`Shift+Enter`: salto de línea). En el chat, el botón **Enter envía** lo cambia a salto de línea (`Ctrl+Enter` envía); en el teléfono siempre es salto de línea |
 | `Esc` | Cancelar la respuesta o la edición; cerrar paneles y el visor |
 | `←` / `→` | Imagen anterior / siguiente en el visor |
 | `Z` / `G` / `C` | Zoom / guardar / copiar la imagen en el visor |

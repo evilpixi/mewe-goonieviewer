@@ -33,6 +33,7 @@ const TEMPORAL_CACHE_ITEMS = 30; // imágenes temporales que se guardan en memor
 const TEMPORAL_CACHE_MAX_BYTES = 8 * 1024 * 1024; // las más pesadas no se guardan
 
 // Campos del perfil público. PUT /profile/public los pisa todos: siempre van juntos (ver updateProfile).
+// job, company, college y highSchool ya no se editan (ver PROFILE_FIELDS en normalize.js), pero se reenvían.
 const PROFILE_KEYS = ['text', 'currentCity', 'job', 'company', 'college', 'highSchool', 'relationshipStatus', 'interests', 'email', 'phone'];
 const PEOPLE_LISTS = { followers: profile.followers, following: profile.followed, blocked: profile.blocked };
 
@@ -503,7 +504,7 @@ export class MeweClient {
     return true;
   }
 
-  // { firstName, lastName, fields: { text, currentCity, job, … } }: sólo se toca lo que venga.
+  // { firstName, lastName, fields: { text, currentCity, interests, … } }: sólo se toca lo que venga.
   // MeWe reemplaza el perfil público entero, así que los campos que no cambian se reenvían con su valor actual.
   async updateProfile(myUserId, { firstName, lastName, fields } = {}) {
     if (fields) {
