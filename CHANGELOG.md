@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 — 2026-10-12
+
+- Chats: tiradas de dados de rol. El botón de dados de la caja de escribir abre un panel para elegir los dados, un modificador y un mensaje; también se puede escribir `/roll 2d20+1d6-3 {mensaje}`. La tirada se envía como un mensaje común, así que se ve igual en la app oficial de MeWe. Hasta 20 dados de hasta 100 caras por tirada.
+- Las líneas que empiezan con `> ` se muestran como cita en chats, publicaciones y comentarios.
+
 ## 0.2.1 — 2026-10-11
 
 - Corregido: los posts compartidos se veían vacíos. Ahora citan el post original, con su autor, fecha, texto y fotos.
