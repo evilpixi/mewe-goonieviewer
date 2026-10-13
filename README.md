@@ -39,6 +39,7 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 
 ### Chats
 - Chats con personas, de grupos y de eventos, con filtro por tipo.
+- Dados de rol: el botón de dados o `/roll 2d20+1d6-3 {mensaje opcional}` envían la tirada como un mensaje (hasta 20 dados de hasta 100 caras).
 - Mensajes nuevos en tiempo real (websocket), agrupados por día.
 - Responder a un mensaje; al hacer click en una respuesta se salta al mensaje original.
 - Reacciones con emojis, y quién las puso.

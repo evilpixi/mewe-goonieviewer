@@ -5,9 +5,13 @@ import { takeFiles } from '../ui/files.js';
 import { icon } from '../ui/icon.js';
 import { plainText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
+import { isRollCommand, parseRoll, rollMessage } from './dice.js';
+import { openDicePicker } from './dicePicker.js';
 
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 const MAX_FILES = 10;
+// Pausa entre tiradas de dados, para que no llenen el chat
+const ROLL_COOLDOWN = 2000;
 
 // Segundos; MeWe sólo hace desaparecer fotos/videos, así que aplica a las imágenes adjuntas
 const TIMERS = [
@@ -25,6 +29,7 @@ const TIMERS = [
 //   onSend({ text, files, replyTo, expiresIn, editId }) → promesa; si se resuelve, se limpia la caja
 //   (editId: id del mensaje que se está editando; ahí sólo importa `text`)
 // Imágenes y GIFs: botón 📎, Ctrl+V con una imagen en el portapapeles, o arrastrarlas (ver acceptDrop).
+// Dados de rol: botón 🎲 (elige los dados y envía la tirada) o escribir "/roll 2d20" (ver dice.js).
 // Botón ⤢: caja grande para textos de varias líneas (ahí Enter hace salto de línea y Ctrl+Enter envía).
 // El placeholder es corto para que entre en una línea; las teclas van en el title.
 const PLACEHOLDER = 'Escribe un mensaje…';
@@ -43,6 +48,11 @@ export function createComposer({ onSend }) {
     'button',
     { type: 'button', className: 'btn icon-btn', title: 'Insertar emoji', attrs: { 'aria-label': 'Insertar emoji', 'aria-haspopup': 'dialog' } },
     icon('smile'),
+  );
+  const diceBtn = h(
+    'button',
+    { type: 'button', className: 'btn icon-btn', title: 'Tirar dados (/roll 2d20)', attrs: { 'aria-label': 'Tirar dados', 'aria-haspopup': 'dialog' } },
+    icon('dices'),
   );
   const expandBtn = h(
     'button',
@@ -108,7 +118,7 @@ export function createComposer({ onSend }) {
     editBar,
     attachmentsBar,
     status,
-    h('div', { className: 'composer-row' }, meEl, attachBtn, emojiBtn, textarea, expandBtn, sendBtn),
+    h('div', { className: 'composer-row' }, meEl, attachBtn, emojiBtn, diceBtn, textarea, expandBtn, sendBtn),
     fileInput,
   );
 
@@ -117,6 +127,7 @@ export function createComposer({ onSend }) {
   let editing = null; // mensaje que se está editando
   let busy = false;
   let expanded = false;
+  let lastRoll = 0;
 
   function setExpanded(value) {
     expanded = value;
@@ -142,7 +153,7 @@ export function createComposer({ onSend }) {
     if (message) setReplyTo(null);
     editing = message;
     editBar.hidden = !message;
-    attachBtn.disabled = Boolean(message);
+    attachBtn.disabled = diceBtn.disabled = Boolean(message);
     sendBtn.title = sendLabel.textContent = message ? 'Guardar' : 'Enviar';
     if (!message) return;
     editText.textContent = plainText(message.text);
@@ -222,12 +233,52 @@ export function createComposer({ onSend }) {
     autosize();
   }
 
+  // Texto del mensaje de una tirada, o null (con el motivo en el estado) si todavía no se puede tirar
+  function roll(spec) {
+    if (Date.now() - lastRoll < ROLL_COOLDOWN) {
+      status.textContent = 'Espera un momento antes de volver a tirar.';
+      return null;
+    }
+    lastRoll = Date.now();
+    return rollMessage(spec);
+  }
+
+  // Envía una tirada elegida en el selector, sin tocar lo que haya escrito en la caja
+  async function sendRoll(spec) {
+    if (busy || editing) return;
+    const text = roll(spec);
+    if (!text) return;
+    busy = true;
+    sendBtn.disabled = true;
+    status.textContent = '';
+    try {
+      await onSend({ text, files: [], replyTo: replyTo?.id ?? null, expiresIn: null, editId: null });
+      setReplyTo(null);
+    } catch {
+      // el error lo muestra la conversación
+    } finally {
+      busy = false;
+      sendBtn.disabled = false;
+      textarea.focus();
+    }
+  }
+
   async function send() {
-    const text = textarea.value.trim();
+    let text = textarea.value.trim();
     if (busy || (!text && !files.length)) return;
     if (editing && text === editing.text.trim()) {
       cancelEditing(); // sin cambios: no hay nada que guardar
       return;
+    }
+    // "/roll 2d20": se envía el resultado de la tirada en lugar del comando
+    if (!editing && isRollCommand(text)) {
+      try {
+        text = roll(parseRoll(text));
+      } catch ({ message }) {
+        status.textContent = message;
+        return;
+      }
+      if (!text) return;
     }
     busy = true;
     sendBtn.disabled = true;
@@ -290,6 +341,7 @@ export function createComposer({ onSend }) {
   });
   attachBtn.addEventListener('click', () => fileInput.click());
   emojiBtn.addEventListener('click', () => openEmojiPicker(emojiBtn, insertText, { forText: true }));
+  diceBtn.addEventListener('click', () => openDicePicker(diceBtn, sendRoll));
   expandBtn.addEventListener('click', () => setExpanded(!expanded));
   fileInput.addEventListener('change', async () => {
     addFiles(await takeFiles(fileInput));
