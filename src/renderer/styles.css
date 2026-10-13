@@ -1277,6 +1277,10 @@ button.mention:hover {
   mask-image: url('icons/smile-plus.svg');
 }
 
+.icon-dices {
+  mask-image: url('icons/dices.svg');
+}
+
 .icon-pencil {
   mask-image: url('icons/pencil.svg');
 }
@@ -1567,6 +1571,73 @@ button.mention:hover {
   border: var(--border-width) solid var(--border);
   background: var(--bg);
   color: var(--text);
+}
+
+/* Selector de dados del chat (dicePicker.js) */
+.dice-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.dice-picker .emoji-section {
+  margin: 0;
+}
+
+.dice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+
+.dice-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
+.dice-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.dice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dice-chips:empty {
+  display: none;
+}
+
+.dice-chip {
+  border: 0;
+  background: var(--accent-soft);
+  color: var(--text);
+  font: inherit;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.dice-summary {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
+.dice-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 .reactors-list {
@@ -2403,6 +2474,13 @@ button.msg-avatar:hover {
   padding: 0 var(--space-2);
   border-radius: var(--radius-sm);
   background: rgb(127 127 127 / 20%);
+}
+
+:is(.msg-text, .post-text, .comment-text) blockquote {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--border);
+  opacity: 0.85;
 }
 
 .msg-text.deleted {

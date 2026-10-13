@@ -15,8 +15,11 @@ const mentionAvatarUrl = (userId) => `https://img.mewe.com/api/v2/photo/profile/
 const GIPHY = /https?:\/\/(?<gif>media[0-9]*\.giphy\.com\/media\/(?:v1\.[^/\s]+\/)?[0-9a-zA-Z]+\/[0-9a-zA-Z_]+\.(?:gif|mp4)(?:[?&][a-zA-Z_]+=[^\s#<]+)?)(?:\??#[wh]=[0-9]+)?/;
 const GIPHYS = new RegExp(GIPHY.source, 'g');
 
+// Cita: una o más líneas seguidas que empiezan con "> " (adentro puede haber líneas vacías, con el ">" solo)
+const QUOTE = /^> .*(?:\n>(?: .*)?$)*\n?/m;
+
 // Formato de texto de MeWe (un subconjunto de Markdown):
-//   **negrita** · *itálica* o _itálica_ · ~~tachado~~ · `código` · menciones (ver MENTION) · GIFs de Giphy
+//   **negrita** · *itálica* o _itálica_ · ~~tachado~~ · `código` · > cita · menciones (ver MENTION) · GIFs de Giphy
 // Los marcadores tienen que estar pegados al texto; * y _ sueltos o dentro de una palabra (snake_case) no cuentan.
 // El GIF va primero: su dirección tiene _ que si no se tomarían por itálicas.
 const RULES = new RegExp(
@@ -32,6 +35,13 @@ const RULES = new RegExp(
 //   context: { accountId, navigate } → las menciones llevan la foto y abren el perfil
 export function richText(text, context = {}) {
   const source = String(text ?? '');
+  const quote = QUOTE.exec(source);
+  if (quote) {
+    // es un bloque: los saltos de línea que lo separan del resto ya los pone él
+    const before = source.slice(0, quote.index).replace(/\n$/, '');
+    const inner = quote[0].replace(/\n$/, '').replace(/^> ?/gm, '');
+    return [...richText(before, context), h('blockquote', {}, richText(inner, context)), ...richText(source.slice(quote.index + quote[0].length), context)];
+  }
   const nodes = [];
   let last = 0;
   for (const match of source.matchAll(RULES)) {

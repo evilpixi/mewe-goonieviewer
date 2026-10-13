@@ -4,7 +4,7 @@
 import fs from 'node:fs/promises';
 
 const ICONS = [
-  'reply', 'smile', 'smile-plus', 'pencil', 'paperclip', 'maximize-2', 'minimize-2', 'x',
+  'reply', 'smile', 'smile-plus', 'dices', 'pencil', 'paperclip', 'maximize-2', 'minimize-2', 'x',
   // cabecera y segundo panel
   'arrow-left', 'arrow-down', 'newspaper', 'message-circle', 'list', 'users', 'circle-dashed', 'search', 'bell', 'ellipsis-vertical', 'plus', 'refresh-cw',
   // barra de la vista en mobile: reemplazan a las etiquetas
