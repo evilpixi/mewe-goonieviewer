@@ -28,6 +28,8 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 ### Cuentas
 - Varias cuentas abiertas a la vez, en una columna lateral para cambiar de una a otra con un click.
 - Cada cuenta tiene su sesión aislada (cookies propias) y puede tener su propio tema y colores.
+- Un aviso sobre la foto de las cuentas que no estás usando cuando tienen algo nuevo; en los ajustes se elige qué lo
+  enciende (mensajes privados, chats de grupo o menciones).
 - El login se hace en la ventana oficial de MeWe, captcha incluido. **La contraseña no se guarda.**
 
 ### Feed
@@ -41,11 +43,14 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 - Chats con personas, de grupos y de eventos, con filtro por tipo.
 - Dados de rol: el botón de dados o `/roll 2d20+1d6-3 {mensaje opcional}` envían la tirada como un mensaje (hasta 20 dados de hasta 100 caras).
 - Mensajes nuevos en tiempo real (websocket), agrupados por día.
+- Menú de cada mensaje (los tres puntitos que aparecen al pasarle el mouse): reaccionar con los emojis a la vista,
+  responder, reenviar, editar los propios y copiar el texto.
 - Responder a un mensaje; al hacer click en una respuesta se salta al mensaje original.
-- Reacciones con emojis, y quién las puso.
-- Edición de mensajes propios.
-- Envío de imágenes y GIFs con el botón 📎, pegando con `Ctrl+V` o arrastrándolas a la conversación.
-- Temporizador para las imágenes enviadas (de 5 segundos a 24 horas).
+- Reenviar un mensaje a otro chat, con su texto y sus imágenes (los videos y archivos no se reenvían).
+- Reacciones con emojis, y quién las puso. El selector tiene buscador, categorías y los usados hace poco.
+- Menciones: `@` y parte del nombre abren un menú para elegir a quién mencionar (también en publicaciones y comentarios).
+- Envío de imágenes, GIFs y videos (hasta 200 MB) con el botón 📎, pegando con `Ctrl+V` o arrastrándolos a la conversación.
+- Temporizador opcional para las imágenes y videos enviados: con el botón **Temporal** duran 24 horas.
 - Videos que se reproducen dentro de la conversación.
 - Las respuestas a una historia muestran una vista previa de esa historia.
 - Visor de imágenes a pantalla completa, con guardar y copiar.
@@ -68,6 +73,7 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 - Manejo de cuentas privadas.
 - Búsqueda de personas y acceso directo para abrir un chat.
 - Bloquear y copiar el link de un perfil.
+- Los links de la descripción se abren en el navegador con un click; con click derecho (o manteniéndolos apretados) se copian.
 - En tu perfil: editar la foto, la portada y tus datos, y las listas de solicitudes de seguimiento y de bloqueados.
 
 ### Listas y grupos
@@ -92,10 +98,12 @@ escritorio aparece al achicar la ventana. No hay versión para iOS.
 - Tu foto abre el menú de la cuenta: tu perfil, cambiar de cuenta, agregar una, buscar personas, ajustes, reconectar y
   quitar la cuenta. Reemplaza a la columna de cuentas.
 - Los controles de cada sección se muestran como iconos en lugar de texto.
-- Chats en dos pantallas: la lista a todo el ancho o la conversación. Dentro de una conversación, un agarrador en el
-  borde izquierdo muestra u oculta la lista compacta (sólo fotos).
-- En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho; responder, reaccionar y editar están
-  siempre a la vista.
+- Tu foto abre también las otras cuentas, cada una con un contador de lo que tiene sin leer.
+- Chats en dos pantallas: la lista a todo el ancho o la conversación. Dentro de una conversación, una lengüeta sobre el
+  borde izquierdo muestra u oculta la lista compacta (sólo fotos), tocándola o tironeándola.
+- En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho. Mantener apretado un mensaje abre su
+  menú (reaccionar, responder, reenviar, editar, copiar) y arrastrarlo hacia un costado lo responde.
+- Mientras se escribe, la barra de navegación se oculta para dejarle lugar al teclado.
 - Las notificaciones y las pestañas de perfiles y grupos se acomodan a la pantalla vertical.
 
 En Android, además:
@@ -199,9 +207,11 @@ se hace distinto:
 - **Cuentas y opciones:** tocá tu foto, abajo a la derecha. Ahí están tu perfil, las otras cuentas, **Agregar cuenta**,
   **Buscar personas**, **Ajustes de la interfaz**, **Reconectar** y **Quitar cuenta**. Sin ninguna cuenta agregada, en
   ese lugar hay un icono de personas que abre el mismo menú.
-- **Chats:** tocá un chat para abrirlo y la flecha de arriba a la izquierda para volver a la lista. El agarrador del
-  borde izquierdo muestra la lista compacta sin salir de la conversación. **Buscar en el chat** e **Imágenes** están en
-  el menú ⋮ de la barra del chat.
+- **Chats:** tocá un chat para abrirlo y la flecha de arriba a la izquierda para volver a la lista. La lengüeta del
+  borde izquierdo muestra la lista compacta sin salir de la conversación: tocala o tironeala hacia la derecha, y hacia
+  la izquierda para ocultarla. **Buscar en el chat** e **Imágenes** están en el menú ⋮ de la barra del chat.
+- **Mensajes:** mantené apretado uno para reaccionar, responder, reenviar, editar o copiar; arrastralo hacia un costado
+  para responderlo.
 - **Volver (Android):** con el botón o gesto atrás del teléfono.
 
 ### Atajos de teclado
