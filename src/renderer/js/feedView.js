@@ -8,9 +8,9 @@ import { createTabs } from './ui/tabs.js';
 
 const FEED_TYPE_KEY = 'feedType';
 const FEED_TYPES = [
-  ['following', 'Todo', 'layout-grid'],
+  ['following', 'Todo', 'house'],
   ['contacts', 'Personas', 'user'],
-  ['groups', 'Grupos', 'users-round'],
+  ['groups', 'Grupos', 'layout-grid'],
 ];
 
 function savedFeedType() {

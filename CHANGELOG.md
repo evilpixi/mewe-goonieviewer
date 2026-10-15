@@ -1,5 +1,23 @@
 # Changelog
 
+## Sin publicar
+
+- Grupos: crear grupos y, para quien los administra, cambiar su foto, portada y datos, los permisos de cada rol, el rol de cada miembro, y quitar o banear gente (con la lista de baneados).
+- Chats grupales entre personas: crearlos, cambiarles el nombre, sumar y sacar gente y salir.
+- Notificaciones: una sola lista, sin la pestaña de grupos. Arriba, una tira con los grupos que tienen publicaciones nuevas, que se pueden abrir o quitar, y **Ver más** para ir a la lista de grupos.
+- Chats, en el teléfono: tocar un mensaje muestra sus tres puntitos, como el mouse en escritorio.
+- Menciones: el menú aparece 1,1 segundos después de escribir `@` (antes, 1,5).
+- Publicaciones y mensajes propios: eliminarlos.
+- Chats: buscador de chats por nombre, arriba de la lista. En el teléfono se abre con el botón 🔍 del segundo panel.
+- Chats: el menú ⋮ de la barra tiene **Información** (el perfil, el grupo o los miembros del chat grupal); reemplaza al botón de miembros.
+- Chats: **Enter envía** pasa a ser un ícono ⏎ al lado de **Enviar**.
+- El botón **Actualizar** pasa a un menú ☰ en el segundo panel. En Chats también van ahí el estado **En vivo** y **Marcar como leídos**.
+- Chats: **Nuevo chat grupal** (💬+) y la búsqueda van a la izquierda del segundo panel; las pestañas Todos / Personas / Grupos quedan centradas también en el teléfono.
+- Listas → Grupos: cada grupo con publicaciones nuevas muestra una tira de hasta 10 tarjetas con ellas (imagen, comienzo del texto y autor) y **Ver más** para abrir el grupo.
+- Listas: Siguiendo y Seguidores se juntan en **Personas**, con un submenú. El filtro se abre con el botón 🔍; a la izquierda, **Crear grupo** o, en Personas, **Nuevo chat grupal**.
+- Chats: con la ventana angosta en escritorio, Enter vuelve a respetar el botón ⏎; sólo en Android hace siempre un salto de línea.
+- Íconos: **Todo** es una casa y **Grupos** son cuatro cuadrados, como en MeWe.
+
 ## 0.4.0 — 2026-10-13
 
 - Chats: cada mensaje tiene un menú con los emojis para reaccionar a la vista, responder, reenviar, editar y copiar el texto. En escritorio se abre con los tres puntitos que aparecen al pasarle el mouse; en el teléfono, manteniendo apretado el mensaje. Reemplaza a los iconos del costado.

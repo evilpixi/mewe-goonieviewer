@@ -3,12 +3,13 @@ import { clearError, showError } from '../errorView.js';
 import { getSettings } from '../settings.js';
 import { avatar } from '../ui/avatar.js';
 import { tintWithAvatarColor } from '../ui/avatarColor.js';
+import { confirmDialog } from '../ui/confirm.js';
 import { dayKey, formatDay, formatFull, formatTime } from '../ui/dates.js';
 import { emptyState, h } from '../ui/dom.js';
 import { quickReactions } from '../ui/emojiPicker.js';
 import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
-import { EDGE_SWIPE_PX } from '../ui/mobile.js';
+import { EDGE_SWIPE_PX, isMobile } from '../ui/mobile.js';
 import { confirmBlock } from '../ui/people.js';
 import { closePopover, openPopover } from '../ui/popover.js';
 import { createReactions } from '../ui/reactions.js';
@@ -16,6 +17,7 @@ import { emojiOnlyCount, plainText, richText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
 import { createComposer } from './composer.js';
 import { canForward, openForwardDialog } from './forward.js';
+import { openChatMembers } from './groupChat.js';
 
 const PAGE_SIZE = 25; // igual que config.mewe.chat.pageSize
 const RUN_GAP_MS = 5 * 60 * 1000; // mensajes del mismo autor más juntos que esto se agrupan
@@ -31,9 +33,10 @@ const SWIPE_START_PX = 14; // a partir de acá el mensaje sigue al dedo
 const SWIPE_REPLY_PX = 64; // soltarlo más lejos que esto lo responde
 const SWIPE_MAX_PX = 88;
 
-// A quiénes se ofrece mencionar primero en un chat: la otra persona o, en uno de grupo, sus miembros
-// (la primera página, que se pide una sola vez por chat abierto)
+// A quiénes se ofrece mencionar primero en un chat: la otra persona, las del chat grupal o, en uno de grupo,
+// sus miembros (la primera página, que se pide una sola vez por chat abierto)
 function mentionable(accountId, thread) {
+  if (thread.isMultiUser) return () => thread.participants;
   if (!thread.isGroup) return () => (thread.userId ? [{ id: thread.userId, name: thread.name, avatar: thread.avatar }] : []);
   let members = null;
   return () => (members ??= api.getGroupMembers(accountId, thread.id).then((page) => page.members));
@@ -51,7 +54,8 @@ const fold =(text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, '')
 // después, con el chat ya abierto, lo deja otra vez sin leer hasta alguna de esas acciones.
 // onBlocked(thread): se bloqueó a la persona del chat (botón de la barra, sólo en chats de a dos).
 // onBack(): se tocó la flecha de la barra, que sólo se ve en mobile (vuelve a la lista de chats).
-export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, navigate } = {}) {
+// onThreadChange(thread): en un chat grupal cambió el nombre o los miembros · onLeft(thread): se salió de él.
+export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, onThreadChange, onLeft, navigate } = {}) {
   const messagesEl = h('div', { className: 'chat-messages scroll', attrs: { role: 'log', 'aria-label': 'Mensajes' } });
   const errorEl = h('div');
   const composer = createComposer({ onSend: send });
@@ -72,19 +76,20 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     readIcon,
     h('span', { className: 'label-text' }, '✓ Marcar como leído'),
   );
-  // En mobile buscar y galería van juntos en un menú (los dos botones sueltos se ocultan, ver styles.css)
+  // Menú ⋮ del chat: información de la persona, el grupo o el chat grupal y, en mobile, buscar y galería
+  // (ahí los dos botones sueltos se ocultan, ver styles.css)
   const moreBtn = h(
     'button',
     {
       className: 'btn icon-btn chat-more',
-      title: 'Buscar e imágenes',
-      attrs: { 'aria-label': 'Buscar e imágenes', 'aria-haspopup': 'menu' },
+      title: 'Más opciones del chat',
+      attrs: { 'aria-label': 'Más opciones del chat', 'aria-haspopup': 'menu' },
       onClick: () => {
         if (moreMenu?.el.isConnected) {
           closePopover();
           return;
         }
-        const item = (name, label, kind) =>
+        const item = (name, label, run) =>
           h(
             'button',
             {
@@ -92,19 +97,21 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
               attrs: { role: 'menuitem' },
               onClick: () => {
                 closePopover();
-                togglePanel(kind);
+                run();
               },
             },
             h('span', { className: 'account-item-icon' }, icon(name)),
             label,
           );
+        const info = infoTarget();
         const menu = h(
           'div',
           { className: 'menu', attrs: { role: 'menu' } },
-          item('search', 'Buscar en este chat', 'search'),
-          item('image', 'Imágenes de este chat', 'gallery'),
+          info && item(info.icon, info.label, info.open),
+          isMobile() && item('search', 'Buscar en este chat', () => togglePanel('search')),
+          isMobile() && item('image', 'Imágenes de este chat', () => togglePanel('gallery')),
         );
-        moreMenu = openPopover(moreBtn, menu, { className: 'menu-popover', label: 'Buscar e imágenes' });
+        moreMenu = openPopover(moreBtn, menu, { className: 'menu-popover', label: 'Más opciones del chat' });
         menu.querySelector('button')?.focus();
       },
     },
@@ -191,6 +198,40 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     } finally {
       blockBtn.disabled = false;
     }
+  }
+
+  // "Información" del menú ⋮: el perfil de la persona, el grupo (en uno de evento, sus eventos) o, en un chat
+  // grupal, sus miembros. → { icon, label, open } o null si no hay nada que mostrar
+  function infoTarget() {
+    if (!thread) return null;
+    if (thread.isMultiUser) return { icon: 'users', label: 'Información del chat', open: openMembers };
+    if (!navigate) return null;
+    const isEvent = thread.chatType === 'EventChat';
+    const groupId = thread.isGroup ? (isEvent ? thread.groupId : (thread.groupId ?? thread.id)) : null;
+    if (groupId) {
+      return { icon: 'layout-grid', label: 'Información del grupo', open: () => navigate('group', isEvent ? { groupId, tab: 'events' } : { groupId }) };
+    }
+    if (thread.userId) return { icon: 'user', label: 'Información de la persona', open: () => navigate('profile', { userId: thread.userId }) };
+    return null;
+  }
+
+  // --- Chat grupal: miembros ---
+
+  function openMembers() {
+    if (!thread?.isMultiUser) return;
+    const opened = thread;
+    openChatMembers({
+      account,
+      thread: opened,
+      onChanged: (changes) => {
+        Object.assign(opened, changes);
+        if (thread !== opened) return;
+        if (changes.name) renderTitle();
+        if (changes.participants) composer.setPeople(mentionable(account.id, thread));
+        onThreadChange?.(thread);
+      },
+      onLeft: () => onLeft?.(opened),
+    });
   }
 
   // click en el fondo o en los mensajes, y click o tecla en la caja de texto
@@ -358,8 +399,8 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     const reply = () => composer.setReplyTo(m, names.get(m.authorId));
     const openMenu = (anchor) => openMessageMenu(anchor, m, { reactions, reply, canEdit });
     menus.set(m.id, { open: openMenu, reply });
-    // Los tres puntitos al costado del globo (escritorio, ver styles.css): en mobile el menú se abre
-    // manteniendo apretado el mensaje (ver "Gestos táctiles")
+    // Los tres puntitos al costado del globo: aparecen con el mouse encima o, en una pantalla táctil, al tocar
+    // el mensaje; ahí el menú también se abre manteniéndolo apretado (ver "Gestos táctiles")
     const actions = h(
       'div',
       { className: 'msg-actions' },
@@ -405,18 +446,19 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
 
   // --- Menú de un mensaje ---
 
-  // Reaccionar (con los emojis a la vista, sin abrir el selector), responder, reenviar, editar y copiar.
+  // Reaccionar (con los emojis a la vista, sin abrir el selector), responder, reenviar, editar, copiar y,
+  // en los propios, eliminar.
   // Lo abren los tres puntitos del mensaje o, en una pantalla táctil, mantenerlo apretado.
   function openMessageMenu(anchor, m, { reactions, reply, canEdit }) {
     if (messageMenu?.el.isConnected && messageMenu.anchor === anchor) {
       closePopover();
       return;
     }
-    const item = (name, label, run) =>
+    const item = (name, label, run, className = '') =>
       h(
         'button',
         {
-          className: 'menu-item account-item',
+          className: `menu-item account-item ${className}`.trim(),
           attrs: { role: 'menuitem' },
           onClick: () => {
             closePopover();
@@ -448,6 +490,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       canEdit && item('pencil', 'Editar', () => composer.setEditing(m)),
       // en una pantalla táctil el texto de los mensajes no se puede seleccionar (ver styles.css)
       m.text && !m.deleted && item('copy', 'Copiar texto', () => api.copyText(plainText(m.text)).catch((err) => showError(errorEl, err, 'MeWe chat'))),
+      m.mine && !m.deleted && item('trash-2', 'Eliminar', () => remove(m), 'danger'),
     );
     messageMenu = { ...openPopover(anchor, menu, { className: 'menu-popover msg-menu', label: 'Acciones del mensaje' }), anchor };
   }
@@ -459,6 +502,30 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     if (!target || gen !== generation) return;
     if (target.id === thread.id) loadLatest({ scroll: 'bottom' });
     onSent?.();
+  }
+
+  // Elimina un mensaje propio, para todos. Como en la web, queda en su lugar como "Mensaje eliminado".
+  async function remove(m) {
+    const gen = generation;
+    const confirmed = await confirmDialog({
+      title: '¿Eliminar este mensaje?',
+      text: 'Dejará de verse para todos en el chat. No se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (!confirmed || gen !== generation) return;
+    clearError(errorEl);
+    try {
+      await api.deleteMessage(account.id, m.id);
+      if (gen !== generation) return;
+      messages = messages.map((other) =>
+        other.id === m.id ? { ...other, deleted: true, text: '', images: [], videos: [], files: [], story: null } : other,
+      );
+      render();
+      onSent?.(); // la lista de chats muestra el último mensaje
+    } catch (err) {
+      if (gen === generation) showError(errorEl, err, 'MeWe chat');
+    }
   }
 
   // --- Gestos táctiles sobre un mensaje ---
@@ -525,6 +592,13 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     },
     true,
   );
+  // Sin mouse no hay hover: tocar un mensaje le muestra los tres puntitos (y se los saca al que los tenía)
+  messagesEl.addEventListener('click', (event) => {
+    if (!touching) return;
+    const msgEl = event.target.closest('.msg');
+    for (const other of messagesEl.querySelectorAll('.msg.show-actions')) if (other !== msgEl) other.classList.remove('show-actions');
+    msgEl?.classList.add('show-actions');
+  });
   // el menú del sistema que sale al mantener apretado: acá ese gesto abre el menú del mensaje
   messagesEl.addEventListener('contextmenu', (event) => touching && event.preventDefault());
 
@@ -1016,6 +1090,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       unread = thread.unread !== false;
       readBtn.hidden = !unread;
       blockBtn.hidden = !thread.userId; // sólo se bloquea desde un chat de a dos
+      moreBtn.classList.toggle('mobile-only', !infoTarget()); // sin "Información", en escritorio quedaría vacío
       pinned = true; // todo chat se abre en el final
       missed = false;
       pinBtn.hidden = true;

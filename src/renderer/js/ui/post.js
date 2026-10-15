@@ -1,8 +1,10 @@
 import { api } from '../api.js';
+import { showError } from '../errorView.js';
 import { avatar } from './avatar.js';
 import { createComments } from './comments.js';
+import { confirmDialog } from './confirm.js';
 import { formatDateTime, formatFull } from './dates.js';
-import { h } from './dom.js';
+import { emptyState, h } from './dom.js';
 import { renderGallery } from './gallery.js';
 import { icon } from './icon.js';
 import { openPostComposer } from './postComposer.js';
@@ -13,12 +15,14 @@ import { userName } from './userName.js';
 // Un post (feed, perfil, grupo o vista individual): cabecera, texto, fotos, reacciones y comentarios.
 // expanded: muestra los comentarios abiertos (vista de post individual)
 // gallery: false omite las fotos (el visor de imágenes ya las está mostrando)
-// Los posts propios de texto y fotos llevan un lápiz para editar el texto (ver ui/postComposer.js).
+// Los posts propios de texto y fotos llevan un lápiz para editar el texto (ver ui/postComposer.js);
+// todos los propios, un tacho para eliminarlos.
 export function renderPost(post, options) {
   const { account, navigate, expanded = false, gallery = true } = options;
   const accountId = account.id;
   const ref = { id: post.id, groupId: post.groupId };
-  const canEdit = post.editable && Boolean(post.author.id) && post.author.id === account.userId;
+  const isMine = Boolean(post.id) && Boolean(post.author.id) && post.author.id === account.userId;
+  const canEdit = post.editable && isMine;
 
   // Al guardar se vuelve a pedir el post y se redibuja en su lugar
   function edit() {
@@ -39,13 +43,41 @@ export function renderPost(post, options) {
     });
   }
 
+  // En una lista el post desaparece; en la vista individual (y en el visor) queda el aviso en su lugar
+  async function remove() {
+    const confirmed = await confirmDialog({
+      title: '¿Eliminar esta publicación?',
+      text: 'Se borrará con sus comentarios y reacciones. No se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (!confirmed) return;
+    deleteBtn.disabled = true;
+    try {
+      await api.deletePost(accountId, ref);
+      if (expanded) article.replaceWith(emptyState('Publicación eliminada.'));
+      else article.remove();
+    } catch (err) {
+      deleteBtn.disabled = false;
+      head.after(errorEl);
+      showError(errorEl, err, 'MeWe post');
+    }
+  }
+
+  const errorEl = h('div');
+  const deleteBtn =
+    isMine &&
+    h('button', { className: 'icon-btn post-delete', title: 'Eliminar publicación', attrs: { 'aria-label': 'Eliminar publicación' }, onClick: remove }, icon('trash-2'));
+
   const head = renderHead(post, {
     accountId,
     navigate,
     openPost: !expanded,
-    extra:
+    extra: [
       canEdit &&
-      h('button', { className: 'icon-btn post-edit', title: 'Editar publicación', attrs: { 'aria-label': 'Editar publicación' }, onClick: edit }, icon('pencil')),
+        h('button', { className: 'icon-btn post-edit', title: 'Editar publicación', attrs: { 'aria-label': 'Editar publicación' }, onClick: edit }, icon('pencil')),
+      deleteBtn,
+    ],
   });
 
   const reactions = createReactions({
@@ -118,7 +150,7 @@ function renderShared(shared, { accountId, navigate, gallery }) {
 }
 
 // Cabecera de un post: la foto y, al lado, una cosa por línea: quién publicó, en qué grupo (si es de uno) y la
-// fecha, más chica. openPost: la fecha lleva al post. extra: lo que vaya al final de la fila (el lápiz de editar).
+// fecha, más chica. openPost: la fecha lleva al post. extra: lo que vaya al final de la fila (editar y eliminar).
 function renderHead(post, { accountId, navigate, openPost, extra }) {
   return h(
     'div',

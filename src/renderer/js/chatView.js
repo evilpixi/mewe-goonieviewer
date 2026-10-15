@@ -1,21 +1,26 @@
 import { api } from './api.js';
 import { createConversation } from './chat/conversation.js';
+import { openNewGroupChat } from './chat/groupChat.js';
 import { clearError, showError } from './errorView.js';
 import { avatar } from './ui/avatar.js';
 import { emptyState, h } from './ui/dom.js';
 import { icon } from './ui/icon.js';
 import { EDGE_SWIPE_PX, isMobile } from './ui/mobile.js';
+import { closePopover } from './ui/popover.js';
 import { plainText } from './ui/richText.js';
 import { createTabs } from './ui/tabs.js';
 import { userName } from './ui/userName.js';
+
+// Para buscar sin distinguir mayúsculas ni acentos
+const fold = (text) => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
 const THREADS_POLL_MS = 30000;
 const THREADS_REFRESH_DEBOUNCE_MS = 800;
 const FILTER_KEY = 'chatFilter';
 const FILTERS = [
-  ['all', 'Todos', 'layout-grid'],
+  ['all', 'Todos', 'house'],
   ['users', 'Personas', 'user'],
-  ['groups', 'Grupos', 'users-round'],
+  ['groups', 'Grupos', 'layout-grid'],
 ];
 
 // Ancho de la lista de chats, elegido arrastrando su borde: { width: px | null, compact: bool }
@@ -51,13 +56,53 @@ function savedFilter() {
 export function createChatView({ navigate } = {}) {
   const filterTabs = createTabs({ label: 'Tipo de chat', tabs: FILTERS, onChange: changeFilter });
   const filterEl = filterTabs.el;
-  const liveIcon = icon('radio');
-  liveIcon.classList.add('label-icon');
-  const liveText = h('span', { className: 'label-text' });
-  const liveEl = h('span', { className: 'live-status', attrs: { 'aria-live': 'polite' } }, liveIcon, liveText);
-  // Sólo se ve mientras la lista tiene chats sin leer (ver renderThreads)
-  const readAllBtn = h('button', { className: 'btn icon-btn', hidden: true, onClick: () => markAllRead() }, icon('check-check'));
-  const toolbarRight = h('div', { className: 'toolbar-slot' }, readAllBtn, liveEl);
+  // Estado del tiempo real: va en el menú ☰ de la vista (ver menu())
+  const liveText = h('span');
+  const liveEl = h('div', { className: 'menu-label live-status', attrs: { 'aria-live': 'polite' } }, icon('radio'), ' ', liveText);
+  // Buscar chats por nombre (o por el último mensaje). En escritorio la barra está siempre arriba de la lista;
+  // en mobile la abre el botón 🔍 del segundo panel (ver styles.css).
+  const searchInput = h('input', {
+    type: 'search',
+    className: 'input',
+    placeholder: 'Buscar chats…',
+    attrs: { 'aria-label': 'Buscar chats' },
+    onInput: () => renderThreads(),
+  });
+  searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && searchInput.value) {
+      event.stopPropagation();
+      searchInput.value = '';
+      renderThreads();
+    }
+  });
+  const searchBar = h('div', { className: 'chat-search' }, searchInput);
+  const searchBtn = h(
+    'button',
+    { className: 'btn icon-btn chat-search-btn', title: 'Buscar chats', attrs: { 'aria-label': 'Buscar chats', 'aria-pressed': 'false' }, onClick: () => toggleSearch() },
+    icon('search'),
+  );
+  // Va en el menú ☰ (ver menu()), sólo mientras la lista tiene chats sin leer (ver renderThreads)
+  const readAllText = h('span');
+  const readAllBtn = h(
+    'button',
+    {
+      className: 'menu-item account-item',
+      hidden: true,
+      attrs: { role: 'menuitem' },
+      onClick: () => {
+        closePopover();
+        markAllRead();
+      },
+    },
+    h('span', { className: 'account-item-icon' }, icon('check-check')),
+    readAllText,
+  );
+  const newChatBtn = h(
+    'button',
+    { className: 'btn primary icon-btn new-chat-btn', title: 'Nuevo chat grupal', attrs: { 'aria-label': 'Nuevo chat grupal', 'aria-haspopup': 'dialog' }, onClick: () => newGroupChat() },
+    icon('message-circle-plus'),
+  );
+  const toolbarLeft = h('div', { className: 'toolbar-slot' }, newChatBtn, searchBtn);
   const threadsEl = h('ul', { className: 'chat-threads scroll', attrs: { 'aria-label': 'Conversaciones' } });
   const errorEl = h('div');
   const conversation = createConversation({
@@ -74,6 +119,15 @@ export function createChatView({ navigate } = {}) {
       closeThread();
       renderThreads();
     },
+    // chat grupal: cambió su nombre o sus miembros (el objeto ya está actualizado) · se salió de él
+    onThreadChange: () => renderThreads(),
+    onLeft: (left) => {
+      if (extraThread?.id === left.id) extraThread = null;
+      threads = threads.filter((t) => t.id !== left.id);
+      closeThread();
+      renderThreads();
+      loadThreads();
+    },
     // el chat abierto sabe si quedó leído (click, escribir, botón) o si le llegó algo nuevo
     onUnreadChange: (threadId, unread) => {
       const t = threads.find((item) => item.id === threadId);
@@ -83,7 +137,7 @@ export function createChatView({ navigate } = {}) {
       renderThreads();
     },
   });
-  const sidebarEl = h('div', { className: 'chat-sidebar' }, errorEl, threadsEl);
+  const sidebarEl = h('div', { className: 'chat-sidebar' }, searchBar, errorEl, threadsEl);
   const resizerEl = h('div', {
     className: 'chat-resizer',
     title: 'Arrastra para cambiar el ancho de la lista de chats (doble click: ancho original)',
@@ -234,12 +288,28 @@ export function createChatView({ navigate } = {}) {
 
   function renderLive() {
     const connected = realtime.get(account?.id) ?? false;
-    liveText.textContent = connected ? '● En vivo' : '○ Cada 5 s';
-    liveEl.title = connected
-      ? 'Conectado al tiempo real de MeWe'
-      : 'Sin conexión en tiempo real: se buscan mensajes nuevos cada 5 segundos';
+    liveText.textContent = connected ? 'En vivo: conectado al tiempo real de MeWe' : 'Sin tiempo real: se buscan mensajes cada 5 s';
     liveEl.classList.toggle('on', connected);
     conversation.setRealtime(connected);
+  }
+
+  // --- Buscar chats ---
+
+  // Mobile: el botón muestra u oculta la barra (y, si había un chat abierto, vuelve a la lista). Al ocultarla
+  // se borra lo buscado.
+  function toggleSearch(open = !el.classList.contains('search-open')) {
+    el.classList.toggle('search-open', open);
+    searchBtn.setAttribute('aria-pressed', String(open));
+    if (open) {
+      if (isMobile() && activeId) {
+        closeThread();
+        renderThreads();
+      }
+      searchInput.focus();
+    } else if (searchInput.value) {
+      searchInput.value = '';
+      renderThreads();
+    }
   }
 
   // --- Lista de conversaciones ---
@@ -294,14 +364,19 @@ export function createChatView({ navigate } = {}) {
     const unreadCount = threads.filter((t) => t.unread).length;
     const scope = { all: 'todos los chats', users: 'los chats con personas', groups: 'los chats de grupo' }[filter];
     readAllBtn.hidden = !unreadCount;
-    readAllBtn.title = `Marcar como leídos ${scope} (${unreadCount} sin leer)`;
-    readAllBtn.setAttribute('aria-label', readAllBtn.title);
+    readAllText.textContent = `Marcar como leídos ${scope} (${unreadCount})`;
     if (!threads.length) {
       threadsEl.replaceChildren(emptyState('Sin chats.', 'li'));
       return;
     }
+    const query = fold(searchInput.value.trim());
+    const shown = query ? threads.filter((t) => fold(t.name).includes(query) || fold(plainText(t.lastMessage)).includes(query)) : threads;
+    if (!shown.length) {
+      threadsEl.replaceChildren(emptyState('Ningún chat coincide.', 'li'));
+      return;
+    }
     threadsEl.replaceChildren(
-      ...threads.map((t) => {
+      ...shown.map((t) => {
         const active = t.id === activeId;
         const btn = h(
           'button',
@@ -372,6 +447,22 @@ export function createChatView({ navigate } = {}) {
     }
   }
 
+  // Crea un chat grupal y lo abre. Recién creado no viene en la lista de MeWe: va como extraThread.
+  async function newGroupChat() {
+    const acc = account;
+    if (!acc) return;
+    const created = await openNewGroupChat({ account: acc });
+    if (!created || acc !== account) return;
+    extraThread = created;
+    if (filter === 'groups') {
+      filterTabs.select('users');
+      changeFilter('users');
+    }
+    if (!threads.some((t) => t.id === created.id)) threads.unshift(created);
+    openThread(created, { read: true });
+    scheduleThreadsRefresh();
+  }
+
   function closeThread() {
     setActive(null);
     lastThread = null;
@@ -386,7 +477,9 @@ export function createChatView({ navigate } = {}) {
 
   return {
     el,
-    toolbar: { center: filterEl, right: toolbarRight },
+    toolbar: { left: toolbarLeft, center: filterEl },
+    // menú ☰: marcar todos como leídos (si hay sin leer) y el estado del tiempo real
+    menu: () => (account ? [!readAllBtn.hidden && !readAllBtn.disabled && readAllBtn, liveEl].filter(Boolean) : []),
     // params.thread: chat a abrir (botón "Mensaje" de un perfil o de una lista de personas)
     show(newAccount, params = {}) {
       stop();
@@ -398,6 +491,12 @@ export function createChatView({ navigate } = {}) {
       const reopen = wanted ?? (sameAccount ? lastThread : null);
       account = newAccount;
       extraThread = wanted;
+      if (!sameAccount) {
+        // otra cuenta: la búsqueda empieza de cero (la lista se dibuja al cargar)
+        searchInput.value = '';
+        el.classList.remove('search-open');
+        searchBtn.setAttribute('aria-pressed', 'false');
+      }
       if (!sameAccount || !reopen) {
         threads = [];
         lastThread = null;

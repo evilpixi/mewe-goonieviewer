@@ -6,7 +6,6 @@ import { emptyState, h } from '../ui/dom.js';
 import { icon } from '../ui/icon.js';
 import { followButton } from '../ui/followRequests.js';
 import { plainText } from '../ui/richText.js';
-import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
 
 // Tipos de notificación de MeWe (notificationType) agrupados por a dónde llevan
@@ -140,18 +139,12 @@ function groupKey(n) {
   return [n.type, n.users[0]?.id, n.postId, n.commentId, n.threadId, n.messageId, n.group?.id, n.event?.id].map((part) => part ?? '').join('|');
 }
 
-// Ruta 'notifications': lista separada en Generales y Grupos. Las solicitudes de seguimiento se responden
-// desde su notificación (la lista completa está en el perfil propio, pestaña Solicitudes).
+// Ruta 'notifications': arriba, los grupos con publicaciones nuevas (ver createCommunities); abajo, todas las
+// notificaciones en una sola lista. Las solicitudes de seguimiento se responden desde su notificación (la lista
+// completa está en el perfil propio, pestaña Solicitudes).
 // onUnseenChange(count) avisa a la cabecera para actualizar el contador de la campana.
 export function createNotificationsView({ navigate, onUnseenChange }) {
-  const tabs = createTabs({
-    label: 'Tipo de notificación',
-    tabs: [
-      ['general', 'Generales', 'bell'],
-      ['groups', 'Grupos', 'users-round'],
-    ],
-    onChange: () => render(),
-  });
+  const communities = createCommunities({ navigate });
   const markAllIcon = icon('check-check');
   markAllIcon.classList.add('label-icon');
   const markAllBtn = h(
@@ -163,7 +156,7 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
   const errorEl = h('div');
   const listEl = h('ul', { className: 'notif-list card', attrs: { 'aria-label': 'Notificaciones' } });
   const moreBtn = h('button', { className: 'btn load-more', hidden: true, onClick: () => load(true) }, 'Cargar más');
-  const el = h('div', { className: 'view scroll page' }, errorEl, listEl, moreBtn);
+  const el = h('div', { className: 'view scroll page' }, communities.el, errorEl, listEl, moreBtn);
 
   let account = null;
   let items = []; // una por grupo de duplicadas; `ids` son los ids de todas las del grupo
@@ -224,19 +217,14 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
   }
 
   function render() {
-    const inGroups = tabs.value === 'groups';
-    const shown = items.filter((n) => n.inGroup === inGroups);
-    const unread = (group) => items.filter((n) => n.inGroup === group && n.unread).length;
-    tabs.setCount('general', unread(false));
-    tabs.setCount('groups', unread(true));
     markAllBtn.disabled = !items.some((n) => n.unread);
     moreBtn.hidden = !nextPage;
     waiting = new Map(); // las filas se dibujan de nuevo
-    if (!shown.length) {
-      listEl.replaceChildren(emptyState(inGroups ? 'No hay notificaciones de grupos.' : 'No hay notificaciones.', 'li'));
+    if (!items.length) {
+      listEl.replaceChildren(emptyState('No hay notificaciones.', 'li'));
       return;
     }
-    listEl.replaceChildren(...shown.map(renderItem));
+    listEl.replaceChildren(...items.map(renderItem));
   }
 
   function renderItem(n) {
@@ -420,10 +408,11 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
 
   return {
     el,
-    toolbar: { center: tabs.el, right: markAllBtn },
+    toolbar: { right: markAllBtn },
     show(newAccount) {
       if (newAccount?.id !== account?.id) visited.clear();
       account = newAccount;
+      communities.show(account);
       items = [];
       nextPage = null;
       pending = new Map();
@@ -436,10 +425,126 @@ export function createNotificationsView({ navigate, onUnseenChange }) {
     },
     hide() {
       generation++;
+      communities.show(null);
     },
     reload() {
       if (!account) return;
+      communities.show(account);
       loadRequests();
+      load();
+    },
+  };
+}
+
+// "Nuevas publicaciones de la comunidad": los grupos con publicaciones sin ver, en una tira que se recorre de
+// costado. Tocar uno abre el grupo (y lo descarta, como la web al ver su feed); la ✕ lo descarta sin abrirlo.
+// "Ver más" lleva a la lista de grupos. Si no hay ninguno, el panel no se muestra.
+function createCommunities({ navigate }) {
+  const stripEl = h('ul', { className: 'communities-strip', attrs: { 'aria-label': 'Grupos con publicaciones nuevas' } });
+  const scrollBy = (direction) => stripEl.scrollBy({ left: direction * stripEl.clientWidth * 0.8, behavior: 'smooth' });
+  const prevBtn = h('button', { className: 'communities-arrow prev', title: 'Anteriores', attrs: { 'aria-label': 'Anteriores' }, onClick: () => scrollBy(-1) }, icon('chevron-left'));
+  const nextBtn = h('button', { className: 'communities-arrow next', title: 'Siguientes', attrs: { 'aria-label': 'Siguientes' }, onClick: () => scrollBy(1) }, icon('chevron-right'));
+  const dismissAllBtn = h('button', { className: 'btn', onClick: () => dismiss(null) }, icon('check'), h('span', { className: 'label-text' }, ' Descartar todo'));
+  const moreBtn = h('button', { className: 'btn', onClick: () => navigate('lists', { list: 'groups' }) }, 'Ver más');
+  const errorEl = h('div');
+  const el = h(
+    'section',
+    { className: 'card communities', hidden: true, attrs: { 'aria-label': 'Nuevas publicaciones de la comunidad' } },
+    h('div', { className: 'communities-head' }, h('h2', {}, 'Nuevas publicaciones de la comunidad'), dismissAllBtn, moreBtn),
+    errorEl,
+    h('div', { className: 'communities-body' }, prevBtn, stripEl, nextBtn),
+  );
+
+  let account = null;
+  let list = [];
+  let generation = 0;
+
+  // Las flechas sólo aparecen si hay más para ese lado
+  function updateArrows() {
+    const max = stripEl.scrollWidth - stripEl.clientWidth;
+    prevBtn.hidden = stripEl.scrollLeft <= 1;
+    nextBtn.hidden = stripEl.scrollLeft >= max - 1;
+  }
+  stripEl.addEventListener('scroll', updateArrows, { passive: true });
+  new ResizeObserver(updateArrows).observe(stripEl);
+  // la rueda del mouse (vertical) también la recorre
+  stripEl.addEventListener(
+    'wheel',
+    (event) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || stripEl.scrollWidth <= stripEl.clientWidth) return;
+      event.preventDefault();
+      stripEl.scrollLeft += event.deltaY;
+    },
+    { passive: false },
+  );
+
+  function render() {
+    el.hidden = !list.length;
+    stripEl.replaceChildren(
+      ...list.map((c) =>
+        h(
+          'li',
+          { className: 'community' },
+          h(
+            'button',
+            { className: 'community-open', title: `${c.name}: ${c.count} publicaciones nuevas`, onClick: () => open(c) },
+            h('span', { className: 'community-photo' }, avatar(account.id, c.avatar, { name: c.name, size: 'xl' }), c.count > 0 && h('span', { className: 'community-count' }, c.count > 99 ? '99+' : c.count)),
+            userName(c.name, { className: 'community-name', fallback: 'Grupo' }),
+          ),
+          h('button', { className: 'community-dismiss', title: 'Quitar', attrs: { 'aria-label': `Quitar ${c.name}` }, onClick: () => dismiss(c) }, icon('x')),
+        ),
+      ),
+    );
+    requestAnimationFrame(updateArrows);
+  }
+
+  async function load() {
+    const gen = ++generation;
+    const acc = account;
+    clearError(errorEl);
+    try {
+      const result = await api.getCommunities(acc.id);
+      if (gen !== generation) return;
+      list = result.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+      render();
+    } catch (err) {
+      console.warn('[comunidades]', err); // sin el panel las notificaciones se ven igual
+    }
+  }
+
+  function open(c) {
+    dismiss(c, { quiet: true });
+    navigate('group', { groupId: c.id });
+  }
+
+  // c: un grupo, o null para todos. Se quita ya; si MeWe falla, vuelve.
+  async function dismiss(c, { quiet = false } = {}) {
+    const acc = account;
+    const before = list;
+    list = c ? list.filter((other) => other.id !== c.id) : [];
+    render();
+    clearError(errorEl);
+    try {
+      await api.dismissCommunity(acc.id, c?.id);
+    } catch (err) {
+      if (acc !== account) return;
+      list = before;
+      render();
+      if (!quiet) {
+        el.hidden = false;
+        showError(errorEl, err, 'MeWe grupos');
+      }
+    }
+  }
+
+  return {
+    el,
+    show(newAccount) {
+      generation++;
+      if (newAccount?.id !== account?.id) list = [];
+      account = newAccount;
+      if (!account) return;
+      render();
       load();
     },
   };

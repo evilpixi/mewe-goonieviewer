@@ -30,7 +30,14 @@ export const config = {
       messages: (threadId) => `/api/v2/chat/thread/${threadId}/messages`, // GET ?limit=&beforeId=
       send: (threadId) => `/api/v2/chat/thread/${threadId}/message`, // POST { message, setAsRead, replyTo, attachments }
       edit: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}`, // PUT { text }
-      create: '/api/v2/chat/thread', // POST { receivers: [userId] } → el chat (nuevo o el que ya había)
+      remove: (messageId) => `/api/v2/messages/message/${messageId}`, // DELETE: borra un mensaje propio, para todos
+      create: '/api/v2/chat/thread', // POST { receivers: [userId] } → el chat (nuevo o el que ya había); con varios, un chat grupal
+      // Chats grupales (de personas, no de un grupo). Quien lo creó (startedBy) es el único que puede sacar gente.
+      addParticipants: (threadId) => `/api/v2/chat/thread/${threadId}/participants/add`, // POST { receivers: [userId] }
+      participant: (threadId, userId) => `/api/v2/chat/thread/${threadId}/participants/${userId}`, // DELETE: lo saca
+      rename: (threadId) => `/api/v2/chat/thread/${threadId}/name`, // POST { name }
+      leave: (threadId) => `/api/v2/chat/thread/${threadId}/leave`, // DELETE
+      maxParticipants: 100, // chatMaxUsers de la web
       markRead: (threadId) => `/api/v2/messages/thread/${threadId}/unread`, // DELETE: marca el chat como leído
       seen: (messageId) => `/api/v2/messages/message/${messageId}/seen`, // POST: marca visto un mensaje temporal
       disappearingImageSize: '400x400', // tamaño con el que la web pide las imágenes temporales
@@ -46,7 +53,7 @@ export const config = {
     },
 
     // Base de un post: los de grupo van por /api/v3/group/..., el resto por /api/v2/home/...
-    // Sobre la base: '' (detalle), /comments, /emojis, /multipost/medias
+    // Sobre la base: '' (detalle; con DELETE lo borra), /comments, /emojis, /multipost/medias
     post: (postId, groupId) =>
       groupId ? `/api/v3/group/${groupId}/post/${postId}` : `/api/v2/home/post/${postId}`,
     // Crear y editar posts. Las fotos se suben antes (multipart, campo `file` → { id }) y van en imageIds.
@@ -94,7 +101,25 @@ export const config = {
 
     groups: {
       mine: '/api/v2/groups', // GET
-      details: (groupId) => `/api/v2/group/${groupId}`, // GET
+      // GET · PUT cambia datos del grupo: { name, description, groupThematicType } · { fileId, crop? } (portada) ·
+      // { permissions: { members: { roles: [{ userId, role }] }, group: { contributor, limited, viewer } }, publicRole,
+      //   addAdminIds, removeAdminIds } (roles y permisos)
+      details: (groupId) => `/api/v2/group/${groupId}`,
+      general: (groupId) => `/api/v2/group/${groupId}/general`, // PUT { profilePhotoId } (la foto del grupo)
+      // Crear: primero una foto predefinida (POST { system: 'group', picId: '1' } → { ui }), después el grupo:
+      // POST { name, description, groupThematicType, uploadedImageId, mandatoryQuestions, modelType, discoveryOptIn? }
+      predefinedPhoto: '/api/v2/photo/predefined',
+      create: '/api/v2/groups/add',
+      categories: '/api/v2/groups/public/categories/all', // GET → { categories: [{ id, name }] }
+      uploadPhoto: '/api/v2/photo/gp', // multipart, campo `file` → { id } (foto y portada)
+      // modelType: abierto, selectivo (hay que pedir entrar) o privado (sólo con invitación)
+      modelTypes: ['Public', 'PublicApply', 'Private'],
+      roles: ['Admin', 'Contributor', 'Limited', 'Viewer'], // los que se pueden asignar ('Owner' y 'Custom' no)
+      permissions: ['post', 'comment', 'invite'],
+      // Baneo: lo saca del grupo y no lo deja volver. PUT
+      ban: (groupId, userId) => `/api/v2/group-blocking/${groupId}/block/${userId}`,
+      unban: (groupId, userId) => `/api/v2/group-blocking/${groupId}/unblock/${userId}`,
+      banned: (groupId) => `/api/v2/group-blocking/${groupId}/list`, // GET ?offset=&maxResults= → { users }
       feed: (groupId) => `/api/v3/group/${groupId}/postsfeed`, // GET, paginado
       members: (groupId) => `/api/v2/group/${groupId}/members`, // GET ?offset=&maxResults=&onlyOwnerAdmins= · POST invita
       member: (groupId, userId) => `/api/v2/group/${groupId}/member/${userId}/remove`, // DELETE (con mi id: salir)
@@ -123,6 +148,14 @@ export const config = {
       scopes: ['followers', 'public', 'favorites'], // quién la ve: seguidores, todos, amigos cercanos
       imageSize: '1200x1200', // el que pide la web
       videoResolutions: ['original', '720p', '480p'], // se prueban en orden
+    },
+
+    // "Nuevas publicaciones de la comunidad": grupos con publicaciones sin ver (MeWe los llama wrappers).
+    // El id de cada uno es el del grupo.
+    communities: {
+      groups: '/api/v2/communities/wrappers/groups', // GET → { wrappers: [{ id, type, postsCount, lastActivity, group? }], groups? }
+      dismiss: '/api/v2/communities/wrappers/dismiss', // POST { groupIds: [id] }
+      dismissAll: '/api/v2/myworld/wrappers/dismiss', // POST { all: true } (todos los de grupos)
     },
 
     notifications: {

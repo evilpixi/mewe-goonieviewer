@@ -43,6 +43,7 @@ export const api = {
   createPost: (id, post) => invoke('post:create', id, post),
   // changes: { text, mediaIds } (mediaIds: las fotos del post, que se conservan)
   editPost: (id, post, changes) => invoke('post:edit', id, post.id, post.groupId, changes),
+  deletePost: (id, post) => invoke('post:delete', id, post.id, post.groupId),
 
   // filter: 'users' | 'groups' | 'all'
   getChatThreads: (id, filter) => invoke('chat:threads', id, filter),
@@ -52,12 +53,19 @@ export const api = {
   // message: { text, images: [url] } → el mensaje nuevo en ese chat (las imágenes se vuelven a subir)
   forwardMessage: (id, threadId, isGroup, message) => invoke('chat:forward', id, threadId, isGroup, message),
   editMessage: (id, threadId, messageId, text) => invoke('chat:edit', id, threadId, messageId, text),
+  deleteMessage: (id, messageId) => invoke('chat:delete', id, messageId),
   uploadChatImage: (id, isGroup, file) => invoke('chat:upload', id, isGroup, file),
   // file: { name, type, data: Uint8Array } · options: { replyTo, expiresIn }. El mensaje aparece cuando MeWe procesa el video.
   sendChatVideo: (id, threadId, file, options) => invoke('chat:video', id, threadId, file, options),
   reactMessage: (id, threadId, messageId, emoji, on) => invoke('chat:react', id, threadId, messageId, emoji, on),
   getMessageReactors: (id, threadId, messageId) => invoke('chat:reactors', id, threadId, messageId),
   openChatWith: (id, userId) => invoke('chat:open', id, userId),
+  // Chats grupales entre personas. → el chat creado
+  createGroupChat: (id, userIds, name) => invoke('chat:createGroup', id, userIds, name),
+  addChatParticipants: (id, threadId, userIds) => invoke('chat:addParticipants', id, threadId, userIds),
+  removeChatParticipant: (id, threadId, userId) => invoke('chat:removeParticipant', id, threadId, userId),
+  renameChat: (id, threadId, name) => invoke('chat:rename', id, threadId, name),
+  leaveChat: (id, threadId) => invoke('chat:leave', id, threadId),
   markChatRead: (id, threadId) => invoke('chat:read', id, threadId),
   markMessageSeen: (id, messageId) => invoke('chat:seen', id, messageId),
   startRealtime: (id) => invoke('chat:realtime', id),
@@ -97,6 +105,25 @@ export const api = {
   // → { contacts: [{ …, inGroup, invited }], hasMore }
   searchGroupContacts: (id, groupId, query, offset) => invoke('group:contacts', id, groupId, query, offset),
   inviteToGroup: (id, groupId, userIds) => invoke('group:invite', id, groupId, userIds),
+  // Crear y administrar grupos
+  getGroupCategories: (id) => invoke('group:categories', id),
+  // group: { name, description, categoryId, modelType: 'Public' | 'PublicApply' | 'Private' } → el grupo creado
+  createGroup: (id, group) => invoke('group:create', id, group),
+  // changes: { name, description, categoryId } → el grupo actualizado
+  updateGroup: (id, groupId, changes) => invoke('group:update', id, groupId, changes),
+  // kind: 'avatar' | 'cover' · file: { name, type, data }
+  setGroupPhoto: (id, groupId, kind, file) => invoke('group:setPhoto', id, groupId, kind, file),
+  // settings: { permissions: { Contributor: […], Limited: […], Viewer: […] }, publicRole } → el grupo actualizado
+  setGroupPermissions: (id, groupId, settings) => invoke('group:setPermissions', id, groupId, settings),
+  setGroupMemberRole: (id, groupId, userId, role, wasAdmin) => invoke('group:setRole', id, groupId, userId, role, wasAdmin),
+  removeGroupMember: (id, groupId, userId) => invoke('group:removeMember', id, groupId, userId),
+  setGroupBan: (id, groupId, userId, on) => invoke('group:ban', id, groupId, userId, on),
+  // → { users, hasMore }
+  getGroupBanned: (id, groupId, offset) => invoke('group:banned', id, groupId, offset),
+  // → [{ id, name, avatar, count, updatedAt }] grupos con publicaciones sin ver
+  getCommunities: (id) => invoke('group:communities', id),
+  // sin groupId: todos
+  dismissCommunity: (id, groupId) => invoke('group:dismissCommunity', id, groupId),
 
   // Historias. → [{ id, type, isPage, name, avatar, handle, hasNew, isMine, stories }]
   getStorytellers: (id) => invoke('story:tellers', id),

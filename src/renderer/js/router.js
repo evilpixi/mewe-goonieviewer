@@ -2,14 +2,15 @@
 //
 // Una vista se registra con registerView(name, factory). factory({ navigate, back }) se llama una sola vez
 // (la primera vez que se navega a ella) y devuelve:
-//   { el, toolbar?, show(account, params), hide?(), reload?(), back?() }
+//   { el, toolbar?, show(account, params), hide?(), reload?(), back?(), menu?() }
 // - el: raíz de la vista; el router la agrega a `host` y la oculta/muestra
 // - toolbar: controles propios que van en el segundo panel mientras la vista está activa. Un nodo (va al centro)
 //   o { left, center, right } para repartirlos en las tres zonas.
 // - show: se llama cada vez que la vista pasa a estar activa (o cambia la cuenta/los params)
 // - back: "atrás" del sistema dentro de la vista; devuelve true si tenía algo que cerrar
+// - menu: lo que la vista agrega al menú ☰ del segundo panel (nodos), arriba de "Actualizar"
 // toolbarSlots: { left, center, right }, los contenedores de cada zona.
-// onChange({ view, params, canGoBack, hasToolbar, canReload }) avisa de cada cambio de vista.
+// onChange({ view, params, canGoBack, hasToolbar, canReload, hasMenu }) avisa de cada cambio de vista.
 export function createRouter({ host, toolbarSlots, onChange }) {
   const factories = new Map();
   const instances = new Map();
@@ -44,7 +45,7 @@ export function createRouter({ host, toolbarSlots, onChange }) {
     next.el.hidden = false;
     const hasToolbar = mountToolbar(next.toolbar);
     next.show(account, entry.params);
-    onChange?.({ ...entry, canGoBack: stack.length > 1, hasToolbar, canReload: Boolean(next.reload) });
+    onChange?.({ ...entry, canGoBack: stack.length > 1, hasToolbar, canReload: Boolean(next.reload), hasMenu: Boolean(next.menu) });
     if (focus) {
       next.el.tabIndex = -1;
       next.el.focus({ preventScroll: true });
@@ -102,5 +103,7 @@ export function createRouter({ host, toolbarSlots, onChange }) {
       active?.reload?.();
     },
     current: () => stack.at(-1) ?? null,
+    // lo que la vista activa agrega a su menú ☰
+    menuItems: () => [active?.menu?.() ?? []].flat(),
   };
 }

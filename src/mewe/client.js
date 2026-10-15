@@ -2,6 +2,7 @@ import { config } from '../config.js';
 import { MeweApiError } from './errors.js';
 import {
   normalizeAlbums,
+  normalizeCommunities,
   normalizeComment,
   normalizeComments,
   normalizeContacts,
@@ -9,6 +10,7 @@ import {
   normalizeFeed,
   normalizeFollowRequests,
   normalizeGroup,
+  normalizeGroupCategories,
   normalizeGroups,
   normalizeMedias,
   normalizeMediaStream,
@@ -25,7 +27,7 @@ import {
   normalizeUserProfile,
 } from './normalize.js';
 
-const { host, endpoints, userAgent, cookies: cookieNames, chat, comments, profile, groups, stories, notifications } = config.mewe;
+const { host, endpoints, userAgent, cookies: cookieNames, chat, comments, profile, groups, stories, notifications, communities } = config.mewe;
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 200 * 1024 * 1024; // el video cruza el puente entero, en memoria
@@ -305,6 +307,12 @@ export class MeweClient {
     return data?.post ? normalizePostDetails(data) : null;
   }
 
+  // Borra un post propio (igual que la web: DELETE sobre la base del post)
+  async deletePost(postId, groupId) {
+    await this.request(postBase(postId, groupId), { method: 'DELETE' });
+    return true;
+  }
+
   // --- Comentarios ---
 
   async getComments(postId, groupId, { nextPage, afterId } = {}) {
@@ -373,6 +381,40 @@ export class MeweClient {
     return { ...created, userId };
   }
 
+  // Chat grupal con varias personas (sin contar a quien lo crea), con un nombre opcional
+  async createGroupChat(userIds, name, myUserId) {
+    const receivers = userIdList(userIds, chat.maxParticipants - 1);
+    if (receivers.length < 2) throw new MeweApiError({ message: 'Elige al menos dos personas para un chat grupal.' });
+    const data = await this.request(chat.create, { method: 'POST', json: { receivers } });
+    const [created] = normalizeThreads({ threads: [data?.thread ?? data ?? {}], users: data?.users }, myUserId);
+    if (!created?.id) throw new MeweApiError({ message: 'MeWe no devolvió el chat creado.', body: data });
+    const title = String(name ?? '').trim();
+    if (title) await this.renameChat(created.id, title);
+    return { ...created, name: title || created.name, startedBy: created.startedBy ?? myUserId };
+  }
+
+  async addChatParticipants(threadId, userIds) {
+    const receivers = userIdList(userIds, chat.maxParticipants);
+    if (!receivers.length) throw new MeweApiError({ message: 'Elige al menos una persona.' });
+    await this.request(chat.addParticipants(assertId(threadId, 'threadId')), { method: 'POST', json: { receivers } });
+    return true;
+  }
+
+  async removeChatParticipant(threadId, userId) {
+    await this.request(chat.participant(assertId(threadId, 'threadId'), assertId(userId, 'userId')), { method: 'DELETE' });
+    return true;
+  }
+
+  async renameChat(threadId, name) {
+    await this.request(chat.rename(assertId(threadId, 'threadId')), { method: 'POST', json: { name: requireText(name).slice(0, 100) } });
+    return true;
+  }
+
+  async leaveChat(threadId) {
+    await this.request(chat.leave(assertId(threadId, 'threadId')), { method: 'DELETE' });
+    return true;
+  }
+
   // Marca un chat como leído (la web lo hace al enfocar la caja de texto)
   async markChatRead(threadId) {
     await this.request(chat.markRead(assertId(threadId, 'threadId')), { method: 'DELETE' });
@@ -428,6 +470,12 @@ export class MeweClient {
       method: 'PUT',
       json: { text: requireText(text) },
     });
+    return true;
+  }
+
+  // Borra un mensaje propio: deja de verse para todos los del chat
+  async deleteMessage(messageId) {
+    await this.request(chat.remove(assertId(messageId, 'messageId')), { method: 'DELETE' });
     return true;
   }
 
@@ -683,6 +731,114 @@ export class MeweClient {
     return true;
   }
 
+  // --- Crear y administrar grupos (dueño y admins) ---
+
+  async getGroupCategories() {
+    return normalizeGroupCategories(await this.request(groups.categories));
+  }
+
+  // modelType: 'Public' (abierto) | 'PublicApply' (selectivo: hay que pedir entrar) | 'Private' (sólo con invitación).
+  // Como la web, el grupo nace con una foto predefinida; la propia se pone después (setGroupPhoto).
+  async createGroup({ name, description, categoryId, modelType = 'Public' } = {}) {
+    const title = requireText(name).slice(0, 50);
+    if (!groups.modelTypes.includes(modelType)) throw new MeweApiError({ message: `Tipo de grupo desconocido: ${modelType}` });
+    if (!categoryId) throw new MeweApiError({ message: 'Elige una categoría para el grupo.' });
+    const photo = await this.request(groups.predefinedPhoto, { method: 'POST', json: { system: 'group', picId: '1' } });
+    const json = {
+      name: title,
+      description: String(description ?? '').trim().slice(0, 3000),
+      groupThematicType: assertCategory(categoryId),
+      uploadedImageId: photo?.ui,
+      mandatoryQuestions: false,
+      modelType,
+    };
+    if (modelType === 'PublicApply') json.discoveryOptIn = true;
+    return normalizeGroup(await this.request(groups.create, { method: 'POST', json }));
+  }
+
+  // changes: { name, description, categoryId }: sólo se manda lo que venga
+  async updateGroup(groupId, { name, description, categoryId } = {}) {
+    const json = {};
+    if (name != null) json.name = requireText(name).slice(0, 50);
+    if (description != null) json.description = String(description).trim().slice(0, 3000);
+    if (categoryId != null) json.groupThematicType = assertCategory(categoryId);
+    if (Object.keys(json).length) await this.request(groups.details(assertId(groupId, 'groupId')), { method: 'PUT', json });
+    return this.getGroup(groupId);
+  }
+
+  // kind: 'avatar' (la foto) | 'cover' (la portada). Va sin recorte: la web sólo lo manda si se usó su recortador.
+  async setGroupPhoto(groupId, kind, file) {
+    assertId(groupId, 'groupId');
+    const id = await this.#uploadPhoto(groups.uploadPhoto, file);
+    if (kind === 'avatar') await this.request(groups.general(groupId), { method: 'PUT', json: { profilePhotoId: id } });
+    else await this.request(groups.details(groupId), { method: 'PUT', json: { fileId: id } });
+    return true;
+  }
+
+  // Qué puede hacer cada rol y con qué rol entra la gente nueva.
+  // permissions: { Contributor: ['post', …], Limited: […], Viewer: […] } · publicRole: 'Contributor' | 'Limited' | 'Viewer'
+  async setGroupPermissions(groupId, { permissions, publicRole } = {}) {
+    const pick = (role) => (permissions?.[role] ?? []).filter((p) => groups.permissions.includes(p));
+    const json = {
+      permissions: { members: { roles: [] }, group: { contributor: pick('Contributor'), limited: pick('Limited'), viewer: pick('Viewer') } },
+    };
+    if (publicRole) {
+      if (!['Contributor', 'Limited', 'Viewer'].includes(publicRole)) throw new MeweApiError({ message: `Rol desconocido: ${publicRole}` });
+      json.publicRole = publicRole;
+    }
+    await this.request(groups.details(assertId(groupId, 'groupId')), { method: 'PUT', json });
+    return this.getGroup(groupId);
+  }
+
+  // role: 'Admin' | 'Contributor' | 'Limited' | 'Viewer'. Como la web: hacerlo admin va por addAdminIds; dejar de
+  // serlo, con el rol nuevo y removeAdminIds. Sólo el dueño nombra admins.
+  async setGroupMemberRole(groupId, userId, role, wasAdmin = false) {
+    assertId(groupId, 'groupId');
+    assertId(userId, 'userId');
+    if (!groups.roles.includes(role)) throw new MeweApiError({ message: `Rol desconocido: ${role}` });
+    const json = role === 'Admin' ? { addAdminIds: [userId] } : { permissions: { members: { roles: [{ userId, role }] }, group: {} } };
+    if (wasAdmin && role !== 'Admin') json.removeAdminIds = [userId];
+    await this.request(groups.details(groupId), { method: 'PUT', json });
+    return true;
+  }
+
+  async removeGroupMember(groupId, userId) {
+    await this.request(groups.member(assertId(groupId, 'groupId'), assertId(userId, 'userId')), { method: 'DELETE' });
+    return true;
+  }
+
+  // on: lo saca del grupo y no lo deja volver · off: lo deja volver a entrar
+  async setGroupBan(groupId, userId, on) {
+    const path = (on ? groups.ban : groups.unban)(assertId(groupId, 'groupId'), assertId(userId, 'userId'));
+    await this.request(path, { method: 'PUT' });
+    return true;
+  }
+
+  async getGroupBanned(groupId, offset = 0) {
+    const data = await this.request(groups.banned(assertId(groupId, 'groupId')), {
+      query: { offset: Math.max(0, Number(offset) || 0), maxResults: groups.membersPageSize },
+    });
+    const users = normalizeContacts(data).filter((user) => user.id);
+    return { users, hasMore: users.length >= groups.membersPageSize };
+  }
+
+  // --- Publicaciones nuevas de los grupos ("Nuevas publicaciones de la comunidad") ---
+
+  // Cada uno trae sólo el id del grupo (la web completa el resto con los grupos que ya tiene): el nombre y la
+  // foto salen de la lista de mis grupos
+  async getCommunities() {
+    const [data, mine] = await Promise.all([this.request(communities.groups), this.request(groups.mine)]);
+    const known = [...(mine?.confirmedGroups ?? mine?.groups ?? []), ...(mine?.unconfirmedGroups ?? [])];
+    return normalizeCommunities({ ...data, groups: [...(data?.groups ?? []), ...known] });
+  }
+
+  // Sin groupId: descarta todos
+  async dismissCommunity(groupId) {
+    if (groupId) await this.request(communities.dismiss, { method: 'POST', json: { groupIds: [assertId(groupId, 'groupId')] } });
+    else await this.request(communities.dismissAll, { method: 'POST', json: { all: true } });
+    return true;
+  }
+
   // --- Historias ---
 
   // Quienes tienen historias para ver (las propias no siempre vienen acá: ver getStories)
@@ -797,6 +953,19 @@ export class MeweClient {
     else await this.request(path, { method: 'DELETE', query: { emojis: emoji } });
     return true;
   }
+}
+
+// La categoría de un grupo va en el cuerpo, no en la ruta: alcanza con que sea un texto corto
+function assertCategory(categoryId) {
+  if (typeof categoryId !== 'string' || !categoryId || categoryId.length > 100) {
+    throw new MeweApiError({ message: `Categoría inválida: ${categoryId}` });
+  }
+  return categoryId;
+}
+
+// Ids de personas, sin repetir, hasta `max`
+function userIdList(userIds, max) {
+  return [...new Set((userIds ?? []).map((id) => assertId(id, 'userId')))].slice(0, max);
 }
 
 function requireText(text) {
