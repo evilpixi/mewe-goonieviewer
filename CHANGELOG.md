@@ -1,6 +1,6 @@
 # Changelog
 
-## Sin publicar
+## 0.5.0 — 2026-10-14
 
 - Grupos: crear grupos y, para quien los administra, cambiar su foto, portada y datos, los permisos de cada rol, el rol de cada miembro, y quitar o banear gente (con la lista de baneados).
 - Chats grupales entre personas: crearlos, cambiarles el nombre, sumar y sacar gente y salir. Su foto son tres burbujas superpuestas con fotos de sus miembros (siempre los mismos; si son menos de tres, un ícono de persona).
@@ -16,7 +16,7 @@
 - Listas → Grupos: cada grupo con publicaciones nuevas muestra una tira de hasta 10 tarjetas con ellas (imagen, comienzo del texto y autor) y **Ver más** para abrir el grupo.
 - Listas: Siguiendo y Seguidores se juntan en **Personas**, con un submenú. El filtro se abre con el botón 🔍; a la izquierda, **Crear grupo** o, en Personas, **Nuevo chat grupal**.
 - Corregido: abrir una mención de chat desde las notificaciones a veces no encontraba el mensaje, cuando era más viejo que los últimos ~500 del chat. Ahora salta a esa parte del chat; abajo se cargan los más recientes y **Ir al final** vuelve al último.
-- Chats: con la ventana angosta en escritorio, Enter vuelve a respetar el botón ⏎; sólo en Android hace siempre un salto de línea.
+- Chats: en escritorio Enter respeta el botón ⏎ aunque la ventana sea angosta; sólo en Android hace siempre un salto de línea.
 - Íconos: **Todo** es una casa y **Grupos** son cuatro cuadrados, como en MeWe.
 
 ## 0.4.0 — 2026-10-13
