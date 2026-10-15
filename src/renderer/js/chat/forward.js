@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { clearError, showError } from '../errorView.js';
-import { avatar } from '../ui/avatar.js';
+import { threadAvatar } from '../ui/avatar.js';
 import { emptyState, h } from '../ui/dom.js';
 import { plainText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
@@ -78,7 +78,7 @@ export function openForwardDialog({ account, message }) {
           h(
             'button',
             { type: 'button', className: 'menu-item account-item', attrs: { role: 'option' }, onClick: (event) => send(t, event.currentTarget) },
-            avatar(account.id, t.avatar, { name: t.name }),
+            threadAvatar(account.id, t),
             t.isGroup && h('span', { title: 'Chat de grupo' }, '👥'),
             userName(t.name, { fallback: 'Chat' }),
           ),

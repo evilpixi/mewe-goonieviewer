@@ -11,19 +11,22 @@ import { icon } from '../ui/icon.js';
 import { closeLightbox, openLightbox } from '../ui/lightbox.js';
 import { EDGE_SWIPE_PX, isMobile } from '../ui/mobile.js';
 import { confirmBlock } from '../ui/people.js';
+import { openPeoplePicker } from '../ui/peoplePicker.js';
 import { closePopover, openPopover } from '../ui/popover.js';
 import { createReactions } from '../ui/reactions.js';
 import { emojiOnlyCount, plainText, richText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
 import { createComposer } from './composer.js';
 import { canForward, openForwardDialog } from './forward.js';
-import { openChatMembers } from './groupChat.js';
+import { openAddToChat, openChatMembers } from './groupChat.js';
 
 const PAGE_SIZE = 25; // igual que config.mewe.chat.pageSize
 const RUN_GAP_MS = 5 * 60 * 1000; // mensajes del mismo autor más juntos que esto se agrupan
 const POLL_FAST_MS = 5000; // sin tiempo real
 const POLL_SLOW_MS = 30000; // con websocket conectado (sólo como red de seguridad)
-const MAX_PAGES_TO_FIND_REPLY = 20;
+// Para ir a un mensaje que no está cargado se prueban estas páginas hacia atrás; si no aparece, se piden los
+// mensajes que lo rodean (aroundId) y el chat queda mostrando esa parte (ver jumpTo)
+const PAGES_BEFORE_JUMP = 3;
 const OLDER_PAGES_PER_CLICK = 5; // "Cargar más antiguos" en búsqueda y galería
 const QUICK_REACTIONS = 15; // emojis del menú de un mensaje: dos filas, con el último lugar para "más emojis"
 // Gestos táctiles sobre un mensaje
@@ -104,10 +107,12 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
             label,
           );
         const info = infoTarget();
+        const invite = inviteAction();
         const menu = h(
           'div',
           { className: 'menu', attrs: { role: 'menu' } },
           info && item(info.icon, info.label, info.open),
+          invite && item('user-plus', invite.label, invite.run),
           isMobile() && item('search', 'Buscar en este chat', () => togglePanel('search')),
           isMobile() && item('image', 'Imágenes de este chat', () => togglePanel('gallery')),
         );
@@ -133,7 +138,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
   const panelEl = h('div', { className: 'chat-panel scroll', hidden: true });
   // Al subir a leer mensajes viejos aparece el botón para volver al final, sobre un degradado
   // que da a entender que queda chat más abajo (ver renderPin)
-  const pinBtn = h('button', { className: 'chat-pin', hidden: true, onClick: () => scrollToBottom() });
+  const pinBtn = h('button', { className: 'chat-pin', hidden: true, onClick: () => goToEnd() });
   const fadeEl = h('div', { className: 'chat-fade', attrs: { 'aria-hidden': 'true' } });
   const bodyEl = h('div', { className: 'chat-body' }, messagesEl, fadeEl, pinBtn, panelEl);
   const el = h('section', { className: 'chat-conversation' }, toolsEl, bodyEl, errorEl, composer.el);
@@ -147,6 +152,10 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
   let messages = [];
   let hasOlder = false;
   let loadingOlder = false;
+  // Se está viendo una parte vieja del chat (se saltó a un mensaje, ver jumpTo): faltan los más nuevos, que se
+  // traen al llegar abajo. Mientras, no se suma la última página (dejaría un hueco en el medio).
+  let hasNewer = false;
+  let loadingNewer = false;
   let generation = 0; // invalida respuestas de una conversación anterior
   let pollTimer = null;
   let pollMs = POLL_FAST_MS;
@@ -215,6 +224,38 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     return null;
   }
 
+  // "Invitar" del menú ⋮: a un chat grupal entre personas, o al grupo de MeWe dueño del chat
+  // (no en los de evento). → { label, run } o null
+  function inviteAction() {
+    if (!thread) return null;
+    if (thread.isMultiUser) {
+      const opened = thread;
+      return {
+        label: 'Invitar personas',
+        run: async () => {
+          const added = await openAddToChat({ account, thread: opened });
+          if (!added?.length) return;
+          opened.participants = [...opened.participants, ...added];
+          if (thread !== opened) return;
+          composer.setPeople(mentionable(account.id, thread));
+          onThreadChange?.(thread);
+        },
+      };
+    }
+    if (thread.chatType === 'EventChat' || !thread.isGroup) return null;
+    const groupId = thread.groupId ?? thread.id;
+    return {
+      label: 'Invitar al grupo',
+      run: () =>
+        openPeoplePicker({
+          account,
+          title: `Invitar a ${thread.name}`,
+          confirmLabel: 'Invitar',
+          onConfirm: (users) => api.inviteToGroup(account.id, groupId, users.map((user) => user.id)),
+        }),
+    };
+  }
+
   // --- Chat grupal: miembros ---
 
   function openMembers() {
@@ -244,7 +285,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
 
   // Trae la última página y la fusiona (carga inicial, polling y eventos en tiempo real)
   async function loadLatest({ scroll } = {}) {
-    if (!thread) return;
+    if (!thread || hasNewer) return;
     const gen = generation;
     try {
       const page = await api.getMessages(account.id, thread.id);
@@ -284,6 +325,51 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     } finally {
       loadingOlder = false;
     }
+  }
+
+  // Parte vieja del chat: trae los mensajes siguientes al último cargado. Cuando ya no hay más, el chat vuelve a
+  // estar al día y sigue con la última página como siempre.
+  async function loadNewer() {
+    if (!thread || !hasNewer || !messages.length || loadingNewer) return;
+    const gen = generation;
+    loadingNewer = true;
+    try {
+      const page = await api.getMessages(account.id, thread.id, undefined, { afterId: messages.at(-1).id });
+      if (gen !== generation) return;
+      merge(page);
+      hasNewer = page.length >= PAGE_SIZE;
+      render();
+      if (!hasNewer) loadLatest();
+    } catch (err) {
+      if (gen === generation) showError(errorEl, err, 'MeWe chat');
+    } finally {
+      loadingNewer = false;
+    }
+  }
+
+  // Muestra la parte del chat alrededor de un mensaje. Devuelve si el mensaje vino.
+  async function jumpTo(id) {
+    const gen = generation;
+    const page = await api.getMessages(account.id, thread.id, undefined, { aroundId: id });
+    if (gen !== generation || !page.some((m) => m.id === id)) return false;
+    messages = page;
+    hasOlder = page.length > 0;
+    hasNewer = true; // si en realidad ya era el final, loadNewer lo descubre al llegar abajo
+    pinned = false;
+    render();
+    return true;
+  }
+
+  // "Ir al final": desde una parte vieja, se vuelve a cargar el chat desde la última página
+  async function goToEnd() {
+    if (!hasNewer) {
+      scrollToBottom();
+      return;
+    }
+    hasNewer = false;
+    messages = [];
+    messagesEl.replaceChildren(emptyState('Cargando…'));
+    await loadLatest({ scroll: 'bottom' });
   }
 
   // Agrega los nuevos y reemplaza los que cambiaron (reacciones, ediciones, borrados)
@@ -328,6 +414,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       nodes.push(renderMessage(m, { continues, names, allImages }));
       prev = m;
     }
+    if (hasNewer) nodes.push(h('button', { className: 'btn load-older', onClick: loadNewer }, 'Cargar más recientes'));
     const stick = pinned; // redibujar puede mover el scroll: si estaba anclado, sigue anclado
     // sacar un <video> del documento lo pausa: los que estaban sonando siguen después de redibujar
     const playing = [...messagesEl.querySelectorAll('video')].filter((player) => !player.paused && !player.ended);
@@ -926,13 +1013,23 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     return names;
   }
 
-  // Click en una cita: va al original (cargando páginas anteriores si hace falta) y lo resalta
+  // Click en una cita (o una mención desde las notificaciones): va al original y lo resalta. Si no está cargado
+  // se prueban unas páginas anteriores y, si tampoco, se salta a la parte del chat donde está (ver jumpTo).
   async function scrollToMessage(id) {
     const gen = generation;
-    let target = messagesEl.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
-    for (let i = 0; !target && hasOlder && i < MAX_PAGES_TO_FIND_REPLY; i++) {
+    const find = () => messagesEl.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+    let target = find();
+    for (let i = 0; !target && hasOlder && i < PAGES_BEFORE_JUMP; i++) {
       if (!(await loadOlder()) || gen !== generation) return;
-      target = messagesEl.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+      target = find();
+    }
+    if (!target && hasOlder) {
+      try {
+        if (await jumpTo(id)) target = find();
+      } catch (err) {
+        console.warn('[chat] ir al mensaje', err);
+      }
+      if (gen !== generation) return;
     }
     if (!target) {
       showError(errorEl, { details: { message: 'No se encontró el mensaje original (puede haber sido eliminado).' } }, 'MeWe chat');
@@ -994,11 +1091,15 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       throw err;
     } finally {
       if (gen === generation && sent.length) {
-        merge(sent.filter((m) => m?.id).map((m) => ({ ...m, mine: true })));
-        render();
-        scrollToBottom();
         setUnread(false); // el envío va con setAsRead: MeWe ya lo marcó
-        loadLatest();
+        if (hasNewer) {
+          goToEnd(); // se estaba viendo una parte vieja: lo enviado aparece al final
+        } else {
+          merge(sent.filter((m) => m?.id).map((m) => ({ ...m, mine: true })));
+          render();
+          scrollToBottom();
+          loadLatest();
+        }
         onSent?.();
       }
     }
@@ -1053,11 +1154,12 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
     pinBtn.title = missed ? 'Mensajes nuevos: ir al final' : 'Ir al final y seguir los mensajes nuevos';
   }
 
-  // Al llegar arriba de todo carga los anteriores solo. El anclaje sigue a la posición:
-  // al fondo se ancla, más arriba se suelta.
+  // Al llegar arriba de todo carga los anteriores solo (y, en una parte vieja, al llegar abajo, los siguientes).
+  // El anclaje sigue a la posición: al fondo se ancla, más arriba se suelta. En una parte vieja nunca se ancla.
   messagesEl.addEventListener('scroll', () => {
     if (messagesEl.scrollTop < 40 && hasOlder && !loadingOlder) loadOlder();
-    const atBottom = isNearBottom();
+    if (hasNewer && isNearBottom()) loadNewer();
+    const atBottom = isNearBottom() && !hasNewer;
     if (atBottom === pinned) return;
     pinned = atBottom;
     if (pinned) missed = false;
@@ -1086,6 +1188,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       messages = [];
       videoBoxes.clear();
       hasOlder = false;
+      hasNewer = false;
       // sin el dato (chat abierto desde un grupo o una notificación) se asume sin leer
       unread = thread.unread !== false;
       readBtn.hidden = !unread;
@@ -1116,6 +1219,7 @@ export function createConversation({ onSent, onUnreadChange, onBlocked, onBack, 
       thread = null;
       messages = [];
       videoBoxes.clear();
+      hasNewer = false;
       unread = false;
       readBtn.hidden = true;
       pinBtn.hidden = true;

@@ -22,6 +22,20 @@ export function openNewGroupChat({ account }) {
   });
 }
 
+// Invitar gente a un chat grupal (no se puede elegir a quien ya está). Devuelve los que se sumaron, o null.
+export function openAddToChat({ account, thread }) {
+  return openPeoplePicker({
+    account,
+    title: 'Invitar al chat',
+    confirmLabel: 'Invitar',
+    excludeIds: thread.participants.map((user) => user.id),
+    onConfirm: async (users) => {
+      await api.addChatParticipants(account.id, thread.id, users.map((user) => user.id));
+      return users;
+    },
+  });
+}
+
 // Miembros de un chat grupal: cambiarle el nombre, sumar gente, sacar (sólo quien lo creó) y salir.
 //   onChanged(changes): cambió el nombre ({ name }) o los miembros ({ participants }) · onLeft(): se salió del chat
 export function openChatMembers({ account, thread, onChanged, onLeft }) {
@@ -33,7 +47,7 @@ export function openChatMembers({ account, thread, onChanged, onLeft }) {
   const renameForm = h('form', { className: 'chat-members-name' }, nameInput, renameBtn);
   const listEl = h('ul', { className: 'people-list chat-members-list scroll' });
   const countEl = h('strong');
-  const addBtn = h('button', { type: 'button', className: 'btn' }, icon('user-plus'), ' Agregar personas');
+  const addBtn = h('button', { type: 'button', className: 'btn' }, icon('user-plus'), ' Invitar personas');
   const leaveBtn = h('button', { type: 'button', className: 'btn danger' }, icon('log-out'), ' Salir del chat');
   const closeBtn = h('button', { type: 'button', className: 'btn primary', onClick: () => dialog.close() }, 'Listo');
   const dialog = h(
@@ -123,16 +137,7 @@ export function openChatMembers({ account, thread, onChanged, onLeft }) {
   });
 
   addBtn.addEventListener('click', async () => {
-    const added = await openPeoplePicker({
-      account,
-      title: 'Agregar al chat',
-      confirmLabel: 'Agregar',
-      excludeIds: participants.map((user) => user.id),
-      onConfirm: async (users) => {
-        await api.addChatParticipants(account.id, thread.id, users.map((user) => user.id));
-        return users;
-      },
-    });
+    const added = await openAddToChat({ account, thread: { ...thread, participants } });
     if (!added?.length) return;
     participants = [...participants, ...added];
     render();

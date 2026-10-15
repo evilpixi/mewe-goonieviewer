@@ -47,7 +47,8 @@ export const api = {
 
   // filter: 'users' | 'groups' | 'all'
   getChatThreads: (id, filter) => invoke('chat:threads', id, filter),
-  getMessages: (id, threadId, beforeId) => invoke('chat:messages', id, threadId, beforeId),
+  // options: { afterId } (los siguientes a un mensaje) · { aroundId } (los que lo rodean)
+  getMessages: (id, threadId, beforeId, options) => invoke('chat:messages', id, threadId, beforeId, options),
   // message: { text, replyTo, attachments, expiresIn }
   sendMessage: (id, threadId, message) => invoke('chat:send', id, threadId, message),
   // message: { text, images: [url] } → el mensaje nuevo en ese chat (las imágenes se vuelven a subir)

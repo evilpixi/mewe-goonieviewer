@@ -27,7 +27,7 @@ export const config = {
 
     chat: {
       threads: '/api/v2/chat/threads', // POST { addRequests, chatType }
-      messages: (threadId) => `/api/v2/chat/thread/${threadId}/messages`, // GET ?limit=&beforeId=
+      messages: (threadId) => `/api/v2/chat/thread/${threadId}/messages`, // GET ?limit=&beforeId= | afterId= | aroundId=
       send: (threadId) => `/api/v2/chat/thread/${threadId}/message`, // POST { message, setAsRead, replyTo, attachments }
       edit: (threadId, messageId) => `/api/v2/chat/thread/${threadId}/message/${messageId}`, // PUT { text }
       remove: (messageId) => `/api/v2/messages/message/${messageId}`, // DELETE: borra un mensaje propio, para todos

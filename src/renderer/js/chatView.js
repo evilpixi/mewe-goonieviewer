@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { createConversation } from './chat/conversation.js';
 import { openNewGroupChat } from './chat/groupChat.js';
 import { clearError, showError } from './errorView.js';
-import { avatar } from './ui/avatar.js';
+import { threadAvatar } from './ui/avatar.js';
 import { emptyState, h } from './ui/dom.js';
 import { icon } from './ui/icon.js';
 import { EDGE_SWIPE_PX, isMobile } from './ui/mobile.js';
@@ -386,7 +386,7 @@ export function createChatView({ navigate } = {}) {
             attrs: { 'aria-current': active ? 'true' : null },
             onClick: () => openThread(t, { read: true }),
           },
-          avatar(account.id, t.avatar, { name: t.name }),
+          threadAvatar(account.id, t),
           h(
             'span',
             { className: 'chat-thread-info' },

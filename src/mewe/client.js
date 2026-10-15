@@ -427,9 +427,12 @@ export class MeweClient {
     return true;
   }
 
-  async getMessages(threadId, myUserId, beforeId) {
+  // Sin nada, la última página. beforeId: los anteriores a ese mensaje · { afterId }: los siguientes ·
+  // { aroundId }: los que lo rodean (como la web al abrir un chat desde una notificación)
+  async getMessages(threadId, myUserId, beforeId, { afterId, aroundId } = {}) {
+    const id = (value) => (value ? assertId(value) : undefined);
     const data = await this.request(chat.messages(assertId(threadId, 'threadId')), {
-      query: { limit: chat.pageSize, beforeId: beforeId ? assertId(beforeId) : undefined },
+      query: { limit: chat.pageSize, beforeId: id(beforeId), afterId: id(afterId), aroundId: id(aroundId) },
     });
     return normalizeMessages(data, myUserId);
   }

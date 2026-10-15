@@ -67,7 +67,7 @@ export function registerChannels({ handle, accountManager, realtime }) {
   account('post:delete', (client, _me, postId, groupId) => client.deletePost(postId, groupId));
 
   account('chat:threads', (client, me, filter) => client.getChatThreads(me.userId, filter));
-  account('chat:messages', (client, me, threadId, beforeId) => client.getMessages(threadId, me.userId, beforeId));
+  account('chat:messages', (client, me, threadId, beforeId, options) => client.getMessages(threadId, me.userId, beforeId, options));
   account('chat:send', (client, me, threadId, message) => client.sendMessage(threadId, me.userId, message));
   account('chat:forward', (client, me, threadId, isGroup, message) => client.forwardMessage(threadId, me.userId, isGroup, message));
   account('chat:edit',(client, _me, threadId, messageId, text) => client.editMessage(threadId, messageId, text));
