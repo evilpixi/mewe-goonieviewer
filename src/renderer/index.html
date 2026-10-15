@@ -48,7 +48,7 @@
           </button>
         </div>
       </header>
-      <!-- segundo panel: controles propios de la vista activa (izquierda / centro / derecha) y Actualizar -->
+      <!-- segundo panel: controles propios de la vista activa (izquierda / centro / derecha) y su menú -->
       <div id="view-toolbar" class="view-toolbar" hidden>
         <div class="toolbar-zone left">
           <!-- sólo en mobile: vuelve a la vista anterior; mientras se escribe (la barra de navegación se oculta), cierra el teclado -->
@@ -60,8 +60,9 @@
         <div id="toolbar-center" class="toolbar-zone center"></div>
         <div class="toolbar-zone right">
           <div id="toolbar-right" class="toolbar-slot"></div>
-          <button id="refresh-view" class="btn icon-btn" title="Actualizar (F5)" aria-label="Actualizar" hidden>
-            <span class="icon icon-refresh-cw" aria-hidden="true"></span>
+          <!-- menú de la vista: Actualizar y lo que agregue la vista (ej. el estado del tiempo real en Chats) -->
+          <button id="view-menu" class="btn icon-btn" title="Más opciones" aria-label="Más opciones" aria-haspopup="menu" hidden>
+            <span class="icon icon-menu" aria-hidden="true"></span>
           </button>
         </div>
       </div>

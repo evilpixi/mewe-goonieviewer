@@ -30,7 +30,7 @@ const profileBtn = $('#app-title');
 const errorEl = $('#app-error');
 const viewTabsEl = $('#view-tabs');
 const toolbarEl = $('#view-toolbar');
-const refreshBtn = $('#refresh-view');
+const viewMenuBtn = $('#view-menu');
 const backBtn = $('#nav-back');
 
 const notifBtn = $('#open-notifications');
@@ -45,7 +45,7 @@ const NOTIF_POLL_MS = 60000;
 // Novedades de otra cuenta en el menú de la cuenta: [qué (ver accountActivity.js), ícono]
 const ACTIVITY_ICONS = [
   ['dms', 'message-circle'],
-  ['groups', 'users-round'],
+  ['groups', 'layout-grid'],
   ['mentions', 'bell'],
 ];
 
@@ -54,17 +54,49 @@ let active = null;
 let rootView = savedView();
 let optionsMenu = null; // popover del menú Opciones mientras está abierto
 let accountMenu = null; // ídem, el menú de la cuenta (mobile)
-let viewState = { canGoBack: false, hasToolbar: false, canReload: false }; // lo último que avisó el router
+let viewMenu = null; // ídem, el menú ☰ de la vista
+let viewState = { canGoBack: false, hasToolbar: false, canReload: false, hasMenu: false }; // lo último que avisó el router
 
 applySettings();
 
-// Segundo panel: sólo se muestra si la vista pone algo, se puede actualizar o hay adónde volver.
+// Segundo panel: sólo se muestra si la vista pone algo, tiene menú (Actualizar…) o hay adónde volver.
 // "Volver" es de mobile: ahí no hay Alt+← y, mientras se escribe, la barra de navegación está oculta.
 function renderToolbar() {
-  refreshBtn.hidden = !active || !viewState.canReload;
+  viewMenuBtn.hidden = !active || !(viewState.canReload || viewState.hasMenu);
   backBtn.hidden = !isMobile() || !(viewState.canGoBack || keyboardOpen());
-  toolbarEl.hidden = backBtn.hidden && (!active || (!viewState.hasToolbar && refreshBtn.hidden));
+  toolbarEl.hidden = backBtn.hidden && (!active || (!viewState.hasToolbar && viewMenuBtn.hidden));
 }
+
+// Menú ☰ de la vista: lo que ella agregue (ver router.js) y "Actualizar" (F5)
+viewMenuBtn.addEventListener('click', () => {
+  if (viewMenu?.el.isConnected) {
+    closePopover();
+    return;
+  }
+  const extra = router.menuItems();
+  const menu = h(
+    'div',
+    { className: 'menu', attrs: { role: 'menu' } },
+    extra,
+    extra.length > 0 && viewState.canReload && h('hr', { className: 'menu-sep' }),
+    viewState.canReload &&
+      h(
+        'button',
+        {
+          className: 'menu-item account-item',
+          attrs: { role: 'menuitem' },
+          onClick: () => {
+            closePopover();
+            router.reload();
+          },
+        },
+        h('span', { className: 'account-item-icon' }, icon('refresh-cw')),
+        'Actualizar (F5)',
+      ),
+  );
+  viewMenu = openPopover(viewMenuBtn, menu, { className: 'menu-popover', label: 'Más opciones' });
+  menu.querySelector('button')?.focus();
+});
 
 // Vuelve a la vista anterior; si no hay (se está escribiendo en una vista raíz), cierra el teclado
 backBtn.addEventListener('click', () => {
@@ -76,7 +108,7 @@ onMobileChange(renderToolbar);
 const router = createRouter({
   host: $('#view-host'),
   toolbarSlots: { left: $('#toolbar-left'), center: $('#toolbar-center'), right: $('#toolbar-right') },
-  onChange: ({ view, canGoBack, hasToolbar, canReload }) => {
+  onChange: ({ view, canGoBack, hasToolbar, canReload, hasMenu }) => {
     for (const btn of viewTabsEl.querySelectorAll('[data-view]')) {
       const selected = btn.dataset.view === view;
       btn.classList.toggle('active', selected);
@@ -86,7 +118,7 @@ const router = createRouter({
     notifBtn.classList.toggle('active', view === 'notifications');
     optionsBtn.classList.toggle('active', view === 'settings');
     searchBtn.classList.toggle('active', view === 'search');
-    viewState = { canGoBack, hasToolbar, canReload };
+    viewState = { canGoBack, hasToolbar, canReload, hasMenu };
     renderToolbar();
   },
 });
@@ -371,7 +403,6 @@ async function refreshActiveAccount() {
   return account;
 }
 
-refreshBtn.addEventListener('click', () => router.reload());
 
 async function relogin() {
   if (!active) return;

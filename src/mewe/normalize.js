@@ -238,6 +238,10 @@ export function normalizeThreads(data, myUserId) {
       participantsCount: others.length,
       // con quién se habla en un chat de a dos (para su perfil y su portada)
       userId: !isGroup && others.length === 1 ? (others[0].id ?? others[0].userId ?? null) : null,
+      // chat grupal entre personas (no el de un grupo): se le suman y sacan miembros. Lo administra quien lo creó.
+      isMultiUser: !isGroup && others.length > 1,
+      startedBy: thread.startedBy ?? null,
+      participants: others.map((p) => ({ ...normalizeUser(p), handle: p.publicLinkId ?? null })),
       lastMessage:
         emojify(last.message ?? last.text) ||
         (last.attachments?.length ? (last.attachments.some(isVideo) ? '🎬 Video' : '📷 Imagen') : ''),
@@ -507,10 +511,17 @@ export function normalizeGroup(data) {
     description: g.descriptionPlain || g.description || '',
     membersCount: g.membersCount ?? null,
     isPublic: Boolean(g.isPublic),
+    isPublicApply: Boolean(g.isPublicApply),
     publicUrlId: g.publicUrlId ?? null,
     role: roleName(g.role),
     ownerId: g.ownerId ?? null,
     adminIds: g.adminIds ?? [],
+    // dueño o admin: puede cambiar los datos, la foto, los permisos y los roles, y sacar o banear gente
+    canManage: Boolean(g.isOwnerAdmin) || /owner|admin/i.test(roleName(g.role) ?? ''),
+    categoryId: g.groupThematicType ?? null,
+    // qué puede hacer cada rol: { Contributor: ['post', 'comment', 'invite'], Limited: […], Viewer: […] }
+    rolePermissions: Object.fromEntries((g.rolesPermissions ?? []).map((r) => [r.name, r.permissions ?? []])),
+    publicRole: g.publicRole ?? null, // el rol con el que entra la gente nueva
     isMember,
     isInvited,
     alreadyApplied: Boolean(g.alreadyApplied),
@@ -571,6 +582,33 @@ export function normalizeEvents(data) {
       hasChat: e.chatMode !== 'off' && e.chatMode !== 'disabled',
     };
   });
+}
+
+// Categorías para crear un grupo (la web no deja "Uncategorized" ni la pseudo-categoría "all")
+export function normalizeGroupCategories(data) {
+  const list = data?.categories ?? (Array.isArray(data) ? data : []);
+  return list
+    .map((c) => ({ id: c.id ?? null, name: c.name ?? c.categoryName ?? c.id ?? '' }))
+    .filter((c) => c.id && c.id !== 'all' && c.id !== 'Uncategorized');
+}
+
+// Grupos con publicaciones sin ver (GET /communities/wrappers/groups): [{ id, name, avatar, count, updatedAt }]
+// MeWe manda sólo { type, id, lastActivity (ms), postsCount }: el grupo va aparte, en `groups` (ver getCommunities).
+export function normalizeCommunities(data) {
+  const groups = new Map((data?.groups ?? []).map((g) => [g.id ?? g._id, g]));
+  return (data?.wrappers ?? [])
+    .filter((w) => (w.type ?? w.scope ?? 'group') === 'group')
+    .map((w) => {
+      const group = w.group ?? groups.get(w.id) ?? {};
+      return {
+        id: w.id ?? group.id ?? null,
+        name: group.name ?? w.name ?? 'Grupo',
+        avatar: groupAvatar(group),
+        count: w.postsCount ?? 0,
+        updatedAt: toMillis(w.lastActivity ?? w.createdAt),
+      };
+    })
+    .filter((c) => c.id);
 }
 
 function roleName(role) {

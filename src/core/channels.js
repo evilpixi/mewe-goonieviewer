@@ -64,12 +64,14 @@ export function registerChannels({ handle, accountManager, realtime }) {
   account('post:upload', (client, _me, file) => client.uploadPostImage(file));
   account('post:create', (client, _me, post) => client.createPost(post));
   account('post:edit', (client, _me, postId, groupId, changes) => client.editPost(postId, groupId, changes));
+  account('post:delete', (client, _me, postId, groupId) => client.deletePost(postId, groupId));
 
   account('chat:threads', (client, me, filter) => client.getChatThreads(me.userId, filter));
-  account('chat:messages', (client, me, threadId, beforeId) => client.getMessages(threadId, me.userId, beforeId));
+  account('chat:messages', (client, me, threadId, beforeId, options) => client.getMessages(threadId, me.userId, beforeId, options));
   account('chat:send', (client, me, threadId, message) => client.sendMessage(threadId, me.userId, message));
   account('chat:forward', (client, me, threadId, isGroup, message) => client.forwardMessage(threadId, me.userId, isGroup, message));
   account('chat:edit',(client, _me, threadId, messageId, text) => client.editMessage(threadId, messageId, text));
+  account('chat:delete', (client, _me, messageId) => client.deleteMessage(messageId));
   account('chat:upload', (client, _me, isGroup, file) => client.uploadChatImage(isGroup, file));
   account('chat:video', (client, _me, threadId, file, options) => client.sendChatVideo(threadId, file, options));
   account('chat:react', (client, _me, threadId, messageId, emoji, on) =>
@@ -77,6 +79,11 @@ export function registerChannels({ handle, accountManager, realtime }) {
   );
   account('chat:reactors', (client, _me, threadId, messageId) => client.getMessageReactors(threadId, messageId));
   account('chat:open', (client, me, userId) => client.openChatWith(userId, me.userId));
+  account('chat:createGroup', (client, me, userIds, name) => client.createGroupChat(userIds, name, me.userId));
+  account('chat:addParticipants', (client, _me, threadId, userIds) => client.addChatParticipants(threadId, userIds));
+  account('chat:removeParticipant', (client, _me, threadId, userId) => client.removeChatParticipant(threadId, userId));
+  account('chat:rename', (client, _me, threadId, name) => client.renameChat(threadId, name));
+  account('chat:leave', (client, _me, threadId) => client.leaveChat(threadId));
   account('chat:read', (client, _me, threadId) => client.markChatRead(threadId));
   account('chat:seen', (client, _me, messageId) => client.markMessageSeen(messageId));
   handle('chat:realtime', (accountId) => realtime.start(accountId));
@@ -105,6 +112,17 @@ export function registerChannels({ handle, accountManager, realtime }) {
   account('group:leave', (client, me, groupId) => client.leaveGroup(groupId, me.userId));
   account('group:contacts', (client, _me, groupId, query, offset) => client.searchGroupContacts(groupId, query, offset));
   account('group:invite', (client, _me, groupId, userIds) => client.inviteToGroup(groupId, userIds));
+  account('group:categories', (client) => client.getGroupCategories());
+  account('group:create', (client, _me, group) => client.createGroup(group));
+  account('group:update', (client, _me, groupId, changes) => client.updateGroup(groupId, changes));
+  account('group:setPhoto', (client, _me, groupId, kind, file) => client.setGroupPhoto(groupId, kind, file));
+  account('group:setPermissions', (client, _me, groupId, settings) => client.setGroupPermissions(groupId, settings));
+  account('group:setRole', (client, _me, groupId, userId, role, wasAdmin) => client.setGroupMemberRole(groupId, userId, role, wasAdmin));
+  account('group:removeMember', (client, _me, groupId, userId) => client.removeGroupMember(groupId, userId));
+  account('group:ban', (client, _me, groupId, userId, on) => client.setGroupBan(groupId, userId, on));
+  account('group:banned', (client, _me, groupId, offset) => client.getGroupBanned(groupId, offset));
+  account('group:communities', (client) => client.getCommunities());
+  account('group:dismissCommunity', (client, _me, groupId) => client.dismissCommunity(groupId));
 
   account('story:tellers', (client, me) => client.getStorytellers(me.userId));
   account('story:list', (client, _me, tellerId, isPage) => client.getStories(tellerId, isPage));

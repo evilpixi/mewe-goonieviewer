@@ -15,6 +15,12 @@ const ICONS = [
   'ellipsis', 'forward', 'timer',
   // historias
   'pause', 'trash-2', 'send', 'chevron-left', 'chevron-right', 'type', 'image', 'eye',
+  // administrar grupos y chats grupales
+  'user-plus', 'user-minus', 'shield', 'log-out', 'camera',
+  // "Todo" en los filtros (los grupos usan layout-grid, como MeWe)
+  'house',
+  // menú de la vista (segundo panel) y nuevo chat
+  'menu', 'message-circle-plus',
 ];
 const SOURCE = new URL('../node_modules/lucide-static/icons/', import.meta.url);
 const OUTPUT = new URL('../src/renderer/icons/', import.meta.url);

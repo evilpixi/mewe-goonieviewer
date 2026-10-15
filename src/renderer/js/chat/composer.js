@@ -4,7 +4,7 @@ import { openEmojiPicker } from '../ui/emojiPicker.js';
 import { takeFiles } from '../ui/files.js';
 import { icon } from '../ui/icon.js';
 import { attachMentions } from '../ui/mentions.js';
-import { isMobile } from '../ui/mobile.js';
+import { isAndroid } from '../ui/mobile.js';
 import { plainText } from '../ui/richText.js';
 import { userName } from '../ui/userName.js';
 import { isRollCommand, parseRoll, rollMessage } from './dice.js';
@@ -29,8 +29,8 @@ const TIMER_SECONDS = 86400;
 // Menciones: "@" y el nombre abren un menú para elegir a quién mencionar (ver ui/mentions.js).
 // Dados de rol: botón 🎲 (elige los dados y envía la tirada) o escribir "/roll 2d20" (ver dice.js).
 // Dos filas: arriba la caja de texto a todo el ancho, abajo los botones (con "Enviar" al final).
-// Botón "Enter envía" (sólo escritorio): elige si Enter envía el mensaje o hace un salto de línea.
-// En mobile Enter siempre hace un salto de línea: se envía con el botón.
+// Botón ⏎ al lado de "Enviar" (Windows, Linux y macOS, también con la ventana angosta): elige si Enter envía el
+// mensaje o hace un salto de línea. En Android Enter siempre hace un salto de línea: se envía con el botón.
 // Botón ⤢: caja grande para textos de varias líneas (ahí Enter hace salto de línea y Ctrl+Enter envía).
 // El placeholder es corto para que entre en una línea; las teclas van en el title.
 const PLACEHOLDER = 'Escribe un mensaje…';
@@ -69,8 +69,8 @@ export function createComposer({ onSend }) {
     { type: 'button', className: 'btn icon-btn expand-btn', title: 'Agrandar la caja de texto', attrs: { 'aria-label': 'Agrandar la caja de texto', 'aria-pressed': 'false' } },
     icon('maximize-2'),
   );
-  // en mobile no se muestra (ver styles.css)
-  const enterBtn = h('button', { type: 'button', className: 'btn enter-btn' }, icon('corner-down-left'), h('span', {}, 'Enter envía'));
+  // Ícono pegado al de enviar; en mobile no se muestra (ver styles.css)
+  const enterBtn = h('button', { type: 'button', className: 'btn icon-btn enter-btn' }, icon('corner-down-left'));
   // en mobile se ve sólo el ícono (ver styles.css)
   const sendIcon = icon('send');
   sendIcon.classList.add('label-icon');
@@ -155,11 +155,12 @@ export function createComposer({ onSend }) {
   const mentions = attachMentions(textarea, { accountId: () => accountId, people: () => people?.() ?? [] });
 
   // ¿Enter (sin modificadores) envía? Si no, hace un salto de línea y se envía con Ctrl+Enter o con el botón.
-  const sendsOnEnter = () => enterSends && !expanded && !isMobile();
+  const sendsOnEnter = () => enterSends && !expanded && !isAndroid;
 
   function renderEnterMode() {
     enterBtn.setAttribute('aria-pressed', String(enterSends));
     enterBtn.title = enterSends ? 'Enter envía el mensaje. Click para que haga un salto de línea.' : 'Enter hace un salto de línea. Click para que envíe el mensaje.';
+    enterBtn.setAttribute('aria-label', `Enter envía: ${enterSends ? 'sí' : 'no'}`);
     textarea.title = sendsOnEnter() ? HINT : HINT_NEWLINE;
     // la tecla Enter del teclado en pantalla
     textarea.enterKeyHint = sendsOnEnter() ? 'send' : 'enter';
@@ -431,7 +432,7 @@ export function createComposer({ onSend }) {
     clear,
     focus: () => {
       autosize(); // recién ahora la caja es visible y se puede medir
-      renderEnterMode(); // el ancho de la ventana (mobile o no) pudo cambiar
+      renderEnterMode();
       textarea.focus();
     },
     setStatus: (text) => {

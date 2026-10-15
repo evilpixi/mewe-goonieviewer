@@ -8,7 +8,7 @@ import { userName } from './userName.js';
 // Menciones al escribir. Con "@" y, si se quiere, parte del nombre, aparece un menú para elegir a quién
 // mencionar; se va afinando mientras se sigue escribiendo. En la caja queda "@Nombre": el formato de MeWe
 // (@{{u_<userId>}Nombre}, ver richText.js) se arma recién al enviar, con encode().
-const OPEN_DELAY_MS = 1500; // desde que se escribe la "@" hasta que aparece el menú
+const OPEN_DELAY_MS = 1100; // desde que se escribe la "@" hasta que aparece el menú
 const SEARCH_DEBOUNCE_MS = 250; // con el menú ya abierto, entre lo que se escribe y la búsqueda
 const MAX_OPTIONS = 8;
 const MIN_SEARCH = 2; // el buscador de MeWe no acepta menos letras

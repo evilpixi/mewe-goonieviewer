@@ -9,6 +9,7 @@ import { openLightbox } from '../ui/lightbox.js';
 import { closePopover, openPopover } from '../ui/popover.js';
 import { openPostComposer } from '../ui/postComposer.js';
 import { createPostList } from '../ui/postList.js';
+import { openGroupSettings, ROLE_LABELS } from '../ui/groupAdmin.js';
 import { createTabs } from '../ui/tabs.js';
 import { userName } from '../ui/userName.js';
 
@@ -42,6 +43,7 @@ export function createGroupView({ navigate }) {
     tabs: [
       ['all', 'Todos'],
       ['admins', 'Admins'],
+      ['banned', 'Baneados'], // sólo para quien administra el grupo
     ],
     onChange: () => loadMembers(),
   });
@@ -114,6 +116,8 @@ export function createGroupView({ navigate }) {
       if (gen !== generation) return;
       group = { ...data, id: data.id ?? params.groupId };
       createBtn.hidden = !group.isMember;
+      memberFilter.setHidden('banned', !group.canManage);
+      if (!group.canManage && memberFilter.value === 'banned') memberFilter.select('all');
       renderHeader();
       contentEl.hidden = false;
       tabs.select(params.tab ?? 'posts');
@@ -141,6 +145,20 @@ export function createGroupView({ navigate }) {
   function renderHeader() {
     const g = group;
     const actions = [];
+    if (g.canManage) {
+      actions.push(
+        h(
+          'button',
+          {
+            className: 'btn',
+            attrs: { 'aria-haspopup': 'dialog' },
+            onClick: () => openGroupSettings({ account, group: g, onSaved: () => g === group && show(account, last) }),
+          },
+          icon('settings'),
+          ' Administrar',
+        ),
+      );
+    }
     if (g.isMember) {
       actions.push(
         h('button', { className: 'btn', onClick: () => navigate('chat', { thread: { id: g.id, name: g.name, avatar: g.avatar, isGroup: true } }) }, '💬 Chat'),
@@ -366,7 +384,8 @@ export function createGroupView({ navigate }) {
 
   async function loadMembers(append = false) {
     const gen = generation;
-    const adminsOnly = memberFilter.value === 'admins';
+    const filter = memberFilter.value;
+    const adminsOnly = filter === 'admins';
     membersMore.disabled = true;
     clearError(membersError);
     if (!append) {
@@ -375,15 +394,25 @@ export function createGroupView({ navigate }) {
       membersList.replaceChildren(emptyState('Cargando…', 'li'));
     }
     try {
+      if (filter === 'banned') {
+        const page = await api.getGroupBanned(account.id, group.id, members.length);
+        if (gen !== generation || filter !== memberFilter.value) return;
+        const known = new Set(members.map((m) => m.id));
+        const fresh = page.users.filter((user) => !known.has(user.id)).map((user) => ({ ...user, banned: true }));
+        members = [...members, ...fresh];
+        membersMore.hidden = !page.hasMore || !fresh.length;
+        renderMembers();
+        return;
+      }
       const page = await api.getGroupMembers(account.id, group.id, { offset: members.length, adminsOnly });
-      if (gen !== generation || adminsOnly !== (memberFilter.value === 'admins')) return;
+      if (gen !== generation || filter !== memberFilter.value) return;
       const known = new Set(members.map((m) => m.id));
       // el grupo dice quiénes son dueño y admins: vale aunque la lista de miembros no traiga el rol
       const staff = new Set([group.ownerId, ...group.adminIds]);
       const withRoles = page.members.map((m) => ({
         ...m,
         isAdmin: m.isAdmin || staff.has(m.id),
-        role: m.id === group.ownerId ? 'owner' : m.role || (staff.has(m.id) ? 'admin' : null),
+        role: m.id === group.ownerId ? 'Owner' : m.role || (staff.has(m.id) ? 'Admin' : null),
       }));
       // por si MeWe ignora el filtro del servidor, se filtra también acá
       const fresh = withRoles.filter((m) => !known.has(m.id) && (!adminsOnly || m.isAdmin));
@@ -402,7 +431,7 @@ export function createGroupView({ navigate }) {
 
   function renderMembers() {
     if (!members.length) {
-      membersList.replaceChildren(emptyState('No hay miembros para mostrar.', 'li'));
+      membersList.replaceChildren(emptyState(memberFilter.value === 'banned' ? 'No hay nadie baneado.' : 'No hay miembros para mostrar.', 'li'));
       return;
     }
     membersList.replaceChildren(
@@ -421,11 +450,130 @@ export function createGroupView({ navigate }) {
               member.handle && h('span', { className: 'person-meta' }, `@${member.handle}`),
             ),
           ),
-          member.isAdmin && h('span', { className: 'badge accent' }, roleLabel(member.role)),
+          // quien administra ve el rol de todos; el resto, sólo quiénes son dueño y admins
+          (member.isAdmin || (group.canManage && member.role)) && h('span', { className: `badge${member.isAdmin ? ' accent' : ''}` }, roleLabel(member.role)),
           member.pending && h('span', { className: 'badge' }, 'Invitado'),
+          member.banned
+            ? h('button', { className: 'btn', onClick: (event) => unban(member, event.currentTarget) }, 'Desbanear')
+            : canModerate(member) &&
+                h(
+                  'button',
+                  {
+                    className: 'btn icon-btn',
+                    title: 'Administrar miembro',
+                    attrs: { 'aria-label': `Administrar a ${member.name}`, 'aria-haspopup': 'menu' },
+                    onClick: (event) => openMemberMenu(event.currentTarget, member),
+                  },
+                  icon('ellipsis-vertical'),
+                ),
         ),
       ),
     );
+  }
+
+  // --- Administrar miembros (dueño y admins) ---
+
+  const isOwner = () => group.role === 'Owner' || (Boolean(group.ownerId) && group.ownerId === account.userId);
+
+  // Al dueño no lo toca nadie; a un admin, sólo el dueño
+  function canModerate(member) {
+    if (!group.canManage || member.pending || member.id === account.userId || member.role === 'Owner') return false;
+    return !member.isAdmin || isOwner();
+  }
+
+  // Rol (los admins los nombra sólo el dueño), quitar del grupo o banear
+  function openMemberMenu(anchor, member) {
+    const item = (label, run, { className = '', current = false, iconName = null } = {}) =>
+      h(
+        'button',
+        {
+          className: `menu-item account-item${current ? ' active' : ''} ${className}`.trim(),
+          disabled: current,
+          attrs: { role: 'menuitem', 'aria-current': current ? 'true' : null },
+          onClick: () => {
+            closePopover();
+            run();
+          },
+        },
+        h('span', { className: 'account-item-icon' }, iconName ? icon(iconName) : current ? icon('check') : ''),
+        label,
+      );
+    const roles = ['Admin', 'Contributor', 'Limited', 'Viewer'].filter((role) => role !== 'Admin' || isOwner());
+    const menu = h(
+      'div',
+      { className: 'menu', attrs: { role: 'menu' } },
+      h('div', { className: 'menu-label' }, icon('shield'), ' Rol'),
+      roles.map((role) => item(ROLE_LABELS[role], () => changeRole(member, role), { current: member.role === role })),
+      h('hr', { className: 'menu-sep' }),
+      item('Quitar del grupo', () => removeMember(member), { iconName: 'user-minus', className: 'danger' }),
+      item('Banear del grupo', () => ban(member), { iconName: 'ban', className: 'danger' }),
+    );
+    openPopover(anchor, menu, { className: 'menu-popover', label: `Administrar a ${member.name}` });
+    menu.querySelector('button:not(:disabled)')?.focus();
+  }
+
+  // Corre una acción sobre un miembro y, si sale bien, actualiza la lista con `update`
+  async function moderate(action, update) {
+    const gen = generation;
+    clearError(membersError);
+    try {
+      await action();
+      if (gen !== generation) return;
+      update();
+      renderMembers();
+    } catch (err) {
+      if (gen === generation) showError(membersError, err, 'MeWe miembros');
+    }
+  }
+
+  function changeRole(member, role) {
+    const wasAdmin = member.isAdmin;
+    return moderate(
+      () => api.setGroupMemberRole(account.id, group.id, member.id, role, wasAdmin),
+      () => {
+        Object.assign(member, { role, isAdmin: role === 'Admin' });
+        group.adminIds = role === 'Admin' ? [...new Set([...group.adminIds, member.id])] : group.adminIds.filter((id) => id !== member.id);
+        if (memberFilter.value === 'admins' && role !== 'Admin') members = members.filter((m) => m !== member);
+      },
+    );
+  }
+
+  async function removeMember(member) {
+    const gen = generation;
+    const confirmed = await confirmDialog({
+      title: `¿Quitar a ${member.name} del grupo?`,
+      text: 'Podrá volver a entrar si el grupo lo permite o si lo invitan.',
+      confirmLabel: 'Quitar',
+      danger: true,
+    });
+    if (!confirmed || gen !== generation) return;
+    moderate(
+      () => api.removeGroupMember(account.id, group.id, member.id),
+      () => (members = members.filter((m) => m !== member)),
+    );
+  }
+
+  async function ban(member) {
+    const gen = generation;
+    const confirmed = await confirmDialog({
+      title: `¿Banear a ${member.name} del grupo?`,
+      text: 'Se lo saca del grupo y no va a poder volver a entrar ni pedirlo. Se puede desbanear desde Miembros → Baneados.',
+      confirmLabel: 'Banear',
+      danger: true,
+    });
+    if (!confirmed || gen !== generation) return;
+    moderate(
+      () => api.setGroupBan(account.id, group.id, member.id, true),
+      () => (members = members.filter((m) => m !== member)),
+    );
+  }
+
+  function unban(member, button) {
+    button.disabled = true;
+    return moderate(
+      () => api.setGroupBan(account.id, group.id, member.id, false),
+      () => (members = members.filter((m) => m !== member)),
+    ).finally(() => (button.disabled = false));
   }
 
   async function loadEvents() {
@@ -493,5 +641,6 @@ function roleLabel(role) {
   if (/owner/i.test(role)) return 'Dueño';
   if (/admin/i.test(role)) return 'Admin';
   if (/moderator/i.test(role)) return 'Moderador';
-  return role;
+  if (/custom/i.test(role)) return 'Personalizado';
+  return ROLE_LABELS[role] ?? role;
 }

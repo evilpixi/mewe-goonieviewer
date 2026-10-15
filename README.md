@@ -34,17 +34,18 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 
 ### Feed
 - Tres vistas: todo, personas y grupos.
-- Crear publicaciones con texto e imágenes, en tu feed o en un grupo, con borrador automático; editar el texto de las propias.
+- Crear publicaciones con texto e imágenes, en tu feed o en un grupo, con borrador automático; editar el texto de las propias y eliminarlas.
 - Reacciones con emojis, y quién reaccionó con cada uno.
 - Comentarios y respuestas a comentarios.
 - Galería con todas las imágenes de una publicación y visor a pantalla completa con zoom, guardar y copiar al portapapeles.
 
 ### Chats
-- Chats con personas, de grupos y de eventos, con filtro por tipo.
+- Chats con personas, de grupos y de eventos, con filtro por tipo y buscador por nombre.
+- Menú ⋮ de cada chat con **Información**: el perfil de la persona, el grupo o los miembros del chat grupal.
 - Dados de rol: el botón de dados o `/roll 2d20+1d6-3 {mensaje opcional}` envían la tirada como un mensaje (hasta 20 dados de hasta 100 caras).
 - Mensajes nuevos en tiempo real (websocket), agrupados por día.
 - Menú de cada mensaje (los tres puntitos que aparecen al pasarle el mouse): reaccionar con los emojis a la vista,
-  responder, reenviar, editar los propios y copiar el texto.
+  responder, reenviar, editar o eliminar los propios y copiar el texto.
 - Responder a un mensaje; al hacer click en una respuesta se salta al mensaje original.
 - Reenviar un mensaje a otro chat, con su texto y sus imágenes (los videos y archivos no se reenvían).
 - Reacciones con emojis, y quién las puso. El selector tiene buscador, categorías y los usados hace poco.
@@ -55,6 +56,8 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 - Las respuestas a una historia muestran una vista previa de esa historia.
 - Visor de imágenes a pantalla completa, con guardar y copiar.
 - Bloquear a una persona desde su chat.
+- Chats grupales entre personas: crearlos (con nombre opcional), cambiarles el nombre, sumar gente, salir y, quien lo
+  creó, sacar gente.
 
 ### Historias
 - Grilla, sobre fondo negro, con quienes tienen historias; las que todavía no viste quedan resaltadas.
@@ -77,15 +80,24 @@ y notificaciones. En escritorio está hecha con Electron; en Android es la misma
 - En tu perfil: editar la foto, la portada y tus datos, y las listas de solicitudes de seguimiento y de bloqueados.
 
 ### Listas y grupos
-- Lista de tus grupos e invitaciones pendientes, y de las personas que seguís y que te siguen, con filtro por nombre.
-- Desde una persona: ver su perfil, enviarle un mensaje, copiar su link o bloquearla.
+- Dos listas: tus grupos e invitaciones pendientes, y **Personas**, con un submenú para las que seguís y las que te
+  siguen. El botón 🔍 abre un filtro por nombre.
+- Desde una persona: ver su perfil, enviarle un mensaje, copiar su link o bloquearla. En Personas, el botón 💬+ crea
+  un chat grupal; en Grupos, el botón + crea un grupo.
 - Publicaciones, miembros (con filtro de administradores), eventos próximos y pasados, y chat del grupo.
 - El chat de un grupo se abre desde la lista o desde el grupo, dentro de la sección Chats.
 - Unirse, salir e invitar contactos.
+- Crear grupos (abiertos, selectivos o privados).
+- En la lista, cada grupo con publicaciones nuevas muestra debajo una tira de hasta 10 tarjetas con ellas (su
+  imagen, el comienzo del texto y quién la publicó), que se recorre de costado; al final, **Ver más** abre el grupo.
+- Si lo administrás: cambiar su foto, portada, nombre, descripción y categoría; qué puede hacer cada rol y con qué rol
+  entra la gente nueva; el rol de cada miembro (los admins los nombra sólo el dueño); quitar y banear gente, y la
+  lista de baneados.
 
 ### Notificaciones
 - Contador de pendientes en la cabecera.
-- Las de grupos van en una pestaña aparte.
+- Arriba, una tira con los grupos que tienen publicaciones nuevas: se recorre de costado, cada uno se abre o se
+  quita, y **Ver más** lleva a la lista de grupos.
 - Aceptar o rechazar solicitudes de seguimiento y seguir a quien te sigue (si todavía no lo seguís), desde la misma lista.
 - Al hacer click llevan al lugar correspondiente: perfil, publicación, comentario o mensaje.
 
@@ -101,8 +113,9 @@ escritorio aparece al achicar la ventana. No hay versión para iOS.
 - Tu foto abre también las otras cuentas, cada una con un contador de lo que tiene sin leer.
 - Chats en dos pantallas: la lista a todo el ancho o la conversación. Dentro de una conversación, una lengüeta sobre el
   borde izquierdo muestra u oculta la lista compacta (sólo fotos), tocándola o tironeándola.
-- En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho. Mantener apretado un mensaje abre su
-  menú (reaccionar, responder, reenviar, editar, copiar) y arrastrarlo hacia un costado lo responde.
+- En los mensajes, la foto y el nombre van arriba y el globo usa todo el ancho. Tocar un mensaje muestra sus tres
+  puntitos; ellos o mantenerlo apretado abren su menú (reaccionar, responder, reenviar, editar, copiar), y arrastrarlo
+  hacia un costado lo responde.
 - Mientras se escribe, la barra de navegación se oculta para dejarle lugar al teclado.
 - Las notificaciones y las pestañas de perfiles y grupos se acomodan a la pantalla vertical.
 
@@ -187,7 +200,8 @@ Requiere Android 7.0 o posterior.
 3. **Moverte por la app:** en el centro de la cabecera están los iconos de **Feed**, **Chats**, **Listas** (tus grupos y
    personas) e **Historias**. A la izquierda, tu foto abre tu perfil. A la derecha están la búsqueda de personas, las
    notificaciones y el menú de opciones (⋮). Debajo, un segundo panel tiene los controles de cada sección
-   (filtros, **Crear post**, **Actualizar**). No hay botón para volver: de un perfil, un grupo o una publicación se
+   (filtros, **Crear post**) y, a la derecha, el menú ☰ con **Actualizar** (en Chats, también el estado del tiempo
+   real). No hay botón para volver: de un perfil, un grupo o una publicación se
    vuelve con `Alt+←`, o se va a otra sección con sus iconos.
 4. **Historias:** cada tarjeta abre las historias de esa persona a pantalla completa. Pasan solas; tocá a la derecha o
    a la izquierda para cambiar y mantené apretado para pausar. Desde ahí podés guardarla, responderle a su autor o ir
@@ -209,7 +223,8 @@ se hace distinto:
   ese lugar hay un icono de personas que abre el mismo menú.
 - **Chats:** tocá un chat para abrirlo y la flecha de arriba a la izquierda para volver a la lista. La lengüeta del
   borde izquierdo muestra la lista compacta sin salir de la conversación: tocala o tironeala hacia la derecha, y hacia
-  la izquierda para ocultarla. **Buscar en el chat** e **Imágenes** están en el menú ⋮ de la barra del chat.
+  la izquierda para ocultarla. **Buscar en el chat** e **Imágenes** están en el menú ⋮ de la barra del chat. Para
+  buscar un chat por nombre, el botón 🔍 del segundo panel abre la barra de búsqueda arriba de la lista.
 - **Mensajes:** mantené apretado uno para reaccionar, responder, reenviar, editar o copiar; arrastralo hacia un costado
   para responderlo.
 - **Volver (Android):** con el botón o gesto atrás del teléfono.
@@ -221,7 +236,7 @@ se hace distinto:
 | `Ctrl+1` / `Ctrl+2` / `Ctrl+3` / `Ctrl+4` | Feed / Chats / Listas / Historias |
 | `Alt+←` | Volver a la vista anterior |
 | `F5` | Actualizar la vista |
-| `Enter` | Enviar mensaje o comentario (`Shift+Enter`: salto de línea). En el chat, el botón **Enter envía** lo cambia a salto de línea (`Ctrl+Enter` envía); en el teléfono siempre es salto de línea |
+| `Enter` | Enviar mensaje o comentario (`Shift+Enter`: salto de línea). En el chat, el botón ⏎ al lado de **Enviar** lo cambia a salto de línea (`Ctrl+Enter` envía), también con la ventana angosta; en Android siempre es salto de línea |
 | `Esc` | Cancelar la respuesta o la edición; cerrar paneles y el visor |
 | `←` / `→` | Imagen anterior / siguiente en el visor |
 | `Z` / `G` / `C` | Zoom / guardar / copiar la imagen en el visor |

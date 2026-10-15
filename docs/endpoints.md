@@ -9,14 +9,20 @@ Con `npm run debug`, la última respuesta de cada endpoint se guarda en `mewe-de
 | Qué | Request | Notas |
 |---|---|---|
 | Lista de chats | `POST /api/v2/chat/threads` `{ addRequests: false, chatType }` | `chatType`: `UserChat`, `GroupChat`, `EventChat`, `AllChat`. Un `GroupChat` tiene como id el id del grupo. |
-| Mensajes | `GET /api/v2/chat/thread/{id}/messages?limit=&beforeId=` | `{ messages: [...] }`. La fecha viene en `date` (segundos). |
+| Mensajes | `GET /api/v2/chat/thread/{id}/messages?limit=&beforeId=` | `{ messages: [...] }`. La fecha viene en `date` (segundos). En lugar de `beforeId`: `afterId` (los siguientes) o `aroundId` (los que rodean a un mensaje; la web lo usa al abrir un chat desde una notificación). `afterId` y `aroundId` están **sin probar**. |
 | Enviar | `POST /api/v2/chat/thread/{id}/message` | `{ message, setAsRead: true, replyTo?: messageId, attachments?: [attachmentId] }`. La web envía cada imagen como un mensaje aparte. |
 | Subir imagen | `POST /api/v2/attachment/upload/pm` (chat con personas) o `/gc` (chat de grupo) | multipart, campo `files[]`. Responde `{ id }`, que se usa en `attachments`. |
 | Enviar video | 1. `GET /api/v2/video/upload/authorize-request?length={bytes}` 2. `POST https://{instanceBucketName}.s3.amazonaws.com` 3. `POST /api/v2/video/upload/process` | El paso 1 responde `{ awsAccessKeyId, signature, policy, acl, key, successActionStatus, sessionToken, instanceBucketName, uploadFolder }`. El 2 es multipart con esos campos (`AWSAccessKeyId`, `signature`, `policy`, `acl`, `key`, `success_action_status`, `x-amz-security-token`) y el video en `file`, al final; va sin cookies. El 3 lleva `{ threadId, uploadFolder, mime, fileName, replyTo? }` y responde `{ jobId }`: el mensaje aparece en el chat cuando MeWe termina de convertir el video (la web escucha `transcoding.job.done`; `GET /api/v2/video/pending-jobs` lista los que faltan). Sacado del bundle web; el envío está probado. El paso 3 ignora `expiresIn` y `dissapearingType` (probado: el video llega normal). Por eso, con temporizador la app manda el video como adjunto, igual que una imagen (`attachment/upload` + `expiresIn` en el envío); **sin probar**. |
 | Reaccionar | `POST /api/v2/chat/thread/{t}/message/{m}/emojis` con body `["😀"]` | Quitar: `DELETE …/emojis?emojis=😀`. |
 | Quién reaccionó | `GET /api/v2/chat/thread/{t}/message/{m}/emojis` | `{ usersWithEmojis: [{ user, emojis }], _links.nextPage }`. De un solo emoji: `GET …/emoji?emoji=😀` devuelve `{ users }`. |
 | Abrir / crear chat | `POST /api/v2/chat/thread` `{ receivers: [userId] }` | Devuelve el chat. Sacado del bundle web. **Sin probar.** |
+| Crear chat grupal | `POST /api/v2/chat/thread` `{ receivers: [userId, …] }` | El mismo de arriba con dos o más personas (hasta 100, `chatMaxUsers`). El chat trae `startedBy`: quien lo creó. **Sin probar.** |
+| Nombre del chat grupal | `POST /api/v2/chat/thread/{id}/name` `{ name }` | **Sin probar.** |
+| Sumar gente | `POST /api/v2/chat/thread/{id}/participants/add` `{ receivers: [userId] }` | `errorCode` 800: se pasó del máximo. Según la web, los que no lo crearon sólo pueden si `GET …/settings` trae `allowAddParticipants`; la app lo intenta igual y muestra el error. **Sin probar.** |
+| Sacar a alguien | `DELETE /api/v2/chat/thread/{id}/participants/{userId}` | Sólo quien lo creó (la web lo ofrece si `startedBy` es uno). **Sin probar.** |
+| Salir del chat | `DELETE /api/v2/chat/thread/{id}/leave` | **Sin probar.** |
 | Editar mensaje | `PUT /api/v2/chat/thread/{threadId}/message/{id}` | `{ text }`. Sólo mensajes propios de texto; el mensaje vuelve con `editedAt`. **Sin probar.** |
+| Borrar mensaje | `DELETE /api/v2/messages/message/{id}` | Sólo mensajes propios; se borra para todos. Sacado del bundle web, que después lo deja marcado como eliminado. **Sin probar.** |
 | Mensaje temporal visto | `POST /api/v2/messages/message/{id}/seen` | La web lo llama al **terminar** de mostrar un mensaje con `expiresIn` (ahí MeWe lo borra), no al abrirlo. La imagen se pide a `mewe.com` (no a `img.mewe.com`) en `400x400`. La app guarda en memoria cada imagen temporal que muestra, para poder reabrirla, guardarla o copiarla mientras siga abierta. **Sin probar.** |
 | Marcar leído | `DELETE /api/v2/messages/thread/{id}/unread` | La web lo llama al enfocar la caja de texto. La app, al abrir un chat, al hacer click en los mensajes, al escribir o con el botón "Marcar como leído". No se encontró un pedido para marcarlos todos: el botón de la lista de chats llama a éste una vez por chat sin leer. **Sin probar.** |
 
@@ -66,6 +72,7 @@ La base de un post depende de dónde está publicado:
 | Subir foto para un post | `POST /api/v2/photo/pt` | multipart, campo `file`. Responde `{ id }`, que va en `imageIds`. **Sin probar.** |
 | Crear post | `POST /api/v2/home/post` (grupo: `POST /api/v3/group/{groupId}/post`) | `{ text, imageIds?: [id], everyone?: true }`. `everyone` lo hace público; sin él lo ven quienes siguen (`closeFriends: true` sería sólo amigos cercanos). Responde `{ post, … }`. **Sin probar.** |
 | Editar post | `PUT {base}/edit` | `{ text, mediaIds, existingFileIds, stickers }`. `mediaIds` son los `medias[].mediaId` que se **conservan**: las fotos que no vayan se quitan (igual con los archivos y `existingFileIds`). Por eso la app sólo deja editar el texto de posts de texto y fotos, y reenvía todos sus `mediaId`. **Sin probar.** |
+| Borrar post | `DELETE {base}` | Sólo posts propios. Sacado del bundle web. **Sin probar.** |
 
 ## Tiempo real (websocket)
 
@@ -132,6 +139,25 @@ Todo sacado del bundle web y **sin probar**.
 | Buscar contactos para invitar | `GET /api/v2/following/followers/to-invite?search=&maxResults=&offset=&markGroupMembersOf={groupId}` | El que usa el diálogo de invitar de la web: `{ list: [{ user, inGroup, invited }] }`. Sin `search` lista todos. **Sin probar.** `/group/{id}/contacts/search?searchStr=` existe pero la web no lo usa y devolvía resultados incompletos. |
 | Preguntas para entrar | Vienen en el detalle del grupo: `applyQuestions: [texto]` y `mandatoryQuestions` | Las respuestas van en el body de unirse o de aceptar la invitación: `{ answers: [{ question, text }] }`. `text` es obligatorio en cada respuesta (confirmado por el 400 de MeWe); que acepte `question` al lado falta confirmarlo. |
 | Invitar | `POST /api/v2/group/{groupId}/members` `{ groupId, userInvitees: [{ userId }] }` | La forma de `userInvitees` está deducida del bundle. **Sin probar.** |
+| Publicaciones nuevas de los grupos | `GET /api/v2/communities/wrappers/groups` | `{ wrappers: [{ id, type: 'group', postsCount, lastActivity }] }`, con el id del grupo; el grupo viene adentro (`group`) o aparte (`groups`). Es la tira "Nuevas publicaciones de la comunidad" de la web. **Sin probar.** |
+| Descartarlas | `POST /api/v2/communities/wrappers/dismiss` `{ groupIds: [id] }` · todas: `POST /api/v2/myworld/wrappers/dismiss` `{ all: true }` | La web descarta un grupo también al abrir su feed. **Sin probar.** |
+
+### Crear y administrar grupos
+
+Todo sacado del bundle web y **sin probar**. Casi todo pasa por `PUT /api/v2/group/{groupId}` con sólo los campos que cambian.
+
+| Qué | Request | Notas |
+|---|---|---|
+| Categorías | `GET /api/v2/groups/public/categories/all` | `{ categories: [{ id, name }] }`. La web saca `all` y `Uncategorized`, y exige elegir una para crear. |
+| Crear | 1. `POST /api/v2/photo/predefined` `{ system: 'group', picId: '1' }` 2. `POST /api/v2/groups/add` | El paso 1 responde `{ ui }` (una foto predefinida). El 2 lleva `{ name (≤50), description (≤3000), groupThematicType: categoría, uploadedImageId: ui, mandatoryQuestions: false, modelType }` y, con `PublicApply`, `discoveryOptIn: true`; responde el grupo. `modelType`: `Public` (abierto), `PublicApply` (selectivo), `Private` (con la creación de NFTs activa, MeWe pide pagar). `errorCode` 617: más de 10 grupos en la primera semana de la cuenta; 700: sin espacio. |
+| Foto | `POST /api/v2/photo/gp` (multipart, `file`) → `{ id }`, después `PUT /api/v2/group/{id}/general` `{ profilePhotoId }` | |
+| Portada | El mismo upload, después `PUT /api/v2/group/{id}` `{ fileId, crop?: { x, y, w, h } }` | La web manda `crop` sólo si se usó su recortador; la app no lo manda. |
+| Datos | `PUT /api/v2/group/{id}` `{ name, description, groupThematicType }` | |
+| Permisos de los roles | `PUT /api/v2/group/{id}` `{ permissions: { members: { roles: [] }, group: { contributor, limited, viewer } }, publicRole? }` | Cada rol, una lista de `post`, `comment`, `invite` (a `Limited` sus publicaciones le pasan por aprobación). `publicRole`: el rol de los miembros nuevos. El detalle del grupo los trae en `rolesPermissions: [{ name, permissions }]` y `publicRole`. Privacidad (no la usa la app): `{ isPublic, isPublicApply, publicUrlId, discoveryOptIn }`. |
+| Rol de un miembro | `PUT /api/v2/group/{id}` | Hacerlo admin: `{ addAdminIds: [userId] }` (sólo el dueño). Otro rol: `{ permissions: { members: { roles: [{ userId, role }] }, group: {} } }`, más `removeAdminIds: [userId]` si era admin. `role`: `Contributor`, `Limited`, `Viewer`. 412: conflicto con otro admin. |
+| Quitar del grupo | `DELETE /api/v2/group/{id}/member/{userId}/remove` | El mismo de salir. |
+| Banear / desbanear | `PUT /api/v2/group-blocking/{groupId}/block/{userId}` · `…/unblock/{userId}` | Lo saca y no lo deja volver. Bloquearlo de todos mis grupos: `PUT /api/v2/group-blocking/all/block/{userId}` (la app no lo usa). |
+| Baneados | `GET /api/v2/group-blocking/{groupId}/list?offset=&maxResults=` | `{ users }`. |
 
 ## Historias
 
@@ -168,7 +194,7 @@ La web arma la historia en un lienzo 9:16 y sube el resultado como una imagen; l
 Forma de una notificación:
 - `notificationType`: `emojis`, `comment`, `mention`, `new_follower`, `new_follow_request`, `follow_request_accepted`,
   `poll_ended`, `group_invitation`, `event_invitation`, `generic`, … (la lista completa está en `notificationsView.js`).
-- `system`: `contacts`, `group`, `pending`… Con `group` presente y `system` `group` o `pending`, va a la pestaña **Grupos**.
+- `system`: `contacts`, `group`, `pending`… Con `group` presente y `system` `group` o `pending`, es de un grupo (la app muestra su nombre al pie).
 - `actingUsers` / `actingUsersCount`: quién la generó.
 - `postData.postItemId`, `commentData.id`, `threadId` + `messageId`, `group`, `event`, `pollData.sharedPostId`: a dónde lleva.
 - `visited: false`: sin leer. Fecha en `updatedAt` (segundos).
